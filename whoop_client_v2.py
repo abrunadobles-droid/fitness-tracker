@@ -1,214 +1,138 @@
 """
-Cliente WHOOP API v2 - CORREGIDO con zona horaria y sleep real
+Cliente WHOOP API v2 - Compatible con Streamlit Secrets
 """
 
 import requests
 from datetime import datetime, timedelta
-from whoop_auth import WhoopAuth
+import json
 
+try:
+    import streamlit as st
+    WHOOP_ACCESS_TOKEN = st.secrets["whoop"]["access_token"]
+    WHOOP_REFRESH_TOKEN = st.secrets["whoop"]["refresh_token"]
+    WHOOP_CLIENT_ID = st.secrets["whoop"]["client_id"]
+    WHOOP_CLIENT_SECRET = st.secrets["whoop"]["client_secret"]
+except:
+    # Fallback para desarrollo local
+    import os
+    if os.path.exists('whoop_tokens.json'):
+        with open('whoop_tokens.json', 'r') as f:
+            tokens = json.load(f)
+            WHOOP_ACCESS_TOKEN = tokens['access_token']
+            WHOOP_REFRESH_TOKEN = tokens['refresh_token']
+    from config import WHOOP_CLIENT_ID, WHOOP_CLIENT_SECRET
 
 class WhoopClientV2:
     def __init__(self):
-        self.auth = WhoopAuth()
-        self.base_url = 'https://api.prod.whoop.com/developer/v2'
-    
-    def _get_headers(self):
-        token = self.auth.get_access_token()
-        return {'Authorization': f'Bearer {token}'}
+        self.access_token = WHOOP_ACCESS_TOKEN
+        self.base_url = "https://api.prod.whoop.com/developer"
     
     def _make_request(self, endpoint, params=None):
-        url = f"{self.base_url}/{endpoint}"
-        headers = self._get_headers()
+        headers = {
+            "Authorization": f"Bearer {self.access_token}"
+        }
+        response = requests.get(f"{self.base_url}{endpoint}", headers=headers, params=params)
         
-        try:
-            response = requests.get(url, headers=headers, params=params)
-            
-            if response.status_code == 401:
-                self.auth.refresh_access_token()
-                headers = self._get_headers()
-                response = requests.get(url, headers=headers, params=params)
-            
-            response.raise_for_status()
-            return response.json()
+        if response.status_code == 401:
+            self._refresh_token()
+            headers["Authorization"] = f"Bearer {self.access_token}"
+            response = requests.get(f"{self.base_url}{endpoint}", headers=headers, params=params)
         
-        except requests.exceptions.HTTPError as e:
-            print(f"      Error HTTP {response.status_code} en {endpoint}")
-            print(f"      Response: {response.text}")
-            raise
+        response.raise_for_status()
+        return response.json()
     
-    def get_profile(self):
-        return self._make_request('user/profile/basic')
-    
-    def get_body_measurements(self):
-        return self._make_request('user/measurement/body')
+    def _refresh_token(self):
+        url = 'https://api.prod.whoop.com/oauth/oauth2/token'
+        headers = {"Content-Type": "application/x-www-form-urlencoded"}
+        data = {
+            'grant_type': 'refresh_token',
+            'refresh_token': WHOOP_REFRESH_TOKEN,
+            'client_id': WHOOP_CLIENT_ID,
+            'client_secret': WHOOP_CLIENT_SECRET
+        }
+        response = requests.post(url, headers=headers, data=data)
+        response.raise_for_status()
+        tokens = response.json()
+        self.access_token = tokens['access_token']
     
     def get_all_records(self, endpoint, start_date, end_date):
         all_records = []
-        next_token = None
-        page = 1
-        
         params = {
-            'start': start_date.strftime('%Y-%m-%dT%H:%M:%S.000Z'),
-            'end': end_date.strftime('%Y-%m-%dT%H:%M:%S.000Z'),
+            'start': start_date.strftime('%Y-%m-%dT00:00:00.000Z'),
+            'end': end_date.strftime('%Y-%m-%dT23:59:59.999Z'),
             'limit': 25
         }
         
         while True:
-            if next_token:
-                params['nextToken'] = next_token
+            data = self._make_request(endpoint, params)
+            records = data.get('records', [])
+            all_records.extend(records)
             
-            try:
-                data = self._make_request(endpoint, params=params)
-                
-                if 'records' in data and data['records']:
-                    all_records.extend(data['records'])
-                    print(f"         Página {page}: {len(data['records'])} registros")
-                    page += 1
-                
-                if 'next_token' in data and data['next_token']:
-                    next_token = data['next_token']
-                else:
-                    break
-                    
-            except Exception as e:
-                print(f"         Error en paginación: {e}")
+            next_token = data.get('next_token')
+            if not next_token:
                 break
+            params['nextToken'] = next_token
         
         return all_records
     
     def get_monthly_summary(self, year, month):
         from calendar import monthrange
         
-        start_date = datetime(year, month, 1)
         last_day = monthrange(year, month)[1]
+        start_date = datetime(year, month, 1)
         end_date = datetime(year, month, last_day, 23, 59, 59)
         
-        summary = {
-            'sleep': [],
-            'recovery': [],
-            'workouts': [],
-            'avg_sleep_hours': 0,
-            'avg_sleep_performance': 0,
-            'avg_sleep_consistency': 0,
-            'avg_hrv': 0,
-            'avg_recovery_score': 0,
-            'days_sleep_before_930pm': 0,
-            'avg_time_hr_zone_1_3': 0,
-            'avg_time_hr_zone_4_5': 0
+        sleep_records = self.get_all_records('/v2/activity/sleep', start_date, end_date)
+        recovery_records = self.get_all_records('/v2/recovery', start_date, end_date)
+        workout_records = self.get_all_records('/v2/activity/workout', start_date, end_date)
+        
+        total_sleep = 0
+        total_performance = 0
+        total_consistency = 0
+        days_before_930 = 0
+        sleep_count = 0
+        
+        for sleep in sleep_records:
+            if sleep.get('score'):
+                sleep_start = datetime.fromisoformat(sleep['start'].replace('Z', '+00:00'))
+                timezone_offset = sleep.get('timezone_offset', '-06:00')
+                offset_hours = int(timezone_offset.split(':')[0])
+                local_time = sleep_start + timedelta(hours=offset_hours)
+                
+                if local_time.hour < 12:
+                    local_time = local_time - timedelta(days=1)
+                
+                if local_time.hour <= 21 and local_time.minute <= 30:
+                    days_before_930 += 1
+                
+                stage_summary = sleep['score']['stage_summary']
+                actual_sleep_ms = (
+                    stage_summary.get('total_light_sleep_time_milli', 0) +
+                    stage_summary.get('total_slow_wave_sleep_time_milli', 0) +
+                    stage_summary.get('total_rem_sleep_time_milli', 0)
+                )
+                
+                total_sleep += actual_sleep_ms / 3600000
+                total_performance += sleep['score'].get('sleep_performance_percentage', 0)
+                total_consistency += sleep['score'].get('sleep_consistency_percentage', 0)
+                sleep_count += 1
+        
+        total_recovery = 0
+        total_hrv = 0
+        recovery_count = 0
+        
+        for recovery in recovery_records:
+            if recovery.get('score'):
+                total_recovery += recovery['score'].get('recovery_score', 0)
+                total_hrv += recovery['score'].get('hrv_rmssd_milli', 0) / 1000
+                recovery_count += 1
+        
+        return {
+            'avg_sleep_hours': total_sleep / sleep_count if sleep_count > 0 else 0,
+            'avg_sleep_performance': total_performance / sleep_count if sleep_count > 0 else 0,
+            'avg_sleep_consistency': total_consistency / sleep_count if sleep_count > 0 else 0,
+            'days_sleep_before_930pm': days_before_930,
+            'avg_recovery_score': total_recovery / recovery_count if recovery_count > 0 else 0,
+            'avg_hrv': total_hrv / recovery_count if recovery_count > 0 else 0,
+            'workouts': workout_records
         }
-        
-        # Sleep
-        print("      🛌 Obteniendo datos de sueño...")
-        try:
-            summary['sleep'] = self.get_all_records('activity/sleep', start_date, end_date)
-            
-            if summary['sleep']:
-                total_sleep_ms = 0
-                total_performance = 0
-                total_consistency = 0
-                days_before_930 = 0
-                
-                for sleep in summary['sleep']:
-                    if sleep.get('score') and sleep['score'].get('stage_summary'):
-                        stages = sleep['score']['stage_summary']
-                        
-                        # CORRECCIÓN 1: Usar tiempo REAL dormido (no in bed)
-                        actual_sleep_ms = (
-                            stages.get('total_light_sleep_time_milli', 0) +
-                            stages.get('total_slow_wave_sleep_time_milli', 0) +
-                            stages.get('total_rem_sleep_time_milli', 0)
-                        )
-                        total_sleep_ms += actual_sleep_ms
-                        
-                        # Sleep performance y consistency
-                        total_performance += sleep['score'].get('sleep_performance_percentage', 0)
-                        total_consistency += sleep['score'].get('sleep_consistency_percentage', 0)
-                        
-                        # CORRECCIÓN 2: Convertir a hora local correctamente
-                        start_time_str = sleep.get('start', '')
-                        timezone_offset = sleep.get('timezone_offset', '-06:00')
-                        
-                        if start_time_str:
-                            # Parse UTC time
-                            utc_time = datetime.fromisoformat(start_time_str.replace('Z', '+00:00'))
-                            
-                            # Aplicar offset (ej: -06:00)
-                            offset_hours = int(timezone_offset.split(':')[0])
-                            offset_minutes = int(timezone_offset.split(':')[1]) if ':' in timezone_offset else 0
-                            offset = timedelta(hours=offset_hours, minutes=offset_minutes)
-                            
-                            local_time = utc_time + offset
-                            
-                            # Verificar si es antes de 9:30 PM (21:30)
-                            if local_time.hour < 21 or (local_time.hour == 21 and local_time.minute < 30):
-                                days_before_930 += 1
-                
-                num_sleeps = len(summary['sleep'])
-                summary['avg_sleep_hours'] = (total_sleep_ms / num_sleeps) / 3600000
-                summary['avg_sleep_performance'] = total_performance / num_sleeps
-                summary['avg_sleep_consistency'] = total_consistency / num_sleeps
-                summary['days_sleep_before_930pm'] = days_before_930
-                
-                print(f"         ✅ {num_sleeps} noches procesadas")
-        
-        except Exception as e:
-            print(f"         ⚠️  Error: {e}")
-        
-        # Recovery
-        print("      💪 Obteniendo datos de recovery...")
-        try:
-            summary['recovery'] = self.get_all_records('recovery', start_date, end_date)
-            
-            if summary['recovery']:
-                total_hrv = 0
-                total_recovery = 0
-                
-                for rec in summary['recovery']:
-                    if rec.get('score'):
-                        total_hrv += rec['score'].get('hrv_rmssd_milli', 0)
-                        total_recovery += rec['score'].get('recovery_score', 0)
-                
-                num_recovery = len(summary['recovery'])
-                summary['avg_hrv'] = total_hrv / num_recovery
-                summary['avg_recovery_score'] = total_recovery / num_recovery
-                
-            print(f"         ✅ {len(summary['recovery'])} registros")
-        except Exception as e:
-            print(f"         ⚠️  Error: {e}")
-        
-        # Workouts (con HR zones)
-        print("      🏃 Obteniendo workouts...")
-        try:
-            summary['workouts'] = self.get_all_records('activity/workout', start_date, end_date)
-            
-            if summary['workouts']:
-                total_zone_1_3 = 0
-                total_zone_4_5 = 0
-                
-                for workout in summary['workouts']:
-                    if workout.get('score') and workout['score'].get('zone_durations'):
-                        zones = workout['score']['zone_durations']
-                        
-                        # Zones 1-3 (low-moderate intensity)
-                        total_zone_1_3 += (
-                            zones.get('zone_one_milli', 0) +
-                            zones.get('zone_two_milli', 0) +
-                            zones.get('zone_three_milli', 0)
-                        )
-                        
-                        # Zones 4-5 (high intensity)
-                        total_zone_4_5 += (
-                            zones.get('zone_four_milli', 0) +
-                            zones.get('zone_five_milli', 0)
-                        )
-                
-                num_workouts = len(summary['workouts'])
-                # Convertir a minutos
-                summary['avg_time_hr_zone_1_3'] = (total_zone_1_3 / num_workouts) / 60000
-                summary['avg_time_hr_zone_4_5'] = (total_zone_4_5 / num_workouts) / 60000
-                
-            print(f"         ✅ {len(summary['workouts'])} workouts")
-        except Exception as e:
-            print(f"         ⚠️  Error: {e}")
-        
-        return summary
