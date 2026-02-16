@@ -3,43 +3,21 @@ Fitness & Wellness Dashboard - Clean & Minimal
 """
 
 import streamlit as st
-import plotly.graph_objects as go
 from datetime import datetime, timedelta
 from calendar import monthrange
 
 st.set_page_config(
     page_title="Fitness Tracker",
     page_icon="🏃‍♂️",
-    layout="wide",
-    initial_sidebar_state="collapsed"
+    layout="wide"
 )
 
-# CSS personalizado para diseño limpio
 st.markdown("""
 <style>
-    .main > div {
-        padding-top: 2rem;
-    }
-    .stProgress > div > div > div > div {
-        background-color: #10b981;
-    }
-    h1 {
-        font-size: 2rem !important;
-        font-weight: 600 !important;
-        margin-bottom: 2rem !important;
-    }
-    h2 {
-        font-size: 1.5rem !important;
-        font-weight: 500 !important;
-        margin-top: 2rem !important;
-        margin-bottom: 1rem !important;
-    }
-    .metric-card {
-        background: white;
-        padding: 1.5rem;
-        border-radius: 8px;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-    }
+    .main > div {padding-top: 2rem;}
+    .stProgress > div > div > div > div {background-color: #10b981;}
+    h1 {font-size: 2rem !important; font-weight: 600 !important; margin-bottom: 2rem !important;}
+    h2 {font-size: 1.5rem !important; font-weight: 500 !important; margin-top: 2rem !important; margin-bottom: 1rem !important;}
 </style>
 """, unsafe_allow_html=True)
 
@@ -48,6 +26,19 @@ current_month = today.month
 current_year = today.year
 days_in_month = monthrange(current_year, current_month)[1]
 days_elapsed = today.day
+
+# Sidebar
+with st.sidebar:
+    st.header("⚙️ Configuración")
+    if st.button("🔄 Actualizar Datos", use_container_width=True):
+        st.cache_data.clear()
+        st.rerun()
+    
+    st.markdown("---")
+    st.markdown(f"📅 **Fecha:** {today.strftime('%d/%m/%Y')}")
+    st.markdown(f"📆 **Mes:** {today.strftime('%B %Y')}")
+    st.markdown(f"⏱️ **Días:** {days_elapsed}/{days_in_month}")
+    st.markdown(f"📊 **Progreso:** {(days_elapsed/days_in_month*100):.0f}%")
 
 st.title("🏃‍♂️ Fitness Tracker")
 st.caption(f"{today.strftime('%B %Y')} • Día {days_elapsed}/{days_in_month}")

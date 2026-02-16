@@ -1,36 +1,36 @@
 """
-Cliente WHOOP API v2 - Compatible con Streamlit Secrets
+Cliente WHOOP API v2 - Streamlit Compatible
 """
 
 import requests
 from datetime import datetime, timedelta
 import json
-
-try:
-    import streamlit as st
-    WHOOP_ACCESS_TOKEN = st.secrets["whoop"]["access_token"]
-    WHOOP_REFRESH_TOKEN = st.secrets["whoop"]["refresh_token"]
-    WHOOP_CLIENT_ID = st.secrets["whoop"]["client_id"]
-    WHOOP_CLIENT_SECRET = st.secrets["whoop"]["client_secret"]
-except:
-    # Fallback para desarrollo local
-    import os
-    if os.path.exists('whoop_tokens.json'):
-        with open('whoop_tokens.json', 'r') as f:
-            tokens = json.load(f)
-            WHOOP_ACCESS_TOKEN = tokens['access_token']
-            WHOOP_REFRESH_TOKEN = tokens['refresh_token']
-    from config import WHOOP_CLIENT_ID, WHOOP_CLIENT_SECRET
+import os
 
 class WhoopClientV2:
     def __init__(self):
-        self.access_token = WHOOP_ACCESS_TOKEN
+        # Intentar leer de Streamlit Secrets primero
+        try:
+            import streamlit as st
+            self.access_token = st.secrets["whoop"]["access_token"]
+            self.refresh_token = st.secrets["whoop"]["refresh_token"]
+            self.client_id = st.secrets["whoop"]["client_id"]
+            self.client_secret = st.secrets["whoop"]["client_secret"]
+        except:
+            # Fallback a archivo local
+            if os.path.exists('whoop_tokens.json'):
+                with open('whoop_tokens.json', 'r') as f:
+                    tokens = json.load(f)
+                    self.access_token = tokens['access_token']
+                    self.refresh_token = tokens['refresh_token']
+            import config
+            self.client_id = config.WHOOP_CLIENT_ID
+            self.client_secret = config.WHOOP_CLIENT_SECRET
+        
         self.base_url = "https://api.prod.whoop.com/developer"
     
     def _make_request(self, endpoint, params=None):
-        headers = {
-            "Authorization": f"Bearer {self.access_token}"
-        }
+        headers = {"Authorization": f"Bearer {self.access_token}"}
         response = requests.get(f"{self.base_url}{endpoint}", headers=headers, params=params)
         
         if response.status_code == 401:
@@ -46,9 +46,9 @@ class WhoopClientV2:
         headers = {"Content-Type": "application/x-www-form-urlencoded"}
         data = {
             'grant_type': 'refresh_token',
-            'refresh_token': WHOOP_REFRESH_TOKEN,
-            'client_id': WHOOP_CLIENT_ID,
-            'client_secret': WHOOP_CLIENT_SECRET
+            'refresh_token': self.refresh_token,
+            'client_id': self.client_id,
+            'client_secret': self.client_secret
         }
         response = requests.post(url, headers=headers, data=data)
         response.raise_for_status()
