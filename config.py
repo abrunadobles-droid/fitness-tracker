@@ -16,8 +16,8 @@ except:
     # Fallback para desarrollo local
     WHOOP_CLIENT_ID = "2c927896-2dd0-4cdc-8a99-f6a3af89992a"
     WHOOP_CLIENT_SECRET = "e7437b1e2200374dd59d01f3f69b613f427f61481d689a866816af369501785b"
-    GARMIN_EMAIL = ""
-    GARMIN_PASSWORD = ""
+    GARMIN_EMAIL = "abruna.dobles@gmail.com"
+    GARMIN_PASSWORD = "AxbMingar01!"
 
 WHOOP_REDIRECT_URI = 'http://localhost:8000/callback'
 EXCEL_PATH = '/Users/AntonioXBruna/Desktop/Data_Fitness___Wellness_Tracker.xlsx'
