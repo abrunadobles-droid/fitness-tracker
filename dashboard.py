@@ -548,12 +548,13 @@ else:
                 </div>
                 """
             
-            st.markdown(f"""
+            avg_html = f"""
             <div class="avg-section">
                 <div class="avg-title">// PROMEDIO ANUAL ({n} MESES)</div>
                 {rows_html}
             </div>
-            """, unsafe_allow_html=True)
+            """
+            st.markdown(avg_html, unsafe_allow_html=True)
             
             st.markdown(f"""
             <div style='font-family: Space Mono, monospace; font-size: 0.55rem; color: #444; text-align: right; margin-top: 20px; letter-spacing: 2px;'>
