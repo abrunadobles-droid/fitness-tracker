@@ -1,11 +1,10 @@
 """
-Fitness Tracker - Sport HUD Design
+Fitness Tracker - Sport HUD - Mobile Friendly
 """
 
 import streamlit as st
 from datetime import datetime, timedelta
 from calendar import monthrange
-import pandas as pd
 
 st.set_page_config(
     page_title="Fitness Tracker",
@@ -19,31 +18,22 @@ st.markdown("""
 
 * { font-family: 'DM Sans', sans-serif; }
 
-.stApp {
-    background-color: #050505 !important;
-    color: #e1e8ed !important;
-}
+.stApp { background-color: #050505 !important; color: #e1e8ed !important; }
 
-[data-testid="stSidebar"] {
-    background-color: #0a0a0a !important;
-    border-right: 1px solid #1a1a1a !important;
-}
-
-[data-testid="stSidebar"] * { color: #888 !important; }
-[data-testid="stSidebar"] h1,
-[data-testid="stSidebar"] h2,
-[data-testid="stSidebar"] h3 { color: #fff !important; }
+#MainMenu {visibility: hidden;}
+footer {visibility: hidden;}
+header {visibility: hidden;}
 
 .top-bar {
     height: 3px;
     background: linear-gradient(90deg, #00ff87, #00d4ff, #ff0080);
-    margin-bottom: 32px;
-    border-radius: 0 0 2px 2px;
+    margin-bottom: 24px;
+    border-radius: 2px;
 }
 
 .hud-title {
     font-family: 'Bebas Neue', sans-serif !important;
-    font-size: 3rem !important;
+    font-size: 2.8rem !important;
     letter-spacing: 4px !important;
     color: #fff !important;
     line-height: 1 !important;
@@ -52,7 +42,7 @@ st.markdown("""
 
 .date-badge {
     font-family: 'Space Mono', monospace;
-    font-size: 0.65rem;
+    font-size: 0.6rem;
     color: #00ff87;
     background: #0d0d0d;
     border: 1px solid #1a1a1a;
@@ -60,7 +50,7 @@ st.markdown("""
     padding: 6px 14px;
     display: inline-block;
     letter-spacing: 2px;
-    margin-bottom: 32px;
+    margin-bottom: 28px;
 }
 
 .section-label {
@@ -73,9 +63,7 @@ st.markdown("""
     margin-top: 8px;
 }
 
-.metric-wrap {
-    margin-bottom: 20px;
-}
+.metric-wrap { margin-bottom: 20px; }
 
 .metric-header {
     display: flex;
@@ -151,7 +139,7 @@ st.markdown("""
 
 .big-stat-val {
     font-family: 'Bebas Neue', sans-serif;
-    font-size: 2.2rem;
+    font-size: 2rem;
     letter-spacing: 2px;
     line-height: 1;
 }
@@ -165,36 +153,7 @@ st.markdown("""
     margin-top: 6px;
 }
 
-.divider {
-    height: 1px;
-    background: #111;
-    margin: 24px 0;
-}
-
-/* Ocultar elementos default de streamlit */
-#MainMenu {visibility: hidden;}
-footer {visibility: hidden;}
-header {visibility: hidden;}
-
-[data-testid="stMetricValue"] { color: #fff !important; }
-[data-testid="stMetricLabel"] { color: #444 !important; }
-
-.stRadio label { color: #888 !important; }
-.stRadio [data-testid="stMarkdownContainer"] p { color: #888 !important; }
-
-button[kind="primary"] {
-    background: #00ff87 !important;
-    color: #000 !important;
-    border: none !important;
-    font-family: 'Space Mono', monospace !important;
-    font-size: 0.7rem !important;
-    letter-spacing: 1px !important;
-}
-
-/* Tablas en modo oscuro */
-[data-testid="stDataFrame"] {
-    background: #0d0d0d !important;
-}
+.divider { height: 1px; background: #111; margin: 24px 0; }
 
 .historical-title {
     font-family: 'Bebas Neue', sans-serif;
@@ -210,6 +169,24 @@ button[kind="primary"] {
     letter-spacing: 2px;
     margin: 20px 0 12px;
 }
+
+/* Botones de navegación */
+.stButton button {
+    background: #0d0d0d !important;
+    color: #555 !important;
+    border: 1px solid #1a1a1a !important;
+    border-radius: 6px !important;
+    font-family: 'Space Mono', monospace !important;
+    font-size: 0.65rem !important;
+    letter-spacing: 1px !important;
+    width: 100% !important;
+    transition: all 0.2s !important;
+}
+
+.stButton button:hover {
+    border-color: #00ff87 !important;
+    color: #00ff87 !important;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -220,31 +197,29 @@ days_in_month = monthrange(current_year, current_month)[1]
 days_elapsed = today.day
 progress_pct = (days_elapsed / days_in_month * 100)
 
-# Sidebar
-with st.sidebar:
-    st.markdown("### ⚙️ CONTROL")
-    
-    vista = st.radio(
-        "",
-        ["📈 MES ACTUAL", "📊 HISTÓRICO"],
-        index=0
-    )
-    
-    st.markdown("---")
-    
-    if vista == "📈 MES ACTUAL":
-        if st.button("🔄 ACTUALIZAR", use_container_width=True, type="primary"):
-            st.cache_data.clear()
-            st.rerun()
-    
-    st.markdown(f"""
-    <div style='margin-top: 20px;'>
-        <div style='font-family: Space Mono, monospace; font-size: 0.55rem; color: #333; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 8px;'>STATUS</div>
-        <div style='font-family: Space Mono, monospace; font-size: 0.7rem; color: #555;'>📅 {today.strftime('%d/%m/%Y')}</div>
-        <div style='font-family: Space Mono, monospace; font-size: 0.7rem; color: #555; margin-top: 4px;'>⏱ DÍA {days_elapsed}/{days_in_month}</div>
-        <div style='font-family: Space Mono, monospace; font-size: 0.7rem; color: #00ff87; margin-top: 4px;'>▶ {progress_pct:.0f}% DEL MES</div>
-    </div>
-    """, unsafe_allow_html=True)
+# Inicializar session state
+if 'vista' not in st.session_state:
+    st.session_state.vista = "mes"
+
+# NAVEGACIÓN EN PANTALLA - Funciona en celular y desktop
+col_nav1, col_nav2, col_nav3 = st.columns([1, 1, 1])
+
+with col_nav1:
+    if st.button("📈 MES ACTUAL", use_container_width=True):
+        st.session_state.vista = "mes"
+        st.rerun()
+
+with col_nav2:
+    if st.button("📊 HISTÓRICO", use_container_width=True):
+        st.session_state.vista = "historico"
+        st.rerun()
+
+with col_nav3:
+    if st.button("🔄 ACTUALIZAR", use_container_width=True):
+        st.cache_data.clear()
+        st.rerun()
+
+st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
 
 # Función de datos
 @st.cache_data(ttl=3600, show_spinner=False)
@@ -348,7 +323,23 @@ def render_metric(nombre, valor, meta, unidad="", tipo='total'):
     else:
         val_display = str(valor)
     
-    bar_width = int(pct)
+    st.markdown(f"""
+    <div class="metric-wrap">
+        <div class="metric-header">
+            <span class="metric-name">{nombre}</span>
+            <span class="metric-value val-{color}">{val_display}</span>
+        </div>
+        <div class="metric-bar-bg">
+            <div class="metric-bar-fill-{color}" style="width:{int(pct)}%"></div>
+        </div>
+        <div class="metric-pct">{pct:.0f}% — META: {meta:,}{unidad}</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+def render_metric_hist(nombre, valor, meta, unidad=""):
+    pct = min((valor / meta * 100) if meta > 0 else 0, 100)
+    color = get_color(pct)
+    val_display = f"{valor:,}{unidad}" if valor >= 1000 else f"{valor}{unidad}"
     
     st.markdown(f"""
     <div class="metric-wrap">
@@ -357,14 +348,15 @@ def render_metric(nombre, valor, meta, unidad="", tipo='total'):
             <span class="metric-value val-{color}">{val_display}</span>
         </div>
         <div class="metric-bar-bg">
-            <div class="metric-bar-fill-{color}" style="width:{bar_width}%"></div>
+            <div class="metric-bar-fill-{color}" style="width:{int(pct)}%"></div>
         </div>
         <div class="metric-pct">{pct:.0f}% — META: {meta:,}{unidad}</div>
     </div>
     """, unsafe_allow_html=True)
 
-if vista == "📈 MES ACTUAL":
-    # Header
+# ============ VISTA MES ACTUAL ============
+if st.session_state.vista == "mes":
+    
     st.markdown('<div class="top-bar"></div>', unsafe_allow_html=True)
     st.markdown('<div class="hud-title">FITNESS TRACKER</div>', unsafe_allow_html=True)
     st.markdown(f'<div class="date-badge">FEB 2026 · DÍA {days_elapsed}/{days_in_month} · {progress_pct:.0f}% DEL MES</div>', unsafe_allow_html=True)
@@ -372,7 +364,6 @@ if vista == "📈 MES ACTUAL":
     with st.spinner(''):
         data = get_monthly_data(current_year, current_month)
     
-    # Métricas en 2 columnas
     st.markdown('<div class="section-label">// HÁBITOS</div>', unsafe_allow_html=True)
     
     col1, col2 = st.columns(2)
@@ -390,7 +381,7 @@ if vista == "📈 MES ACTUAL":
     
     st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
     
-    # Big stats abajo
+    # Big stats
     habitos_ok = sum([
         data['steps_avg'] >= metas['steps_avg'],
         data['activities'] >= (metas['activities'] / days_in_month) * days_elapsed,
@@ -408,7 +399,7 @@ if vista == "📈 MES ACTUAL":
     <div class="big-stats-row">
         <div class="big-stat-box">
             <div class="big-stat-val" style="color:{steps_color}">{data['steps_avg']:,}</div>
-            <div class="big-stat-label">STEPS HOY AVG</div>
+            <div class="big-stat-label">STEPS DAILY AVG</div>
         </div>
         <div class="big-stat-box">
             <div class="big-stat-val" style="color:{habitos_color}">{habitos_ok}/7</div>
@@ -427,16 +418,17 @@ if vista == "📈 MES ACTUAL":
     </div>
     """, unsafe_allow_html=True)
 
+# ============ VISTA HISTÓRICO ============
 else:
-    # HISTÓRICO
+    
     st.markdown('<div class="top-bar"></div>', unsafe_allow_html=True)
     st.markdown('<div class="historical-title">HISTÓRICO 2026</div>', unsafe_allow_html=True)
-    st.markdown(f'<div class="date-badge">MESES CERRADOS</div>', unsafe_allow_html=True)
+    st.markdown('<div class="date-badge">MESES CERRADOS</div>', unsafe_allow_html=True)
     
     meses_nombres = {
         1: 'ENERO', 2: 'FEBRERO', 3: 'MARZO', 4: 'ABRIL',
         5: 'MAYO', 6: 'JUNIO', 7: 'JULIO', 8: 'AGOSTO',
-        9: 'SEPTIEMBRE', 10: 'OCTUBRE', 11: 'NOVIEMBRE', 12: 'DICIEMBRE'
+        9: 'SEP', 10: 'OCT', 11: 'NOV', 12: 'DIC'
     }
     
     meses_cerrados = list(range(1, current_month))
@@ -457,31 +449,15 @@ else:
                 col1, col2 = st.columns(2)
                 
                 with col1:
-                    def render_hist(nombre, valor, meta, unidad=""):
-                        pct = min((valor / meta * 100) if meta > 0 else 0, 100)
-                        color = get_color(pct)
-                        val_display = f"{valor:,}{unidad}" if valor >= 1000 else f"{valor}{unidad}"
-                        st.markdown(f"""
-                        <div class="metric-wrap">
-                            <div class="metric-header">
-                                <span class="metric-name">{nombre}</span>
-                                <span class="metric-value val-{color}">{val_display}</span>
-                            </div>
-                            <div class="metric-bar-bg">
-                                <div class="metric-bar-fill-{color}" style="width:{int(pct)}%"></div>
-                            </div>
-                            <div class="metric-pct">{pct:.0f}% — META: {meta:,}{unidad}</div>
-                        </div>
-                        """, unsafe_allow_html=True)
-                    
-                    render_hist("STEPS DAILY AVG", data['steps_avg'], metas['steps_avg'])
-                    render_hist("STRENGTH TRAINING", data['strength'], metas['strength'])
-                    render_hist("SLEEP DURATION", data['sleep_hours_avg'], metas['sleep_hours_avg'], "h")
-                    render_hist("HR ZONES 1-3", data['hr_zone_1_3'], metas['hr_zone_1_3'], "h")
+                    render_metric_hist("STEPS DAILY AVG", data['steps_avg'], metas['steps_avg'])
+                    render_metric_hist("STRENGTH TRAINING", data['strength'], metas['strength'])
+                    render_metric_hist("SLEEP DURATION", data['sleep_hours_avg'], metas['sleep_hours_avg'], "h")
+                    render_metric_hist("HR ZONES 1-3", data['hr_zone_1_3'], metas['hr_zone_1_3'], "h")
                 
                 with col2:
-                    render_hist("ACTIVITIES MES", data['activities'], metas['activities'])
-                    render_hist("DÍAS ANTES 9:30 PM", data['days_before_930'], metas['days_before_930'])
-                    render_hist("HR ZONES 4-5", data['hr_zone_4_5'], metas['hr_zone_4_5'], "h")
+                    render_metric_hist("ACTIVITIES MES", data['activities'], metas['activities'])
+                    render_metric_hist("DÍAS ANTES 9:30 PM", data['days_before_930'], metas['days_before_930'])
+                    render_metric_hist("HR ZONES 4-5", data['hr_zone_4_5'], metas['hr_zone_4_5'], "h")
                 
                 st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
+
