@@ -1,5 +1,5 @@
 """
-Cliente WHOOP API v2 - Streamlit Compatible
+Cliente WHOOP API v2 - Sin auto-refresh para evitar token issues
 """
 
 import requests
@@ -9,20 +9,16 @@ import os
 
 class WhoopClientV2:
     def __init__(self):
-        # Intentar leer de Streamlit Secrets primero
         try:
             import streamlit as st
             self.access_token = st.secrets["whoop"]["access_token"]
-            self.refresh_token = st.secrets["whoop"]["refresh_token"]
             self.client_id = st.secrets["whoop"]["client_id"]
             self.client_secret = st.secrets["whoop"]["client_secret"]
         except:
-            # Fallback a archivo local
             if os.path.exists('whoop_tokens.json'):
                 with open('whoop_tokens.json', 'r') as f:
                     tokens = json.load(f)
                     self.access_token = tokens['access_token']
-                    self.refresh_token = tokens['refresh_token']
             import config
             self.client_id = config.WHOOP_CLIENT_ID
             self.client_secret = config.WHOOP_CLIENT_SECRET
@@ -31,29 +27,13 @@ class WhoopClientV2:
     
     def _make_request(self, endpoint, params=None):
         headers = {"Authorization": f"Bearer {self.access_token}"}
-        response = requests.get(f"{self.base_url}{endpoint}", headers=headers, params=params)
-        
-        if response.status_code == 401:
-            self._refresh_token()
-            headers["Authorization"] = f"Bearer {self.access_token}"
-            response = requests.get(f"{self.base_url}{endpoint}", headers=headers, params=params)
-        
+        response = requests.get(
+            f"{self.base_url}{endpoint}",
+            headers=headers,
+            params=params
+        )
         response.raise_for_status()
         return response.json()
-    
-    def _refresh_token(self):
-        url = 'https://api.prod.whoop.com/oauth/oauth2/token'
-        headers = {"Content-Type": "application/x-www-form-urlencoded"}
-        data = {
-            'grant_type': 'refresh_token',
-            'refresh_token': self.refresh_token,
-            'client_id': self.client_id,
-            'client_secret': self.client_secret
-        }
-        response = requests.post(url, headers=headers, data=data)
-        response.raise_for_status()
-        tokens = response.json()
-        self.access_token = tokens['access_token']
     
     def get_all_records(self, endpoint, start_date, end_date):
         all_records = []
@@ -67,7 +47,6 @@ class WhoopClientV2:
             data = self._make_request(endpoint, params)
             records = data.get('records', [])
             all_records.extend(records)
-            
             next_token = data.get('next_token')
             if not next_token:
                 break
