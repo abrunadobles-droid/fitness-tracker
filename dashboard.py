@@ -1,5 +1,5 @@
 """
-Fitness Tracker - Sport HUD - Mobile Friendly
+Fitness Tracker - Sport HUD - Mobile Friendly v2
 """
 
 import streamlit as st
@@ -56,7 +56,7 @@ header {visibility: hidden;}
 .section-label {
     font-family: 'Space Mono', monospace;
     font-size: 0.6rem;
-    color: #333;
+    color: #888;
     text-transform: uppercase;
     letter-spacing: 4px;
     margin-bottom: 20px;
@@ -75,7 +75,7 @@ header {visibility: hidden;}
 .metric-name {
     font-family: 'Space Mono', monospace;
     font-size: 0.6rem;
-    color: #444;
+    color: #888;
     text-transform: uppercase;
     letter-spacing: 2px;
 }
@@ -92,7 +92,7 @@ header {visibility: hidden;}
 
 .metric-bar-bg {
     height: 3px;
-    background: #111;
+    background: #1a1a1a;
     border-radius: 2px;
     overflow: hidden;
 }
@@ -118,7 +118,7 @@ header {visibility: hidden;}
 .metric-pct {
     font-family: 'Space Mono', monospace;
     font-size: 0.55rem;
-    color: #333;
+    color: #888;
     margin-top: 4px;
     text-align: right;
 }
@@ -147,13 +147,13 @@ header {visibility: hidden;}
 .big-stat-label {
     font-family: 'Space Mono', monospace;
     font-size: 0.5rem;
-    color: #333;
+    color: #888;
     text-transform: uppercase;
     letter-spacing: 2px;
     margin-top: 6px;
 }
 
-.divider { height: 1px; background: #111; margin: 24px 0; }
+.divider { height: 1px; background: #1a1a1a; margin: 24px 0; }
 
 .historical-title {
     font-family: 'Bebas Neue', sans-serif;
@@ -165,22 +165,71 @@ header {visibility: hidden;}
 .historical-month {
     font-family: 'Bebas Neue', sans-serif;
     font-size: 1.2rem;
-    color: #333;
+    color: #888;
     letter-spacing: 2px;
     margin: 20px 0 12px;
 }
 
-/* Botones de navegación */
+.avg-section {
+    background: #0d0d0d;
+    border: 1px solid #00ff87;
+    border-radius: 10px;
+    padding: 20px;
+    margin-top: 8px;
+}
+
+.avg-title {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 1.4rem;
+    letter-spacing: 3px;
+    color: #00ff87;
+    margin-bottom: 16px;
+}
+
+.avg-metric-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid #1a1a1a;
+}
+
+.avg-metric-row:last-child { border-bottom: none; }
+
+.avg-metric-name {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.6rem;
+    color: #888;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.avg-metric-val {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.85rem;
+    font-weight: 700;
+}
+
+.avg-metric-vs {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.6rem;
+    padding: 2px 8px;
+    border-radius: 4px;
+}
+
+.vs-good { background: #052e16; color: #00ff87; }
+.vs-warn { background: #1c1008; color: #ffd700; }
+.vs-bad { background: #1c0808; color: #ff4444; }
+
 .stButton button {
     background: #0d0d0d !important;
-    color: #555 !important;
+    color: #888 !important;
     border: 1px solid #1a1a1a !important;
     border-radius: 6px !important;
     font-family: 'Space Mono', monospace !important;
     font-size: 0.65rem !important;
     letter-spacing: 1px !important;
     width: 100% !important;
-    transition: all 0.2s !important;
 }
 
 .stButton button:hover {
@@ -197,11 +246,10 @@ days_in_month = monthrange(current_year, current_month)[1]
 days_elapsed = today.day
 progress_pct = (days_elapsed / days_in_month * 100)
 
-# Inicializar session state
 if 'vista' not in st.session_state:
     st.session_state.vista = "mes"
 
-# NAVEGACIÓN EN PANTALLA - Funciona en celular y desktop
+# NAVEGACIÓN
 col_nav1, col_nav2, col_nav3 = st.columns([1, 1, 1])
 
 with col_nav1:
@@ -221,7 +269,6 @@ with col_nav3:
 
 st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
 
-# Función de datos
 @st.cache_data(ttl=3600, show_spinner=False)
 def get_monthly_data(year, month):
     data = {
@@ -315,13 +362,7 @@ def render_metric(nombre, valor, meta, unidad="", tipo='total'):
     
     pct = min((valor / esperado * 100) if esperado > 0 else 0, 100)
     color = get_color(pct)
-    
-    if unidad:
-        val_display = f"{valor}{unidad}"
-    elif valor >= 1000:
-        val_display = f"{valor:,}"
-    else:
-        val_display = str(valor)
+    val_display = f"{valor:,}" if (not unidad and valor >= 1000) else f"{valor}{unidad}"
     
     st.markdown(f"""
     <div class="metric-wrap">
@@ -339,7 +380,7 @@ def render_metric(nombre, valor, meta, unidad="", tipo='total'):
 def render_metric_hist(nombre, valor, meta, unidad=""):
     pct = min((valor / meta * 100) if meta > 0 else 0, 100)
     color = get_color(pct)
-    val_display = f"{valor:,}{unidad}" if valor >= 1000 else f"{valor}{unidad}"
+    val_display = f"{valor:,}" if (not unidad and valor >= 1000) else f"{valor}{unidad}"
     
     st.markdown(f"""
     <div class="metric-wrap">
@@ -381,7 +422,6 @@ if st.session_state.vista == "mes":
     
     st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
     
-    # Big stats
     habitos_ok = sum([
         data['steps_avg'] >= metas['steps_avg'],
         data['activities'] >= (metas['activities'] / days_in_month) * days_elapsed,
@@ -413,7 +453,7 @@ if st.session_state.vista == "mes":
     """, unsafe_allow_html=True)
     
     st.markdown(f"""
-    <div style='font-family: Space Mono, monospace; font-size: 0.55rem; color: #222; text-align: right; margin-top: 20px; letter-spacing: 2px;'>
+    <div style='font-family: Space Mono, monospace; font-size: 0.55rem; color: #444; text-align: right; margin-top: 20px; letter-spacing: 2px;'>
     LAST UPDATE: {datetime.now().strftime('%d/%m/%Y %H:%M')}
     </div>
     """, unsafe_allow_html=True)
@@ -435,14 +475,17 @@ else:
     
     if not meses_cerrados:
         st.markdown("""
-        <div style='font-family: Space Mono, monospace; font-size: 0.7rem; color: #333; margin-top: 40px; text-align: center; letter-spacing: 2px;'>
+        <div style='font-family: Space Mono, monospace; font-size: 0.7rem; color: #888; margin-top: 40px; text-align: center; letter-spacing: 2px;'>
         // NO HAY MESES CERRADOS AÚN
         </div>
         """, unsafe_allow_html=True)
     else:
+        all_data = []
+        
         with st.spinner('Cargando histórico...'):
             for mes in meses_cerrados:
                 data = get_monthly_data(2026, mes)
+                all_data.append(data)
                 
                 st.markdown(f'<div class="historical-month">// {meses_nombres[mes]}</div>', unsafe_allow_html=True)
                 
@@ -460,4 +503,61 @@ else:
                     render_metric_hist("HR ZONES 4-5", data['hr_zone_4_5'], metas['hr_zone_4_5'], "h")
                 
                 st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
+        
+        # SECCIÓN DE PROMEDIO ANUAL
+        if all_data:
+            n = len(all_data)
+            avg_data = {
+                'steps_avg': round(sum(d['steps_avg'] for d in all_data) / n),
+                'activities': round(sum(d['activities'] for d in all_data) / n, 1),
+                'strength': round(sum(d['strength'] for d in all_data) / n, 1),
+                'days_before_930': round(sum(d['days_before_930'] for d in all_data) / n, 1),
+                'sleep_hours_avg': round(sum(d['sleep_hours_avg'] for d in all_data) / n, 1),
+                'hr_zone_1_3': round(sum(d['hr_zone_1_3'] for d in all_data) / n, 1),
+                'hr_zone_4_5': round(sum(d['hr_zone_4_5'] for d in all_data) / n, 1),
+            }
+            
+            def avg_vs_meta(valor, meta):
+                pct = (valor / meta * 100) if meta > 0 else 0
+                if pct >= 100:
+                    return "vs-good", f"✓ {pct:.0f}%"
+                elif pct >= 70:
+                    return "vs-warn", f"~ {pct:.0f}%"
+                else:
+                    return "vs-bad", f"✗ {pct:.0f}%"
+            
+            metricas_avg = [
+                ("STEPS DAILY AVG", avg_data['steps_avg'], metas['steps_avg'], ""),
+                ("ACTIVITIES / MES", avg_data['activities'], metas['activities'], ""),
+                ("STRENGTH TRAINING", avg_data['strength'], metas['strength'], ""),
+                ("DÍAS ANTES 9:30 PM", avg_data['days_before_930'], metas['days_before_930'], ""),
+                ("SLEEP DURATION", avg_data['sleep_hours_avg'], metas['sleep_hours_avg'], "h"),
+                ("HR ZONES 1-3", avg_data['hr_zone_1_3'], metas['hr_zone_1_3'], "h"),
+                ("HR ZONES 4-5", avg_data['hr_zone_4_5'], metas['hr_zone_4_5'], "h"),
+            ]
+            
+            rows_html = ""
+            for nombre, valor, meta, unidad in metricas_avg:
+                css_class, label = avg_vs_meta(valor, meta)
+                val_display = f"{valor:,}" if (not unidad and valor >= 1000) else f"{valor}{unidad}"
+                rows_html += f"""
+                <div class="avg-metric-row">
+                    <span class="avg-metric-name">{nombre}</span>
+                    <span class="avg-metric-val" style="color:#fff">{val_display}</span>
+                    <span class="avg-metric-vs {css_class}">{label}</span>
+                </div>
+                """
+            
+            st.markdown(f"""
+            <div class="avg-section">
+                <div class="avg-title">// PROMEDIO ANUAL ({n} MESES)</div>
+                {rows_html}
+            </div>
+            """, unsafe_allow_html=True)
+            
+            st.markdown(f"""
+            <div style='font-family: Space Mono, monospace; font-size: 0.55rem; color: #444; text-align: right; margin-top: 20px; letter-spacing: 2px;'>
+            LAST UPDATE: {datetime.now().strftime('%d/%m/%Y %H:%M')}
+            </div>
+            """, unsafe_allow_html=True)
 
