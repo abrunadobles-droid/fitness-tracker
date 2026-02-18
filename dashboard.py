@@ -554,7 +554,7 @@ else:
                 {rows_html}
             </div>
             """
-            st.markdown(avg_html, unsafe_allow_html=True)
+            st.markdown(avg_html, unsafe_allow_html=True)  # Force refresh
             
             st.markdown(f"""
             <div style='font-family: Space Mono, monospace; font-size: 0.55rem; color: #444; text-align: right; margin-top: 20px; letter-spacing: 2px;'>
