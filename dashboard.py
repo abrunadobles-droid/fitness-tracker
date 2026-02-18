@@ -321,7 +321,9 @@ def get_monthly_data(year, month):
         data['activities'] = len(activities)
         data['strength'] = strength_count
         
+        st.write("🔍 DEBUG: Inicializando WHOOP...")
         whoop = WhoopClientV2()
+        st.write("✅ DEBUG: WHOOP inicializado OK")
         summary = whoop.get_monthly_summary(year, month)
         
         data['days_before_930'] = summary['days_sleep_before_930pm']
