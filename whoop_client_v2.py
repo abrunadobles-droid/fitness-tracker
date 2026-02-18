@@ -34,12 +34,15 @@ class WhoopClientV2:
             
         except Exception as e:
             # Fallback a variables de entorno
-            from config import WHOOP_ACCESS_TOKEN, WHOOP_REFRESH_TOKEN, WHOOP_CLIENT_ID, WHOOP_CLIENT_SECRET
-            self.access_token = WHOOP_ACCESS_TOKEN
-            self.refresh_token = WHOOP_REFRESH_TOKEN
-            self.client_id = WHOOP_CLIENT_ID
-            self.client_secret = WHOOP_CLIENT_SECRET
-            print(f"⚠️ [WHOOP] Credenciales cargadas desde config.py (fallback)")
+            self.access_token = os.getenv('WHOOP_ACCESS_TOKEN')
+            self.refresh_token = os.getenv('WHOOP_REFRESH_TOKEN')
+            self.client_id = os.getenv('WHOOP_CLIENT_ID')
+            self.client_secret = os.getenv('WHOOP_CLIENT_SECRET')
+            
+            if not all([self.access_token, self.refresh_token, self.client_id, self.client_secret]):
+                raise Exception("WHOOP credentials not found in Streamlit secrets or env vars")
+            
+            print(f"⚠️ [WHOOP] Credenciales cargadas desde variables de entorno (fallback)")
     
     def _check_and_refresh_token(self):
         """🔥 NUEVO: Verificar edad del token y refrescar preventivamente"""
