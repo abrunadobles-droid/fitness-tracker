@@ -33,6 +33,8 @@ class WhoopClientV2:
             print(f"✅ [WHOOP] Credenciales cargadas desde Streamlit secrets")
             
         except Exception as e:
+            print(f"❌ [WHOOP] Error loading from secrets: {str(e)}")
+            print(f"❌ [WHOOP] Exception type: {type(e).__name__}")
             # Fallback a variables de entorno
             self.access_token = os.getenv('WHOOP_ACCESS_TOKEN')
             self.refresh_token = os.getenv('WHOOP_REFRESH_TOKEN')
