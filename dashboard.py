@@ -281,7 +281,7 @@ def get_monthly_data(year, month):
     try:
         import config
         from garmin_client import GarminClient
-        from whoop_client_v2 import WhoopClientV2
+        from garmin_metrics import GarminMetrics
         
         garmin = GarminClient()
         garmin.login()
@@ -321,9 +321,7 @@ def get_monthly_data(year, month):
         data['activities'] = len(activities)
         data['strength'] = strength_count
         
-        st.write("🔍 DEBUG: Inicializando WHOOP...")
         whoop = WhoopClientV2()
-        st.write("✅ DEBUG: WHOOP inicializado OK")
         summary = whoop.get_monthly_summary(year, month)
         
         data['days_before_930'] = summary['days_sleep_before_930pm']
