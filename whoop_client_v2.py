@@ -199,3 +199,79 @@ class WhoopClientV2:
             "end": end_date
         }
         return self._make_request("activity/workout", params)
+
+    def get_monthly_summary(self, year, month):
+        """Obtener resumen mensual con métricas calculadas"""
+        print(f"📊 [WHOOP] Calculando resumen mensual: {year}-{month:02d}")
+        
+        from datetime import datetime
+        import calendar
+        
+        # Calcular fechas del mes
+        first_day = datetime(year, month, 1)
+        last_day_num = calendar.monthrange(year, month)[1]
+        last_day = datetime(year, month, last_day_num, 23, 59, 59)
+        
+        start_date = first_day.isoformat() + "Z"
+        end_date = last_day.isoformat() + "Z"
+        
+        # Obtener datos
+        sleep_data = self.get_sleep_data(start_date, end_date)
+        cycle_data = self.get_cycle_data(start_date, end_date)
+        workout_data = self.get_workout_data(start_date, end_date)
+        
+        # Calcular métricas
+        total_sleep_hours = 0
+        days_before_930 = 0
+        sleep_count = 0
+        
+        for sleep in sleep_data.get('records', []):
+            # Sleep duration en horas
+            duration_ms = sleep.get('score', {}).get('sleepNeeded', 0)
+            hours = duration_ms / (1000 * 60 * 60)
+            total_sleep_hours += hours
+            sleep_count += 1
+            
+            # Check si durmió antes de 9:30 PM
+            sleep_start = sleep.get('start', '')
+            if sleep_start:
+                from datetime import datetime
+                start_time = datetime.fromisoformat(sleep_start.replace('Z', '+00:00'))
+                # Considerar que durmió "antes de 9:30 PM" si se durmió entre 6 PM y 9:30 PM
+                hour = start_time.hour
+                minute = start_time.minute
+                if (hour == 18 and minute >= 0) or (hour == 19) or (hour == 20) or (hour == 21 and minute <= 30):
+                    days_before_930 += 1
+        
+        avg_sleep_hours = total_sleep_hours / sleep_count if sleep_count > 0 else 0
+        
+        # Calcular HR zones de los workouts
+        total_zone_1_3_seconds = 0
+        total_zone_4_5_seconds = 0
+        
+        for workout in workout_data.get('records', []):
+            score = workout.get('score', {})
+            zones = score.get('zone_duration', {})
+            
+            # Zones 0-2 son zonas bajas (1-3)
+            zone_0 = zones.get('zone_zero_milli', 0) / 1000
+            zone_1 = zones.get('zone_one_milli', 0) / 1000
+            zone_2 = zones.get('zone_two_milli', 0) / 1000
+            total_zone_1_3_seconds += zone_0 + zone_1 + zone_2
+            
+            # Zones 3-4 son zonas altas (4-5)
+            zone_3 = zones.get('zone_three_milli', 0) / 1000
+            zone_4 = zones.get('zone_four_milli', 0) / 1000
+            zone_5 = zones.get('zone_five_milli', 0) / 1000
+            total_zone_4_5_seconds += zone_3 + zone_4 + zone_5
+        
+        summary = {
+            'avg_sleep_hours': avg_sleep_hours,
+            'days_sleep_before_930pm': days_before_930,
+            'hr_zones_1_3_hours': total_zone_1_3_seconds / 3600,
+            'hr_zones_4_5_hours': total_zone_4_5_seconds / 3600
+        }
+        
+        print(f"✅ [WHOOP] Resumen calculado: {summary}")
+        return summary
+
