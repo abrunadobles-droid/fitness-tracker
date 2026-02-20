@@ -20,10 +20,10 @@ class WhoopClientV2:
         """Cargar credenciales desde Streamlit secrets o variables de entorno"""
         try:
             # Intentar desde Streamlit secrets primero
-            self.access_token = st.secrets["WHOOP_ACCESS_TOKEN"]
-            self.refresh_token = st.secrets["WHOOP_REFRESH_TOKEN"]
-            self.client_id = st.secrets["WHOOP_CLIENT_ID"]
-            self.client_secret = st.secrets["WHOOP_CLIENT_SECRET"]
+            self.access_token = st.secrets["whoop"]["access_token"]
+            self.refresh_token = st.secrets["whoop"]["refresh_token"]
+            self.client_id = st.secrets["whoop"]["client_id"]
+            self.client_secret = st.secrets["whoop"]["client_secret"]
             
             # Token expiry (si existe)
             token_expiry = st.secrets.get("WHOOP_TOKEN_EXPIRES_AT")
