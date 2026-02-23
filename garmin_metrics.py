@@ -85,18 +85,20 @@ class GarminMetrics:
             if 'strength' in activity_type.lower() or 'training' in activity_type.lower():
                 strength_count += 1
             
-            # Calcular HR zones
+            # Calcular HR zones usando MAX HR PERSONAL (~185 bpm)
             avg_hr = activity.get('averageHR')
-            max_hr = activity.get('maxHR')
             duration = activity.get('duration', 0)  # en segundos
             
-            if avg_hr and max_hr and duration > 0:
-                # Calcular % del max HR
-                hr_percentage = (avg_hr / max_hr) * 100
+            # Usar el max HR más alto observado como referencia personal
+            MAX_HR_PERSONAL = 185
+            
+            if avg_hr and duration > 0:
+                # Calcular % del max HR personal
+                hr_percentage = (avg_hr / MAX_HR_PERSONAL) * 100
                 
                 # Clasificar en zonas
-                # Zona 1-3: 50-80% del max HR
-                # Zona 4-5: 80-100% del max HR
+                # Zona 1-3: 50-80% del max HR personal (93-148 bpm)
+                # Zona 4-5: 80-100% del max HR personal (148-185 bpm)
                 if hr_percentage < 80:
                     total_zone_1_3_seconds += duration
                 else:
