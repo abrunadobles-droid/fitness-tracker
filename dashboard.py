@@ -270,6 +270,7 @@ with col_nav3:
 st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
 
 @st.cache_data(ttl=3600, show_spinner=False)
+@st.cache_data(ttl=60)  # Cache por 1 minuto solamente
 def get_monthly_data(year, month):
     data = {
         'month': month, 'year': year,
