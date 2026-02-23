@@ -91,6 +91,7 @@ class GarminMetrics:
                 try:
                     hr_zones = self.garmin.get_activity_hr_in_timezones(activity_id)
                     
+                    print(f"  Activity {activity_id}: {len(hr_zones) if hr_zones else 0} zones")
                     if hr_zones and isinstance(hr_zones, list):
                         for zone in hr_zones:
                             zone_num = zone.get('zoneNumber', 0)
@@ -123,4 +124,6 @@ class GarminMetrics:
         }
         
         print(f"✅ [GARMIN] Resumen calculado: {summary}")
+        print(f"   Zone 1-3: {total_zone_1_3_seconds}s = {hr_zones_1_3_hours}h")
+        print(f"   Zone 4-5: {total_zone_4_5_seconds}s = {hr_zones_4_5_hours}h")
         return summary
