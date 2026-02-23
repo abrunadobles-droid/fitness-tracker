@@ -321,23 +321,21 @@ def get_monthly_data(year, month):
         data['activities'] = len(activities)
         data['strength'] = strength_count
         
-        whoop = WhoopClientV2()
-        summary = whoop.get_monthly_summary(year, month)
+        # Usar Garmin para TODAS las métricas (sin WHOOP)
+        from config import GARMIN_EMAIL, GARMIN_PASSWORD
+        from garmin_metrics import GarminMetrics
         
-        data['days_before_930'] = summary['days_sleep_before_930pm']
-        data['sleep_hours_avg'] = round(summary['avg_sleep_hours'], 1)
+        garmin_metrics = GarminMetrics(GARMIN_EMAIL, GARMIN_PASSWORD)
+        garmin_summary = garmin_metrics.get_monthly_summary(year, month)
         
-        total_zone_1_3 = 0
-        total_zone_4_5 = 0
-        for workout in summary['workouts']:
-            if workout.get('score') and workout['score'].get('zone_durations'):
-                zones = workout['score']['zone_durations']
-                total_zone_1_3 += (zones.get('zone_one_milli', 0) + zones.get('zone_two_milli', 0) + zones.get('zone_three_milli', 0))
-                total_zone_4_5 += (zones.get('zone_four_milli', 0) + zones.get('zone_five_milli', 0))
-        
-        data['hr_zone_1_3'] = round(total_zone_1_3 / 3600000, 1)
-        data['hr_zone_4_5'] = round(total_zone_4_5 / 3600000, 1)
-        
+        # Sobrescribir con datos de Garmin
+        data['steps_avg'] = garmin_summary['steps_avg']
+        data['activities'] = garmin_summary['activities']
+        data['strength'] = garmin_summary['strength']
+        data['days_before_930'] = garmin_summary['days_before_930']
+        data['sleep_hours_avg'] = garmin_summary['sleep_hours_avg']
+        data['hr_zones_1_3'] = garmin_summary['hr_zones_1_3_hours']
+        data['hr_zones_4_5'] = garmin_summary['hr_zones_4_5_hours']
     except Exception as e:
         st.error(f"⚠️ Error: {str(e)}")
     
