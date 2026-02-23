@@ -85,24 +85,26 @@ class GarminMetrics:
             if 'strength' in activity_type.lower() or 'training' in activity_type.lower():
                 strength_count += 1
             
-            # Calcular HR zones usando MAX HR PERSONAL (~185 bpm)
-            avg_hr = activity.get('averageHR')
-            duration = activity.get('duration', 0)  # en segundos
-            
-            # Usar el max HR más alto observado como referencia personal
-            MAX_HR_PERSONAL = 195
-            
-            if avg_hr and duration > 0:
-                # Calcular % del max HR personal
-                hr_percentage = (avg_hr / MAX_HR_PERSONAL) * 100
-                
-                # Clasificar en zonas
-                # Zona 1-3: 50-80% del max HR personal (98-156 bpm)
-                # Zona 4-5: 80-100% del max HR personal (157-195 bpm)
-                if hr_percentage <= 80:
-                    total_zone_1_3_seconds += duration
-                else:
-                    total_zone_4_5_seconds += duration
+            # Obtener HR zones detallados de Garmin
+            activity_id = activity.get('activityId')
+            if activity_id:
+                try:
+                    hr_zones = self.garmin.get_activity_hr_in_timezones(activity_id)
+                    
+                    if hr_zones and isinstance(hr_zones, list):
+                        for zone in hr_zones:
+                            zone_num = zone.get('zoneNumber', 0)
+                            secs_in_zone = zone.get('secsInZone', 0)
+                            
+                            # Zonas 1-3 → total_zone_1_3
+                            # Zonas 4-5 → total_zone_4_5
+                            if zone_num in [1, 2, 3]:
+                                total_zone_1_3_seconds += secs_in_zone
+                            elif zone_num in [4, 5]:
+                                total_zone_4_5_seconds += secs_in_zone
+                except Exception as e:
+                    print(f"⚠️ [GARMIN] Error obteniendo HR zones para actividad {activity_id}: {e}")
+                    continue
         
         # Calcular promedios
         steps_avg = round(total_steps / days_with_data) if days_with_data > 0 else 0
