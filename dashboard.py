@@ -322,21 +322,55 @@ def get_monthly_data(year, month):
         data['activities'] = len(activities)
         data['strength'] = strength_count
         
-        # Usar Garmin para TODAS las métricas (sin WHOOP)
-        from config import GARMIN_EMAIL, GARMIN_PASSWORD
-        from garmin_metrics import GarminMetrics
+        # Calcular HR zones inline (simple)
+        total_zone_1_3_secs = 0
+        total_zone_4_5_secs = 0
         
-        garmin_metrics = GarminMetrics(GARMIN_EMAIL, GARMIN_PASSWORD)
-        garmin_summary = garmin_metrics.get_monthly_summary(year, month)
+        for activity in activities:
+            activity_id = activity.get('activityId')
+            if activity_id:
+                try:
+                    hr_zones = garmin.client.get_activity_hr_in_timezones(activity_id)
+                    if hr_zones:
+                        for zone in hr_zones:
+                            zone_num = zone.get('zoneNumber', 0)
+                            secs = zone.get('secsInZone', 0)
+                            if zone_num in [1, 2, 3]:
+                                total_zone_1_3_secs += secs
+                            elif zone_num in [4, 5]:
+                                total_zone_4_5_secs += secs
+                except:
+                    pass
         
-        # Sobrescribir con datos de Garmin
-        data['steps_avg'] = garmin_summary['steps_avg']
-        data['activities'] = garmin_summary['activities']
-        data['strength'] = garmin_summary['strength']
-        data['days_before_930'] = garmin_summary['days_before_930']
-        data['sleep_hours_avg'] = garmin_summary['sleep_hours_avg']
-        data['hr_zones_1_3'] = garmin_summary['hr_zones_1_3_hours']
-        data['hr_zones_4_5'] = garmin_summary['hr_zones_4_5_hours']
+        data['hr_zones_1_3'] = round(total_zone_1_3_secs / 3600, 1)
+        data['hr_zones_4_5'] = round(total_zone_4_5_secs / 3600, 1)
+        
+        # Sleep data
+        total_sleep_secs = 0
+        days_before_930 = 0
+        sleep_days = 0
+        
+        current_date = start_date
+        while current_date <= end_date:
+            try:
+                sleep_data = garmin.client.get_sleep_data(current_date.strftime('%Y-%m-%d'))
+                if sleep_data and 'dailySleepDTO' in sleep_data:
+                    dto = sleep_data['dailySleepDTO']
+                    total_sleep_secs += dto.get('sleepTimeSeconds', 0)
+                    sleep_days += 1
+                    
+                    sleep_start_ts = dto.get('sleepStartTimestampLocal')
+                    if sleep_start_ts:
+                        from datetime import datetime as dt
+                        sleep_start = dt.fromtimestamp(sleep_start_ts / 1000)
+                        if sleep_start.hour < 21 or (sleep_start.hour == 21 and sleep_start.minute <= 30):
+                            days_before_930 += 1
+            except:
+                pass
+            current_date += timedelta(days=1)
+        
+        data['sleep_hours_avg'] = round(total_sleep_secs / sleep_days / 3600, 1) if sleep_days > 0 else 0
+        data['days_before_930'] = days_before_930
     except Exception as e:
         st.error(f"⚠️ Error: {str(e)}")
     
