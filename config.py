@@ -1,18 +1,18 @@
 """
 Configuración - Compatible con Streamlit Secrets
 """
-import streamlit as st
 
 # Leer de Streamlit Secrets si está disponible, sino usar valores por defecto
 try:
+    import streamlit as st
     # WHOOP - Credenciales
     WHOOP_CLIENT_ID = st.secrets["whoop"]["client_id"]
     WHOOP_CLIENT_SECRET = st.secrets["whoop"]["client_secret"]
-    
+
     # WHOOP - Tokens (si existen en secrets)
     WHOOP_ACCESS_TOKEN = st.secrets.get("whoop", {}).get("access_token", "")
     WHOOP_REFRESH_TOKEN = st.secrets.get("whoop", {}).get("refresh_token", "")
-    
+
     # Garmin
     GARMIN_EMAIL = st.secrets["garmin"]["email"]
     GARMIN_PASSWORD = st.secrets["garmin"]["password"]
