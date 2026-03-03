@@ -30,7 +30,8 @@ class GarminClient:
             start_date = datetime.now() - timedelta(days=7)
         if end_date is None:
             end_date = datetime.now()
-        
-        start = 0
-        activities = self.client.get_activities(start, limit)
+
+        start_str = start_date.strftime('%Y-%m-%d')
+        end_str = end_date.strftime('%Y-%m-%d')
+        activities = self.client.get_activities_by_date(start_str, end_str)
         return activities
