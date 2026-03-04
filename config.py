@@ -17,13 +17,14 @@ try:
     GARMIN_EMAIL = st.secrets["garmin"]["email"]
     GARMIN_PASSWORD = st.secrets["garmin"]["password"]
 except:
-    # Fallback para desarrollo local
-    WHOOP_CLIENT_ID = "2c927896-2dd0-4cdc-8a99-f6a3af89992a"
-    WHOOP_CLIENT_SECRET = "e7437b1e2200374dd59d01f3f69b613f427f61481d689a866816af369501785b"
+    # Fallback para desarrollo local - configurar via variables de entorno
+    import os
+    WHOOP_CLIENT_ID = os.environ.get("WHOOP_CLIENT_ID", "")
+    WHOOP_CLIENT_SECRET = os.environ.get("WHOOP_CLIENT_SECRET", "")
     WHOOP_ACCESS_TOKEN = ""
     WHOOP_REFRESH_TOKEN = ""
-    GARMIN_EMAIL = "abruna.dobles@gmail.com"
-    GARMIN_PASSWORD = "AxbMingar01!"
+    GARMIN_EMAIL = os.environ.get("GARMIN_EMAIL", "")
+    GARMIN_PASSWORD = os.environ.get("GARMIN_PASSWORD", "")
 
 WHOOP_REDIRECT_URI = 'http://localhost:8000/callback'
 EXCEL_PATH = '/Users/AntonioXBruna/Desktop/Data_Fitness___Wellness_Tracker.xlsx'
