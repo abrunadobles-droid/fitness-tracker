@@ -1,31 +1,56 @@
 """
-Cliente de Garmin Connect
+Cliente de Garmin Connect - Multi-usuario
+Lee credenciales y tokens de Supabase por usuario.
 """
 from garminconnect import Garmin
 from datetime import datetime, timedelta
 from calendar import monthrange
-import os
-import config
+from crypto import decrypt
+from auth import get_supabase
 
-TOKENSTORE = os.path.join(os.path.dirname(__file__), '.garmin_tokens')
 
 class GarminClient:
-    def __init__(self):
+    def __init__(self, user_id: str):
+        self.user_id = user_id
         self.client = None
 
     def login(self):
-        self.client = Garmin(config.GARMIN_EMAIL, config.GARMIN_PASSWORD)
-        try:
-            # Intentar usar tokens guardados primero
-            if os.path.exists(TOKENSTORE):
-                self.client.login(tokenstore=TOKENSTORE)
-            else:
-                self.client.login()
-                self.client.garth.dump(TOKENSTORE)
-        except Exception:
-            # Si los tokens expiraron, hacer login fresco
-            self.client.login()
-            self.client.garth.dump(TOKENSTORE)
+        """Login usando tokens cacheados (rapido) o password (lento)."""
+        supabase = get_supabase()
+        result = supabase.table("garmin_connections").select("*").eq(
+            "user_id", self.user_id
+        ).execute()
+
+        if not result.data:
+            raise Exception("No hay cuenta de Garmin conectada")
+
+        conn = result.data[0]
+        garmin_email = conn["garmin_email"]
+        garmin_password = decrypt(conn["garmin_password_encrypted"])
+        stored_tokens = conn.get("garmin_tokens")
+
+        self.client = Garmin(garmin_email, garmin_password)
+
+        # Intentar tokens cacheados primero (rapido)
+        if stored_tokens:
+            try:
+                self.client.garth.loads(stored_tokens)
+                # Verificar que los tokens funcionan
+                self.client.display_name = self.client.garth.profile["displayName"]
+                self.client.full_name = self.client.garth.profile["fullName"]
+                return  # Exito con tokens
+            except Exception:
+                pass  # Tokens expiraron, hacer login con password
+
+        # Login con password (lento)
+        self.client.login()
+
+        # Guardar tokens nuevos en Supabase
+        new_tokens = self.client.garth.dumps()
+        supabase.table("garmin_connections").update({
+            "garmin_tokens": new_tokens,
+            "tokens_updated_at": datetime.utcnow().isoformat()
+        }).eq("user_id", self.user_id).execute()
 
     def get_stats_for_date(self, date=None):
         if date is None:
@@ -40,7 +65,7 @@ class GarminClient:
         return self.client.get_sleep_data(date_str)
 
     def get_sleep_duration_hours(self, date=None):
-        """Obtiene las horas de sueño para una fecha"""
+        """Obtiene las horas de sueno para una fecha"""
         try:
             sleep = self.get_sleep_data(date)
             if sleep and 'dailySleepDTO' in sleep:
@@ -61,7 +86,7 @@ class GarminClient:
         return activities
 
     def get_monthly_summary(self, year, month):
-        """Calcula resumen mensual de métricas Garmin"""
+        """Calcula resumen mensual de metricas Garmin"""
         first_day = datetime(year, month, 1)
         last_day_num = monthrange(year, month)[1]
         last_day = datetime(year, month, last_day_num)
@@ -90,7 +115,6 @@ class GarminClient:
 
             current_date += timedelta(days=1)
 
-        # Actividades del mes
         activities = self.client.get_activities_by_date(
             first_day.strftime('%Y-%m-%d'),
             last_day.strftime('%Y-%m-%d')
@@ -107,20 +131,3 @@ class GarminClient:
             'avg_sleep_hours': round(total_sleep_secs / days_with_data / 3600, 1) if days_with_data > 0 else 0,
             'strength_training_sessions': strength_count,
         }
-
-
-def test_garmin_connection():
-    """Prueba la conexión con Garmin Connect"""
-    try:
-        client = GarminClient()
-        client.login()
-        stats = client.get_stats_for_date()
-        if stats:
-            print(f"✅ Garmin Connect OK - Steps hoy: {stats.get('totalSteps', 0):,}")
-            return True
-        else:
-            print("⚠️  Garmin conectado pero sin datos hoy")
-            return True
-    except Exception as e:
-        print(f"❌ Error conectando a Garmin: {e}")
-        return False

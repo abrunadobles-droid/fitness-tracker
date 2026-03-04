@@ -4,3 +4,5 @@ whoop_tokens.json
 __pycache__/
 .DS_Store
 *.xlsx
+.env
+.streamlit/secrets.toml

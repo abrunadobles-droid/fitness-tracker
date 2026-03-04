@@ -1,5 +1,5 @@
 """
-Fitness Tracker - Sport HUD - Mobile Friendly v2
+Fitness Tracker - Sport HUD - Multi-usuario
 """
 
 import streamlit as st
@@ -236,8 +236,32 @@ header {visibility: hidden;}
     border-color: #00ff87 !important;
     color: #00ff87 !important;
 }
+
+.user-badge {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.55rem;
+    color: #555;
+    letter-spacing: 1px;
+    text-align: right;
+    margin-bottom: 8px;
+}
 </style>
 """, unsafe_allow_html=True)
+
+# ============ AUTH GATE ============
+from auth import show_auth_page, show_logout_button, get_user_id, get_user_email
+from garmin_setup import show_garmin_connect_form
+
+if not show_auth_page():
+    st.stop()
+
+if not show_garmin_connect_form():
+    st.stop()
+
+# ============ USUARIO AUTENTICADO + GARMIN CONECTADO ============
+
+user_id = get_user_id()
+user_email = get_user_email()
 
 today = datetime.now()
 current_month = today.month
@@ -255,8 +279,8 @@ meses_nombres_upper = {
 if 'vista' not in st.session_state:
     st.session_state.vista = "mes"
 
-# NAVEGACIÓN
-col_nav1, col_nav2, col_nav3 = st.columns([1, 1, 1])
+# NAVEGACION
+col_nav1, col_nav2, col_nav3, col_nav4 = st.columns([1, 1, 1, 1])
 
 with col_nav1:
     if st.button("📈 MES ACTUAL", use_container_width=True):
@@ -273,33 +297,39 @@ with col_nav3:
         st.cache_data.clear()
         st.rerun()
 
+with col_nav4:
+    show_logout_button()
+
+st.markdown(f'<div class="user-badge">{user_email}</div>', unsafe_allow_html=True)
 st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
 
 @st.cache_data(ttl=60, show_spinner=False)
-def get_monthly_data(year, month):
+def get_monthly_data(_user_id, year, month):
     data = {
         'month': month, 'year': year,
         'steps_avg': 0, 'activities': 0, 'strength': 0,
         'days_before_930': 0, 'sleep_hours_avg': 0,
         'hr_zone_1_3': 0, 'hr_zone_4_5': 0
     }
-    
+
     try:
-        import config
         from garmin_client import GarminClient
-        from garmin_metrics import GarminMetrics
-        
-        garmin = GarminClient()
+
+        garmin = GarminClient(_user_id)
         garmin.login()
-        
+
+        _today = datetime.now()
+        _current_year = _today.year
+        _current_month = _today.month
+
         start_date = datetime(year, month, 1)
-        end_date = today if (year == current_year and month == current_month) else datetime(year, month, monthrange(year, month)[1])
-        
+        end_date = _today if (year == _current_year and month == _current_month) else datetime(year, month, monthrange(year, month)[1])
+
         total_steps = 0
         days_with_steps = 0
         activities = []
         strength_count = 0
-        
+
         current_date = start_date
         while current_date <= end_date:
             try:
@@ -310,7 +340,7 @@ def get_monthly_data(year, month):
             except:
                 pass
             current_date += timedelta(days=1)
-        
+
         all_activities = garmin.get_activities(start_date, end_date, limit=100)
         for activity in all_activities:
             activity_date_str = activity.get('startTimeLocal', '')
@@ -322,15 +352,15 @@ def get_monthly_data(year, month):
                         activities.append(activity)
                         if any(kw in activity_type for kw in ['strength', 'training', 'gym', 'weight']):
                             strength_count += 1
-        
+
         data['steps_avg'] = round(total_steps / days_with_steps) if days_with_steps > 0 else 0
         data['activities'] = len(activities)
         data['strength'] = strength_count
-        
-        # Calcular HR zones inline (simple)
+
+        # Calcular HR zones
         total_zone_1_3_secs = 0
         total_zone_4_5_secs = 0
-        
+
         for activity in activities:
             activity_id = activity.get('activityId')
             if activity_id:
@@ -346,10 +376,10 @@ def get_monthly_data(year, month):
                                 total_zone_4_5_secs += secs
                 except:
                     pass
-        
+
         data['hr_zone_1_3'] = round(total_zone_1_3_secs / 3600, 1)
         data['hr_zone_4_5'] = round(total_zone_4_5_secs / 3600, 1)
-        
+
         # Sleep data
         total_sleep_secs = 0
         days_75_plus = 0
@@ -375,7 +405,7 @@ def get_monthly_data(year, month):
         data['days_before_930'] = days_75_plus
     except Exception as e:
         st.error(f"⚠️ Error: {str(e)}")
-    
+
     return data
 
 metas = {
@@ -394,11 +424,11 @@ def render_metric(nombre, valor, meta, unidad="", tipo='total'):
         esperado = meta
     else:
         esperado = (meta / days_in_month) * days_elapsed
-    
+
     pct = min((valor / esperado * 100) if esperado > 0 else 0, 100)
     color = get_color(pct)
     val_display = f"{valor:,}" if (not unidad and valor >= 1000) else f"{valor}{unidad}"
-    
+
     st.markdown(f"""
     <div class="metric-wrap">
         <div class="metric-header">
@@ -416,7 +446,7 @@ def render_metric_hist(nombre, valor, meta, unidad=""):
     pct = min((valor / meta * 100) if meta > 0 else 0, 100)
     color = get_color(pct)
     val_display = f"{valor:,}" if (not unidad and valor >= 1000) else f"{valor}{unidad}"
-    
+
     st.markdown(f"""
     <div class="metric-wrap">
         <div class="metric-header">
@@ -432,31 +462,31 @@ def render_metric_hist(nombre, valor, meta, unidad=""):
 
 # ============ VISTA MES ACTUAL ============
 if st.session_state.vista == "mes":
-    
+
     st.markdown('<div class="top-bar"></div>', unsafe_allow_html=True)
     st.markdown('<div class="hud-title">FITNESS TRACKER</div>', unsafe_allow_html=True)
     st.markdown(f'<div class="date-badge">{meses_nombres_upper[current_month]} {current_year} · DÍA {days_elapsed}/{days_in_month} · {progress_pct:.0f}% DEL MES</div>', unsafe_allow_html=True)
-    
+
     with st.spinner(''):
-        data = get_monthly_data(current_year, current_month)
-    
+        data = get_monthly_data(user_id, current_year, current_month)
+
     st.markdown('<div class="section-label">// HÁBITOS</div>', unsafe_allow_html=True)
-    
+
     col1, col2 = st.columns(2)
-    
+
     with col1:
         render_metric("STEPS DAILY AVG", data['steps_avg'], metas['steps_avg'], tipo='promedio')
         render_metric("STRENGTH TRAINING", data['strength'], metas['strength'])
         render_metric("SLEEP DURATION", data['sleep_hours_avg'], metas['sleep_hours_avg'], "h", tipo='promedio')
         render_metric("HR ZONES 1-3", data['hr_zone_1_3'], metas['hr_zone_1_3'], "h")
-    
+
     with col2:
         render_metric("ACTIVITIES MES", data['activities'], metas['activities'])
         render_metric("DÍAS 7.5+ HRS SUEÑO", data['days_before_930'], metas['days_before_930'])
         render_metric("HR ZONES 4-5", data['hr_zone_4_5'], metas['hr_zone_4_5'], "h")
-    
+
     st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
-    
+
     habitos_ok = sum([
         data['steps_avg'] >= metas['steps_avg'],
         data['activities'] >= (metas['activities'] / days_in_month) * days_elapsed,
@@ -466,10 +496,10 @@ if st.session_state.vista == "mes":
         data['hr_zone_1_3'] >= (metas['hr_zone_1_3'] / days_in_month) * days_elapsed,
         data['hr_zone_4_5'] >= (metas['hr_zone_4_5'] / days_in_month) * days_elapsed,
     ])
-    
+
     steps_color = "#00ff87" if data['steps_avg'] >= metas['steps_avg'] else "#ff4444"
     habitos_color = "#00ff87" if habitos_ok >= 5 else "#ffd700" if habitos_ok >= 3 else "#ff4444"
-    
+
     st.markdown(f"""
     <div class="big-stats-row">
         <div class="big-stat-box">
@@ -486,18 +516,18 @@ if st.session_state.vista == "mes":
         </div>
     </div>
     """, unsafe_allow_html=True)
-    
+
     st.markdown(f"""
     <div style='font-family: Space Mono, monospace; font-size: 0.55rem; color: #444; text-align: right; margin-top: 20px; letter-spacing: 2px;'>
     LAST UPDATE: {datetime.now().strftime('%d/%m/%Y %H:%M')}
     </div>
     """, unsafe_allow_html=True)
 
-# ============ VISTA HISTÓRICO ============
+# ============ VISTA HISTORICO ============
 else:
 
     st.markdown('<div class="top-bar"></div>', unsafe_allow_html=True)
-    st.markdown('<div class="historical-title">HISTÓRICO 2026</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="historical-title">HISTÓRICO {current_year}</div>', unsafe_allow_html=True)
 
     meses_nombres = {
         1: 'ENE', 2: 'FEB', 3: 'MAR', 4: 'ABR',
@@ -514,10 +544,10 @@ else:
 
         with st.spinner('Cargando histórico...'):
             for mes in meses_cerrados:
-                d = get_monthly_data(2026, mes)
+                d = get_monthly_data(user_id, current_year, mes)
                 all_data.append(d)
 
-        # ---- PROMEDIO ANUAL (arriba, prominente) ----
+        # ---- PROMEDIO ANUAL ----
         n = len(all_data)
         avg_data = {
             'steps_avg': round(sum(d['steps_avg'] for d in all_data) / n),
@@ -583,14 +613,12 @@ else:
             ("HR Z4-5", 'hr_zone_4_5', metas['hr_zone_4_5'], "h"),
         ]
 
-        # Header row
         header = '<div style="display:flex;gap:0;padding:8px 0;border-bottom:1px solid #333;">'
         header += '<div style="font-family:Space Mono,monospace;font-size:0.55rem;color:#555;letter-spacing:1px;width:25%;text-transform:uppercase;">MÉTRICA</div>'
         for mes in meses_cerrados:
             header += f'<div style="font-family:Space Mono,monospace;font-size:0.55rem;color:#555;letter-spacing:1px;flex:1;text-align:center;">{meses_nombres[mes]}</div>'
         header += '</div>'
 
-        # Data rows
         table_rows = ""
         for label, key, meta, unidad in metric_keys:
             table_rows += '<div style="display:flex;gap:0;padding:8px 0;border-bottom:1px solid #1a1a1a;">'
@@ -612,4 +640,3 @@ else:
         st.markdown(table_html, unsafe_allow_html=True)
 
         st.markdown(f'<div style="font-family:Space Mono,monospace;font-size:0.55rem;color:#444;text-align:right;margin-top:20px;letter-spacing:2px;">LAST UPDATE: {datetime.now().strftime("%d/%m/%Y %H:%M")}</div>', unsafe_allow_html=True)
-
