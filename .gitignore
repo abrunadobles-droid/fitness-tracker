@@ -1,4 +1,5 @@
 whoop_tokens.json
+.garmin_tokens/
 *.pyc
 __pycache__/
 .DS_Store
