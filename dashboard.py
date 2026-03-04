@@ -251,6 +251,7 @@ header {visibility: hidden;}
 # ============ AUTH GATE ============
 from auth import show_auth_page, show_logout_button, get_user_id, get_user_email
 from garmin_setup import show_garmin_connect_form
+from goals_setup import show_goals_setup, get_user_goals
 
 if not show_auth_page():
     st.stop()
@@ -258,7 +259,10 @@ if not show_auth_page():
 if not show_garmin_connect_form():
     st.stop()
 
-# ============ USUARIO AUTENTICADO + GARMIN CONECTADO ============
+if not show_goals_setup(first_time=True):
+    st.stop()
+
+# ============ USUARIO AUTENTICADO + GARMIN CONECTADO + METAS LISTAS ============
 
 user_id = get_user_id()
 user_email = get_user_email()
@@ -280,7 +284,7 @@ if 'vista' not in st.session_state:
     st.session_state.vista = "mes"
 
 # NAVEGACION
-col_nav1, col_nav2, col_nav3, col_nav4 = st.columns([1, 1, 1, 1])
+col_nav1, col_nav2, col_nav3, col_nav4, col_nav5 = st.columns([1, 1, 1, 1, 1])
 
 with col_nav1:
     if st.button("📈 MES ACTUAL", use_container_width=True):
@@ -293,11 +297,16 @@ with col_nav2:
         st.rerun()
 
 with col_nav3:
+    if st.button("🎯 METAS", use_container_width=True):
+        st.session_state.vista = "metas"
+        st.rerun()
+
+with col_nav4:
     if st.button("🔄 ACTUALIZAR", use_container_width=True):
         st.cache_data.clear()
         st.rerun()
 
-with col_nav4:
+with col_nav5:
     show_logout_button()
 
 st.markdown(f'<div class="user-badge">{user_email}</div>', unsafe_allow_html=True)
@@ -408,11 +417,8 @@ def get_monthly_data(_user_id, year, month):
 
     return data
 
-metas = {
-    'steps_avg': 10000, 'activities': 28, 'strength': 10,
-    'days_before_930': 15, 'sleep_hours_avg': 7.5,
-    'hr_zone_1_3': 19.3, 'hr_zone_4_5': 2.9
-}
+# Cargar metas personalizadas del usuario
+metas = get_user_goals()
 
 def get_color(pct):
     if pct >= 100: return "green"
@@ -523,8 +529,12 @@ if st.session_state.vista == "mes":
     </div>
     """, unsafe_allow_html=True)
 
+# ============ VISTA METAS ============
+elif st.session_state.vista == "metas":
+    show_goals_setup(first_time=False)
+
 # ============ VISTA HISTORICO ============
-else:
+elif st.session_state.vista == "historico":
 
     st.markdown('<div class="top-bar"></div>', unsafe_allow_html=True)
     st.markdown(f'<div class="historical-title">HISTÓRICO {current_year}</div>', unsafe_allow_html=True)
