@@ -246,6 +246,12 @@ days_in_month = monthrange(current_year, current_month)[1]
 days_elapsed = today.day
 progress_pct = (days_elapsed / days_in_month * 100)
 
+meses_nombres_upper = {
+    1: 'ENE', 2: 'FEB', 3: 'MAR', 4: 'ABR',
+    5: 'MAY', 6: 'JUN', 7: 'JUL', 8: 'AGO',
+    9: 'SEP', 10: 'OCT', 11: 'NOV', 12: 'DIC'
+}
+
 if 'vista' not in st.session_state:
     st.session_state.vista = "mes"
 
@@ -433,7 +439,7 @@ if st.session_state.vista == "mes":
     
     st.markdown('<div class="top-bar"></div>', unsafe_allow_html=True)
     st.markdown('<div class="hud-title">FITNESS TRACKER</div>', unsafe_allow_html=True)
-    st.markdown(f'<div class="date-badge">FEB 2026 · DÍA {days_elapsed}/{days_in_month} · {progress_pct:.0f}% DEL MES</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="date-badge">{meses_nombres_upper[current_month]} {current_year} · DÍA {days_elapsed}/{days_in_month} · {progress_pct:.0f}% DEL MES</div>', unsafe_allow_html=True)
     
     with st.spinner(''):
         data = get_monthly_data(current_year, current_month)
@@ -501,7 +507,7 @@ else:
     meses_nombres = {
         1: 'ENERO', 2: 'FEBRERO', 3: 'MARZO', 4: 'ABRIL',
         5: 'MAYO', 6: 'JUNIO', 7: 'JULIO', 8: 'AGOSTO',
-        9: 'SEP', 10: 'OCT', 11: 'NOV', 12: 'DIC'
+        9: 'SEPTIEMBRE', 10: 'OCTUBRE', 11: 'NOVIEMBRE', 12: 'DICIEMBRE'
     }
     
     meses_cerrados = list(range(1, current_month))
