@@ -78,7 +78,7 @@ def show_goals_setup(first_time=True):
     .goals-subtitle {
         font-family: 'Space Mono', monospace;
         font-size: 0.6rem;
-        color: #888;
+        color: #aaa;
         text-align: center;
         letter-spacing: 1px;
         margin-bottom: 24px;
@@ -87,7 +87,7 @@ def show_goals_setup(first_time=True):
     .goal-label {
         font-family: 'Space Mono', monospace;
         font-size: 0.6rem;
-        color: #888;
+        color: #aaa;
         text-transform: uppercase;
         letter-spacing: 2px;
         margin-bottom: 4px;
@@ -165,7 +165,7 @@ def show_goals_setup(first_time=True):
             help="Horas totales en zonas de alta intensidad"
         )
 
-    if st.button("💾 GUARDAR METAS", use_container_width=True):
+    if st.button("GUARDAR METAS", use_container_width=True):
         supabase = get_supabase()
         user_id = get_user_id()
 

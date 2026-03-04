@@ -38,7 +38,7 @@ def show_garmin_connect_form():
     .garmin-info {
         font-family: 'Space Mono', monospace;
         font-size: 0.6rem;
-        color: #888;
+        color: #aaa;
         text-align: center;
         letter-spacing: 1px;
         margin-bottom: 24px;
@@ -47,7 +47,7 @@ def show_garmin_connect_form():
     .privacy-note {
         font-family: 'Space Mono', monospace;
         font-size: 0.55rem;
-        color: #555;
+        color: #999;
         background: #0d0d0d;
         border: 1px solid #1a1a1a;
         border-radius: 8px;

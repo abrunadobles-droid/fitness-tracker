@@ -1,5 +1,5 @@
 """
-Fitness Tracker - Sport HUD - Multi-usuario
+Habit Tracker - Sport HUD - Multi-usuario
 """
 
 import streamlit as st
@@ -7,8 +7,8 @@ from datetime import datetime, timedelta
 from calendar import monthrange
 
 st.set_page_config(
-    page_title="Fitness Tracker",
-    page_icon="🏃‍♂️",
+    page_title="Habit Tracker",
+    page_icon="⚡",
     layout="wide"
 )
 
@@ -56,7 +56,7 @@ header {visibility: hidden;}
 .section-label {
     font-family: 'Space Mono', monospace;
     font-size: 0.6rem;
-    color: #888;
+    color: #aaa;
     text-transform: uppercase;
     letter-spacing: 4px;
     margin-bottom: 20px;
@@ -75,7 +75,7 @@ header {visibility: hidden;}
 .metric-name {
     font-family: 'Space Mono', monospace;
     font-size: 0.6rem;
-    color: #888;
+    color: #aaa;
     text-transform: uppercase;
     letter-spacing: 2px;
 }
@@ -118,7 +118,7 @@ header {visibility: hidden;}
 .metric-pct {
     font-family: 'Space Mono', monospace;
     font-size: 0.55rem;
-    color: #888;
+    color: #999;
     margin-top: 4px;
     text-align: right;
 }
@@ -147,7 +147,7 @@ header {visibility: hidden;}
 .big-stat-label {
     font-family: 'Space Mono', monospace;
     font-size: 0.5rem;
-    color: #888;
+    color: #aaa;
     text-transform: uppercase;
     letter-spacing: 2px;
     margin-top: 6px;
@@ -165,7 +165,7 @@ header {visibility: hidden;}
 .historical-month {
     font-family: 'Bebas Neue', sans-serif;
     font-size: 1.2rem;
-    color: #888;
+    color: #aaa;
     letter-spacing: 2px;
     margin: 20px 0 12px;
 }
@@ -199,7 +199,7 @@ header {visibility: hidden;}
 .avg-metric-name {
     font-family: 'Space Mono', monospace;
     font-size: 0.6rem;
-    color: #888;
+    color: #aaa;
     text-transform: uppercase;
     letter-spacing: 1px;
 }
@@ -222,25 +222,35 @@ header {visibility: hidden;}
 .vs-bad { background: #1c0808; color: #ff4444; }
 
 .stButton button {
-    background: #0d0d0d !important;
-    color: #888 !important;
+    background: transparent !important;
+    color: #aaa !important;
     border: 1px solid #1a1a1a !important;
-    border-radius: 6px !important;
+    border-radius: 8px !important;
     font-family: 'Space Mono', monospace !important;
-    font-size: 0.65rem !important;
-    letter-spacing: 1px !important;
+    font-size: 0.6rem !important;
+    letter-spacing: 2px !important;
+    text-transform: uppercase !important;
     width: 100% !important;
+    padding: 10px 8px !important;
+    transition: all 0.2s ease !important;
 }
 
 .stButton button:hover {
     border-color: #00ff87 !important;
+    color: #fff !important;
+    background: rgba(0, 255, 135, 0.06) !important;
+}
+
+.stButton button:active, .stButton button:focus {
+    border-color: #00ff87 !important;
     color: #00ff87 !important;
+    background: rgba(0, 255, 135, 0.08) !important;
 }
 
 .user-badge {
     font-family: 'Space Mono', monospace;
     font-size: 0.55rem;
-    color: #555;
+    color: #888;
     letter-spacing: 1px;
     text-align: right;
     margin-bottom: 8px;
@@ -287,22 +297,22 @@ if 'vista' not in st.session_state:
 col_nav1, col_nav2, col_nav3, col_nav4, col_nav5 = st.columns([1, 1, 1, 1, 1])
 
 with col_nav1:
-    if st.button("📈 MES ACTUAL", use_container_width=True):
+    if st.button("MES ACTUAL", use_container_width=True):
         st.session_state.vista = "mes"
         st.rerun()
 
 with col_nav2:
-    if st.button("📊 HISTÓRICO", use_container_width=True):
+    if st.button("HISTÓRICO", use_container_width=True):
         st.session_state.vista = "historico"
         st.rerun()
 
 with col_nav3:
-    if st.button("🎯 METAS", use_container_width=True):
+    if st.button("METAS", use_container_width=True):
         st.session_state.vista = "metas"
         st.rerun()
 
 with col_nav4:
-    if st.button("🔄 ACTUALIZAR", use_container_width=True):
+    if st.button("REFRESH", use_container_width=True):
         st.cache_data.clear()
         st.rerun()
 
@@ -470,7 +480,7 @@ def render_metric_hist(nombre, valor, meta, unidad=""):
 if st.session_state.vista == "mes":
 
     st.markdown('<div class="top-bar"></div>', unsafe_allow_html=True)
-    st.markdown('<div class="hud-title">FITNESS TRACKER</div>', unsafe_allow_html=True)
+    st.markdown('<div class="hud-title">HABIT TRACKER</div>', unsafe_allow_html=True)
     st.markdown(f'<div class="date-badge">{meses_nombres_upper[current_month]} {current_year} · DÍA {days_elapsed}/{days_in_month} · {progress_pct:.0f}% DEL MES</div>', unsafe_allow_html=True)
 
     with st.spinner(''):
@@ -524,7 +534,7 @@ if st.session_state.vista == "mes":
     """, unsafe_allow_html=True)
 
     st.markdown(f"""
-    <div style='font-family: Space Mono, monospace; font-size: 0.55rem; color: #444; text-align: right; margin-top: 20px; letter-spacing: 2px;'>
+    <div style='font-family: Space Mono, monospace; font-size: 0.55rem; color: #777; text-align: right; margin-top: 20px; letter-spacing: 2px;'>
     LAST UPDATE: {datetime.now().strftime('%d/%m/%Y %H:%M')}
     </div>
     """, unsafe_allow_html=True)
@@ -596,7 +606,7 @@ elif st.session_state.vista == "historico":
             bar_w = min(int(pct_raw), 100)
             bar_color = "linear-gradient(90deg, #00ff87, #00d4ff)" if pct_raw >= 100 else "linear-gradient(90deg, #ffd700, #ff8c00)" if pct_raw >= 70 else "linear-gradient(90deg, #ff0080, #ff4444)"
             rows_html += f'<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #1a1a1a;">'
-            rows_html += f'<span style="font-family:Space Mono,monospace;font-size:0.6rem;color:#888;text-transform:uppercase;letter-spacing:1px;width:30%;">{nombre}</span>'
+            rows_html += f'<span style="font-family:Space Mono,monospace;font-size:0.6rem;color:#aaa;text-transform:uppercase;letter-spacing:1px;width:30%;">{nombre}</span>'
             rows_html += f'<span style="font-family:Space Mono,monospace;font-size:0.85rem;font-weight:700;color:{color};width:20%;text-align:right;">{val_display}</span>'
             rows_html += f'<div style="width:30%;margin:0 12px;"><div style="height:3px;background:#1a1a1a;border-radius:2px;overflow:hidden;"><div style="height:3px;background:{bar_color};border-radius:2px;width:{bar_w}%;"></div></div></div>'
             rows_html += f'<span style="font-family:Space Mono,monospace;font-size:0.55rem;color:{color};width:10%;text-align:right;">{pct_label}</span>'
@@ -624,15 +634,15 @@ elif st.session_state.vista == "historico":
         ]
 
         header = '<div style="display:flex;gap:0;padding:8px 0;border-bottom:1px solid #333;">'
-        header += '<div style="font-family:Space Mono,monospace;font-size:0.55rem;color:#555;letter-spacing:1px;width:25%;text-transform:uppercase;">MÉTRICA</div>'
+        header += '<div style="font-family:Space Mono,monospace;font-size:0.55rem;color:#aaa;letter-spacing:1px;width:25%;text-transform:uppercase;">MÉTRICA</div>'
         for mes in meses_cerrados:
-            header += f'<div style="font-family:Space Mono,monospace;font-size:0.55rem;color:#555;letter-spacing:1px;flex:1;text-align:center;">{meses_nombres[mes]}</div>'
+            header += f'<div style="font-family:Space Mono,monospace;font-size:0.55rem;color:#888;letter-spacing:1px;flex:1;text-align:center;">{meses_nombres[mes]}</div>'
         header += '</div>'
 
         table_rows = ""
         for label, key, meta, unidad in metric_keys:
             table_rows += '<div style="display:flex;gap:0;padding:8px 0;border-bottom:1px solid #1a1a1a;">'
-            table_rows += f'<div style="font-family:Space Mono,monospace;font-size:0.55rem;color:#888;letter-spacing:1px;width:25%;text-transform:uppercase;display:flex;align-items:center;">{label}</div>'
+            table_rows += f'<div style="font-family:Space Mono,monospace;font-size:0.55rem;color:#aaa;letter-spacing:1px;width:25%;text-transform:uppercase;display:flex;align-items:center;">{label}</div>'
             for d in all_data:
                 valor = d[key]
                 pct = (valor / meta * 100) if meta > 0 else 0

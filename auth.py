@@ -37,7 +37,7 @@ def show_auth_page():
     .auth-subtitle {
         font-family: 'Space Mono', monospace;
         font-size: 0.7rem;
-        color: #888;
+        color: #aaa;
         text-align: center;
         letter-spacing: 2px;
         margin-bottom: 32px;
@@ -46,8 +46,8 @@ def show_auth_page():
     """, unsafe_allow_html=True)
 
     st.markdown('<div class="top-bar"></div>', unsafe_allow_html=True)
-    st.markdown('<div class="auth-title">FITNESS TRACKER</div>', unsafe_allow_html=True)
-    st.markdown('<div class="auth-subtitle">TRACK YOUR FITNESS GOALS</div>', unsafe_allow_html=True)
+    st.markdown('<div class="auth-title">HABIT TRACKER</div>', unsafe_allow_html=True)
+    st.markdown('<div class="auth-subtitle">TRACK YOUR HABITS</div>', unsafe_allow_html=True)
 
     tab1, tab2 = st.tabs(["LOGIN", "REGISTRO"])
 
@@ -116,7 +116,7 @@ def show_auth_page():
 
 def show_logout_button():
     """Muestra boton de logout."""
-    if st.button("🚪 LOGOUT", use_container_width=True):
+    if st.button("LOGOUT", use_container_width=True):
         st.session_state.user = None
         st.session_state.access_token = None
         st.rerun()
