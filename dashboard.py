@@ -361,8 +361,11 @@ def get_monthly_data(year, month):
                     sleep_start_ts = dto.get('sleepStartTimestampLocal')
                     if sleep_start_ts:
                         from datetime import datetime as dt
-                        sleep_start = dt.fromtimestamp(sleep_start_ts / 1000)
-                        if sleep_start.hour < 21 or (sleep_start.hour == 21 and sleep_start.minute <= 30):
+                        sleep_start = dt.utcfromtimestamp(sleep_start_ts / 1000)
+                        h = sleep_start.hour
+                        # Solo contar como "antes de 9:30 PM" si se durmió entre 6 PM y 9:30 PM
+                        # Horas 0-11 = madrugada (se durmió tarde), no cuenta
+                        if h >= 18 and (h < 21 or (h == 21 and sleep_start.minute <= 30)):
                             days_before_930 += 1
             except:
                 pass
