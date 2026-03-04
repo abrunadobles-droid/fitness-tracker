@@ -6,10 +6,16 @@ from supabase import create_client
 
 
 def get_supabase():
-    """Inicializa cliente de Supabase."""
+    """Inicializa cliente de Supabase con token del usuario para RLS."""
     url = st.secrets["supabase"]["url"]
     key = st.secrets["supabase"]["key"]
-    return create_client(url, key)
+    supabase = create_client(url, key)
+
+    # Pasar el JWT del usuario para que RLS funcione
+    if "access_token" in st.session_state and st.session_state.access_token:
+        supabase.postgrest.auth(st.session_state.access_token)
+
+    return supabase
 
 
 def show_auth_page():
@@ -90,7 +96,14 @@ def show_auth_page():
                             "email": reg_email,
                             "password": reg_password
                         })
-                        st.success("Cuenta creada. Ya puedes iniciar sesion.")
+                        # Auto-login si no requiere confirmacion de email
+                        if res.session:
+                            st.session_state.user = res.user
+                            st.session_state.access_token = res.session.access_token
+                            st.success("Cuenta creada!")
+                            st.rerun()
+                        else:
+                            st.success("Cuenta creada. Ya puedes iniciar sesion.")
                     except Exception as e:
                         error_msg = str(e)
                         if "already registered" in error_msg:
