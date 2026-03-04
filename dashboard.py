@@ -346,33 +346,27 @@ def get_monthly_data(year, month):
         
         # Sleep data
         total_sleep_secs = 0
-        days_before_930 = 0
+        days_75_plus = 0
         sleep_days = 0
-        
+
         current_date = start_date
         while current_date <= end_date:
             try:
                 sleep_data = garmin.client.get_sleep_data(current_date.strftime('%Y-%m-%d'))
                 if sleep_data and 'dailySleepDTO' in sleep_data:
                     dto = sleep_data['dailySleepDTO']
-                    total_sleep_secs += dto.get('sleepTimeSeconds', 0)
+                    sleep_secs = dto.get('sleepTimeSeconds', 0)
+                    total_sleep_secs += sleep_secs
                     sleep_days += 1
-                    
-                    sleep_start_ts = dto.get('sleepStartTimestampLocal')
-                    if sleep_start_ts:
-                        from datetime import datetime as dt
-                        sleep_start = dt.utcfromtimestamp(sleep_start_ts / 1000)
-                        h = sleep_start.hour
-                        # Solo contar como "antes de 9:30 PM" si se durmió entre 6 PM y 9:30 PM
-                        # Horas 0-11 = madrugada (se durmió tarde), no cuenta
-                        if h >= 18 and (h < 21 or (h == 21 and sleep_start.minute <= 30)):
-                            days_before_930 += 1
+
+                    if sleep_secs >= 7.5 * 3600:
+                        days_75_plus += 1
             except:
                 pass
             current_date += timedelta(days=1)
-        
+
         data['sleep_hours_avg'] = round(total_sleep_secs / sleep_days / 3600, 1) if sleep_days > 0 else 0
-        data['days_before_930'] = days_before_930
+        data['days_before_930'] = days_75_plus
     except Exception as e:
         st.error(f"⚠️ Error: {str(e)}")
     
@@ -453,7 +447,7 @@ if st.session_state.vista == "mes":
     
     with col2:
         render_metric("ACTIVITIES MES", data['activities'], metas['activities'])
-        render_metric("DÍAS ANTES 9:30 PM", data['days_before_930'], metas['days_before_930'])
+        render_metric("DÍAS 7.5+ HRS SUEÑO", data['days_before_930'], metas['days_before_930'])
         render_metric("HR ZONES 4-5", data['hr_zone_4_5'], metas['hr_zone_4_5'], "h")
     
     st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
@@ -543,7 +537,7 @@ else:
             ("STEPS AVG", avg_data['steps_avg'], metas['steps_avg'], ""),
             ("ACTIVITIES", avg_data['activities'], metas['activities'], ""),
             ("STRENGTH", avg_data['strength'], metas['strength'], ""),
-            ("ANTES 9:30", avg_data['days_before_930'], metas['days_before_930'], ""),
+            ("7.5+ HRS", avg_data['days_before_930'], metas['days_before_930'], ""),
             ("SLEEP", avg_data['sleep_hours_avg'], metas['sleep_hours_avg'], "h"),
             ("HR Z1-3", avg_data['hr_zone_1_3'], metas['hr_zone_1_3'], "h"),
             ("HR Z4-5", avg_data['hr_zone_4_5'], metas['hr_zone_4_5'], "h"),
@@ -578,7 +572,7 @@ else:
             ("STEPS AVG", 'steps_avg', metas['steps_avg'], ""),
             ("ACTIVITIES", 'activities', metas['activities'], ""),
             ("STRENGTH", 'strength', metas['strength'], ""),
-            ("ANTES 9:30", 'days_before_930', metas['days_before_930'], ""),
+            ("7.5+ HRS", 'days_before_930', metas['days_before_930'], ""),
             ("SLEEP", 'sleep_hours_avg', metas['sleep_hours_avg'], "h"),
             ("HR Z1-3", 'hr_zone_1_3', metas['hr_zone_1_3'], "h"),
             ("HR Z4-5", 'hr_zone_4_5', metas['hr_zone_4_5'], "h"),
