@@ -347,35 +347,32 @@ def get_monthly_data(year, month):
                 except:
                     pass
         
-        data['hr_zones_1_3'] = round(total_zone_1_3_secs / 3600, 1)
-        data['hr_zones_4_5'] = round(total_zone_4_5_secs / 3600, 1)
+        data['hr_zone_1_3'] = round(total_zone_1_3_secs / 3600, 1)
+        data['hr_zone_4_5'] = round(total_zone_4_5_secs / 3600, 1)
         
         # Sleep data
         total_sleep_secs = 0
-        days_before_930 = 0
+        days_75_plus = 0
         sleep_days = 0
-        
+
         current_date = start_date
         while current_date <= end_date:
             try:
                 sleep_data = garmin.client.get_sleep_data(current_date.strftime('%Y-%m-%d'))
                 if sleep_data and 'dailySleepDTO' in sleep_data:
                     dto = sleep_data['dailySleepDTO']
-                    total_sleep_secs += dto.get('sleepTimeSeconds', 0)
+                    sleep_secs = dto.get('sleepTimeSeconds', 0)
+                    total_sleep_secs += sleep_secs
                     sleep_days += 1
-                    
-                    sleep_start_ts = dto.get('sleepStartTimestampLocal')
-                    if sleep_start_ts:
-                        from datetime import datetime as dt
-                        sleep_start = dt.fromtimestamp(sleep_start_ts / 1000)
-                        if sleep_start.hour < 21 or (sleep_start.hour == 21 and sleep_start.minute <= 30):
-                            days_before_930 += 1
+
+                    if sleep_secs >= 7.5 * 3600:
+                        days_75_plus += 1
             except:
                 pass
             current_date += timedelta(days=1)
-        
+
         data['sleep_hours_avg'] = round(total_sleep_secs / sleep_days / 3600, 1) if sleep_days > 0 else 0
-        data['days_before_930'] = days_before_930
+        data['days_before_930'] = days_75_plus
     except Exception as e:
         st.error(f"⚠️ Error: {str(e)}")
     
@@ -455,7 +452,7 @@ if st.session_state.vista == "mes":
     
     with col2:
         render_metric("ACTIVITIES MES", data['activities'], metas['activities'])
-        render_metric("DÍAS ANTES 9:30 PM", data['days_before_930'], metas['days_before_930'])
+        render_metric("DÍAS 7.5+ HRS SUEÑO", data['days_before_930'], metas['days_before_930'])
         render_metric("HR ZONES 4-5", data['hr_zone_4_5'], metas['hr_zone_4_5'], "h")
     
     st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
@@ -498,105 +495,121 @@ if st.session_state.vista == "mes":
 
 # ============ VISTA HISTÓRICO ============
 else:
-    
+
     st.markdown('<div class="top-bar"></div>', unsafe_allow_html=True)
     st.markdown('<div class="historical-title">HISTÓRICO 2026</div>', unsafe_allow_html=True)
-    st.markdown('<div class="date-badge">MESES CERRADOS</div>', unsafe_allow_html=True)
-    
+
     meses_nombres = {
-        1: 'ENERO', 2: 'FEBRERO', 3: 'MARZO', 4: 'ABRIL',
-        5: 'MAYO', 6: 'JUNIO', 7: 'JULIO', 8: 'AGOSTO',
-        9: 'SEPTIEMBRE', 10: 'OCTUBRE', 11: 'NOVIEMBRE', 12: 'DICIEMBRE'
+        1: 'ENE', 2: 'FEB', 3: 'MAR', 4: 'ABR',
+        5: 'MAY', 6: 'JUN', 7: 'JUL', 8: 'AGO',
+        9: 'SEP', 10: 'OCT', 11: 'NOV', 12: 'DIC'
     }
-    
+
     meses_cerrados = list(range(1, current_month))
-    
+
     if not meses_cerrados:
-        st.markdown("""
-        <div style='font-family: Space Mono, monospace; font-size: 0.7rem; color: #888; margin-top: 40px; text-align: center; letter-spacing: 2px;'>
-        // NO HAY MESES CERRADOS AÚN
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown('<div style="font-family: Space Mono, monospace; font-size: 0.7rem; color: #888; margin-top: 40px; text-align: center; letter-spacing: 2px;">// NO HAY MESES CERRADOS AÚN</div>', unsafe_allow_html=True)
     else:
         all_data = []
-        
+
         with st.spinner('Cargando histórico...'):
             for mes in meses_cerrados:
-                data = get_monthly_data(2026, mes)
-                all_data.append(data)
-                
-                st.markdown(f'<div class="historical-month">// {meses_nombres[mes]}</div>', unsafe_allow_html=True)
-                
-                col1, col2 = st.columns(2)
-                
-                with col1:
-                    render_metric_hist("STEPS DAILY AVG", data['steps_avg'], metas['steps_avg'])
-                    render_metric_hist("STRENGTH TRAINING", data['strength'], metas['strength'])
-                    render_metric_hist("SLEEP DURATION", data['sleep_hours_avg'], metas['sleep_hours_avg'], "h")
-                    render_metric_hist("HR ZONES 1-3", data['hr_zone_1_3'], metas['hr_zone_1_3'], "h")
-                
-                with col2:
-                    render_metric_hist("ACTIVITIES MES", data['activities'], metas['activities'])
-                    render_metric_hist("DÍAS ANTES 9:30 PM", data['days_before_930'], metas['days_before_930'])
-                    render_metric_hist("HR ZONES 4-5", data['hr_zone_4_5'], metas['hr_zone_4_5'], "h")
-                
-                st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
-        
-        # SECCIÓN DE PROMEDIO ANUAL
-        if all_data:
-            n = len(all_data)
-            avg_data = {
-                'steps_avg': round(sum(d['steps_avg'] for d in all_data) / n),
-                'activities': round(sum(d['activities'] for d in all_data) / n, 1),
-                'strength': round(sum(d['strength'] for d in all_data) / n, 1),
-                'days_before_930': round(sum(d['days_before_930'] for d in all_data) / n, 1),
-                'sleep_hours_avg': round(sum(d['sleep_hours_avg'] for d in all_data) / n, 1),
-                'hr_zone_1_3': round(sum(d['hr_zone_1_3'] for d in all_data) / n, 1),
-                'hr_zone_4_5': round(sum(d['hr_zone_4_5'] for d in all_data) / n, 1),
-            }
-            
-            def avg_vs_meta(valor, meta):
+                d = get_monthly_data(2026, mes)
+                all_data.append(d)
+
+        # ---- PROMEDIO ANUAL (arriba, prominente) ----
+        n = len(all_data)
+        avg_data = {
+            'steps_avg': round(sum(d['steps_avg'] for d in all_data) / n),
+            'activities': round(sum(d['activities'] for d in all_data) / n, 1),
+            'strength': round(sum(d['strength'] for d in all_data) / n, 1),
+            'days_before_930': round(sum(d['days_before_930'] for d in all_data) / n, 1),
+            'sleep_hours_avg': round(sum(d['sleep_hours_avg'] for d in all_data) / n, 1),
+            'hr_zone_1_3': round(sum(d['hr_zone_1_3'] for d in all_data) / n, 1),
+            'hr_zone_4_5': round(sum(d['hr_zone_4_5'] for d in all_data) / n, 1),
+        }
+
+        def avg_color(valor, meta):
+            pct = (valor / meta * 100) if meta > 0 else 0
+            if pct >= 100:
+                return "#00ff87", f"{pct:.0f}%"
+            elif pct >= 70:
+                return "#ffd700", f"{pct:.0f}%"
+            else:
+                return "#ff4444", f"{pct:.0f}%"
+
+        metricas_avg = [
+            ("STEPS AVG", avg_data['steps_avg'], metas['steps_avg'], ""),
+            ("ACTIVITIES", avg_data['activities'], metas['activities'], ""),
+            ("STRENGTH", avg_data['strength'], metas['strength'], ""),
+            ("7.5+ HRS", avg_data['days_before_930'], metas['days_before_930'], ""),
+            ("SLEEP", avg_data['sleep_hours_avg'], metas['sleep_hours_avg'], "h"),
+            ("HR Z1-3", avg_data['hr_zone_1_3'], metas['hr_zone_1_3'], "h"),
+            ("HR Z4-5", avg_data['hr_zone_4_5'], metas['hr_zone_4_5'], "h"),
+        ]
+
+        rows_html = ""
+        for nombre, valor, meta, unidad in metricas_avg:
+            color, pct_label = avg_color(valor, meta)
+            val_display = f"{valor:,}" if (not unidad and valor >= 1000) else f"{valor}{unidad}"
+            pct_raw = (valor / meta * 100) if meta > 0 else 0
+            bar_w = min(int(pct_raw), 100)
+            bar_color = "linear-gradient(90deg, #00ff87, #00d4ff)" if pct_raw >= 100 else "linear-gradient(90deg, #ffd700, #ff8c00)" if pct_raw >= 70 else "linear-gradient(90deg, #ff0080, #ff4444)"
+            rows_html += f'<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #1a1a1a;">'
+            rows_html += f'<span style="font-family:Space Mono,monospace;font-size:0.6rem;color:#888;text-transform:uppercase;letter-spacing:1px;width:30%;">{nombre}</span>'
+            rows_html += f'<span style="font-family:Space Mono,monospace;font-size:0.85rem;font-weight:700;color:{color};width:20%;text-align:right;">{val_display}</span>'
+            rows_html += f'<div style="width:30%;margin:0 12px;"><div style="height:3px;background:#1a1a1a;border-radius:2px;overflow:hidden;"><div style="height:3px;background:{bar_color};border-radius:2px;width:{bar_w}%;"></div></div></div>'
+            rows_html += f'<span style="font-family:Space Mono,monospace;font-size:0.55rem;color:{color};width:10%;text-align:right;">{pct_label}</span>'
+            rows_html += '</div>'
+
+        avg_html = f'<div style="background:#0d0d0d;border:1px solid #00ff87;border-radius:10px;padding:20px;margin-top:8px;">'
+        avg_html += f'<div style="font-family:Bebas Neue,sans-serif;font-size:1.4rem;letter-spacing:3px;color:#00ff87;margin-bottom:16px;">// PROMEDIO ANUAL ({n} MESES)</div>'
+        avg_html += rows_html
+        avg_html += '</div>'
+        st.markdown(avg_html, unsafe_allow_html=True)
+
+        st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
+
+        # ---- TABLA COMPACTA POR MES ----
+        st.markdown('<div class="section-label">// DETALLE POR MES</div>', unsafe_allow_html=True)
+
+        metric_keys = [
+            ("STEPS AVG", 'steps_avg', metas['steps_avg'], ""),
+            ("ACTIVITIES", 'activities', metas['activities'], ""),
+            ("STRENGTH", 'strength', metas['strength'], ""),
+            ("7.5+ HRS", 'days_before_930', metas['days_before_930'], ""),
+            ("SLEEP", 'sleep_hours_avg', metas['sleep_hours_avg'], "h"),
+            ("HR Z1-3", 'hr_zone_1_3', metas['hr_zone_1_3'], "h"),
+            ("HR Z4-5", 'hr_zone_4_5', metas['hr_zone_4_5'], "h"),
+        ]
+
+        # Header row
+        header = '<div style="display:flex;gap:0;padding:8px 0;border-bottom:1px solid #333;">'
+        header += '<div style="font-family:Space Mono,monospace;font-size:0.55rem;color:#555;letter-spacing:1px;width:25%;text-transform:uppercase;">MÉTRICA</div>'
+        for mes in meses_cerrados:
+            header += f'<div style="font-family:Space Mono,monospace;font-size:0.55rem;color:#555;letter-spacing:1px;flex:1;text-align:center;">{meses_nombres[mes]}</div>'
+        header += '</div>'
+
+        # Data rows
+        table_rows = ""
+        for label, key, meta, unidad in metric_keys:
+            table_rows += '<div style="display:flex;gap:0;padding:8px 0;border-bottom:1px solid #1a1a1a;">'
+            table_rows += f'<div style="font-family:Space Mono,monospace;font-size:0.55rem;color:#888;letter-spacing:1px;width:25%;text-transform:uppercase;display:flex;align-items:center;">{label}</div>'
+            for d in all_data:
+                valor = d[key]
                 pct = (valor / meta * 100) if meta > 0 else 0
                 if pct >= 100:
-                    return "vs-good", f"✓ {pct:.0f}%"
+                    color = "#00ff87"
                 elif pct >= 70:
-                    return "vs-warn", f"~ {pct:.0f}%"
+                    color = "#ffd700"
                 else:
-                    return "vs-bad", f"✗ {pct:.0f}%"
-            
-            metricas_avg = [
-                ("STEPS DAILY AVG", avg_data['steps_avg'], metas['steps_avg'], ""),
-                ("ACTIVITIES / MES", avg_data['activities'], metas['activities'], ""),
-                ("STRENGTH TRAINING", avg_data['strength'], metas['strength'], ""),
-                ("DÍAS ANTES 9:30 PM", avg_data['days_before_930'], metas['days_before_930'], ""),
-                ("SLEEP DURATION", avg_data['sleep_hours_avg'], metas['sleep_hours_avg'], "h"),
-                ("HR ZONES 1-3", avg_data['hr_zone_1_3'], metas['hr_zone_1_3'], "h"),
-                ("HR ZONES 4-5", avg_data['hr_zone_4_5'], metas['hr_zone_4_5'], "h"),
-            ]
-            
-            rows_html = ""
-            for nombre, valor, meta, unidad in metricas_avg:
-                css_class, label = avg_vs_meta(valor, meta)
+                    color = "#ff4444"
                 val_display = f"{valor:,}" if (not unidad and valor >= 1000) else f"{valor}{unidad}"
-                rows_html += f"""
-                <div class="avg-metric-row">
-                    <span class="avg-metric-name">{nombre}</span>
-                    <span class="avg-metric-val" style="color:#fff">{val_display}</span>
-                    <span class="avg-metric-vs {css_class}">{label}</span>
-                </div>
-                """
-            
-            avg_html = f"""
-            <div class="avg-section">
-                <div class="avg-title">// PROMEDIO ANUAL ({n} MESES)</div>
-                {rows_html}
-            </div>
-            """
-            st.markdown(avg_html, unsafe_allow_html=True)  # Force refresh
-            
-            st.markdown(f"""
-            <div style='font-family: Space Mono, monospace; font-size: 0.55rem; color: #444; text-align: right; margin-top: 20px; letter-spacing: 2px;'>
-            LAST UPDATE: {datetime.now().strftime('%d/%m/%Y %H:%M')}
-            </div>
-            """, unsafe_allow_html=True)
+                table_rows += f'<div style="font-family:Space Mono,monospace;font-size:0.75rem;font-weight:700;color:{color};flex:1;text-align:center;">{val_display}</div>'
+            table_rows += '</div>'
+
+        table_html = f'<div style="background:#0d0d0d;border:1px solid #1a1a1a;border-radius:10px;padding:16px 20px;">{header}{table_rows}</div>'
+        st.markdown(table_html, unsafe_allow_html=True)
+
+        st.markdown(f'<div style="font-family:Space Mono,monospace;font-size:0.55rem;color:#444;text-align:right;margin-top:20px;letter-spacing:2px;">LAST UPDATE: {datetime.now().strftime("%d/%m/%Y %H:%M")}</div>', unsafe_allow_html=True)
 

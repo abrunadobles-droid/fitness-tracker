@@ -28,3 +28,11 @@ except:
 
 WHOOP_REDIRECT_URI = 'http://localhost:8000/callback'
 EXCEL_PATH = '/Users/AntonioXBruna/Desktop/Data_Fitness___Wellness_Tracker.xlsx'
+EXCEL_FILE = EXCEL_PATH  # Alias usado por tracker_updater.py
+SHEET_NAME = 'Sheet1'
+
+# Config dict usado por setup.py
+GARMIN_CONFIG = {
+    'email': GARMIN_EMAIL,
+    'password': GARMIN_PASSWORD,
+}
