@@ -1,4 +1,4 @@
-const CACHE_NAME = 'diario-v3';
+const CACHE_NAME = 'diario-v4';
 const ASSETS = [
   '/',
   '/index.html',
@@ -33,7 +33,8 @@ self.addEventListener('fetch', e => {
   if (
     url.hostname.includes('supabase.co') ||
     url.hostname.includes('googleapis.com') ||
-    url.hostname.includes('anthropic.com')
+    url.hostname.includes('anthropic.com') ||
+    url.pathname.startsWith('/api/')
   ) {
     return;
   }
