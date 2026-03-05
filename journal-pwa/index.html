@@ -323,23 +323,6 @@ html, body {
 }
 .ai-placeholder { font-family:var(--font-serif); font-size:14px; color:var(--text-dim); font-style:italic; padding:8px 0; }
 .ai-error { font-family:var(--font-sans); font-size:13px; color:var(--danger); padding:12px 0; }
-/* Settings */
-.settings-panel {
-  background:var(--surface); border:1px solid var(--border); border-radius:12px;
-  padding:20px; margin-bottom:20px;
-}
-.settings-panel label {
-  font-family:var(--font-sans); font-size:12px; font-weight:600; color:var(--text-muted);
-  text-transform:uppercase; letter-spacing:.06em; display:block; margin-bottom:8px;
-}
-.settings-panel .hint {
-  font-family:var(--font-sans); font-size:11px; color:var(--text-dim); margin-bottom:12px; line-height:1.5;
-}
-.settings-panel input[type="password"], .settings-panel input[type="text"] {
-  width:100%; padding:10px 14px; background:var(--bg); border:1px solid var(--border);
-  border-radius:8px; font-family:var(--font-mono); font-size:13px; color:var(--text); outline:none;
-}
-.settings-panel input:focus { border-color:var(--accent); }
 /* View sections */
 .view-section { display:none; }
 .view-section.active { display:block; animation:fadeUp .4s ease; }
@@ -433,16 +416,6 @@ html, body {
     <!-- INSIGHTS -->
     <div class="view-section" id="view-insights">
       <div class="stats" id="insightStats"></div>
-      <!-- API Key settings -->
-      <div class="settings-panel" id="settingsPanel">
-        <label>&#128273; Anthropic API Key</label>
-        <div class="hint">Necesitas una API key de Anthropic para el analisis AI. Se guarda solo en tu dispositivo. Consiguela en <a href="https://console.anthropic.com" target="_blank" style="color:var(--accent)">console.anthropic.com</a></div>
-        <input type="password" id="apiKeyInput" placeholder="sk-ant-..." />
-        <div style="margin-top:10px;display:flex;gap:8px">
-          <button class="btn btn-primary" id="btnSaveKey" style="font-size:11px;padding:6px 14px">Guardar key</button>
-          <button class="btn btn-outline" id="btnToggleKey" style="color:var(--text-muted);font-size:11px;padding:6px 14px">Mostrar</button>
-        </div>
-      </div>
       <div class="ai-panel">
         <div class="panel-header">
           <div class="panel-title">
@@ -677,8 +650,6 @@ function setSyncStatus(status) {
   else { text.textContent = 'Sincronizado'; }
 }
 
-function getApiKey() { try { return localStorage.getItem('diario-api-key')||''; } catch(e){ return ''; } }
-function setApiKey(k) { try { localStorage.setItem('diario-api-key',k); } catch(e){} }
 
 // ===== AUTH =====
 let isRegistering = false;
@@ -890,9 +861,6 @@ function renderAll() {
   renderEditor();
   renderHistory();
 
-  // API key
-  const key = getApiKey();
-  document.getElementById('apiKeyInput').value = key;
 }
 
 // ===== NAV =====
@@ -906,9 +874,6 @@ function switchView(v) {
 
 // ===== AI ANALYSIS =====
 async function runAnalysis() {
-  const key = getApiKey();
-  if (!key) { document.getElementById('aiContent').innerHTML = '<div class="ai-error">Configura tu API key arriba para usar el analisis AI.</div>'; return; }
-
   const entryList = Object.entries(entries).sort(([a],[b])=>b.localeCompare(a));
   if (entryList.length < 2) { document.getElementById('aiContent').innerHTML = '<div class="ai-error">Necesitas al menos 2 entradas para generar un analisis.</div>'; return; }
 
@@ -921,14 +886,7 @@ async function runAnalysis() {
   const recent = entryList.slice(0,15).map(([d,t])=>`[${fmtDate(d)}]: ${t.slice(0,500)}`).join('\n\n');
   const streak = calcStreak(entries);
 
-  try {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method:'POST',
-      headers:{ 'Content-Type':'application/json', 'x-api-key':key, 'anthropic-version':'2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
-      body:JSON.stringify({
-        model:'claude-sonnet-4-20250514',
-        max_tokens:1000,
-        messages:[{role:'user',content:`Eres un coach personal y analista de journaling. Analiza estas entradas de diario y genera un resumen perspicaz EN ESPANOL.
+  const prompt = `Eres un coach personal y analista de journaling. Analiza estas entradas de diario y genera un resumen perspicaz EN ESPANOL.
 Datos del usuario:
 - Total de entradas: ${entryList.length}
 - Racha actual: ${streak.current} dias
@@ -936,12 +894,17 @@ Datos del usuario:
 Entradas recientes:
 ${recent}
 Responde SOLO con un JSON valido sin backticks ni markdown:
-{"mood_summary":"Resumen del estado emocional general en 1-2 oraciones","themes":["tema1","tema2","tema3"],"insight":"Un insight profundo y personalizado sobre patrones observados (2-3 oraciones)","suggestion":"Una sugerencia practica y especifica basada en lo escrito (1-2 oraciones)","consistency_note":"Comentario motivacional sobre la consistencia de escritura (1 oracion)"}`}]
-      })
+{"mood_summary":"Resumen del estado emocional general en 1-2 oraciones","themes":["tema1","tema2","tema3"],"insight":"Un insight profundo y personalizado sobre patrones observados (2-3 oraciones)","suggestion":"Una sugerencia practica y especifica basada en lo escrito (1-2 oraciones)","consistency_note":"Comentario motivacional sobre la consistencia de escritura (1 oracion)"}`;
+
+  try {
+    const res = await fetch('/.netlify/functions/analyze', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt })
     });
     const data = await res.json();
 
-    if (data.error) throw new Error(data.error.message || 'API error');
+    if (data.error) throw new Error(data.error);
 
     const text = data.content.map(c=>c.text||'').join('');
     const clean = text.replace(/```json|```/g,'').trim();
@@ -955,7 +918,7 @@ Responde SOLO con un JSON valido sin backticks ni markdown:
       <div class="ai-quote">${analysis.consistency_note}</div>
     `;
   } catch(e) {
-    document.getElementById('aiContent').innerHTML = `<div class="ai-error">Error: ${e.message}. Verifica tu API key e intenta de nuevo.</div>`;
+    document.getElementById('aiContent').innerHTML = `<div class="ai-error">Error: ${e.message}. Intenta de nuevo.</div>`;
   }
 
   btn.disabled = false; btn.textContent = 'Generar analisis';
@@ -1013,18 +976,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // AI
   document.getElementById('btnAnalyze').addEventListener('click', runAnalysis);
-
-  // API Key
-  document.getElementById('btnSaveKey').addEventListener('click', () => {
-    setApiKey(document.getElementById('apiKeyInput').value.trim());
-    showSaved();
-  });
-  document.getElementById('btnToggleKey').addEventListener('click', () => {
-    const inp = document.getElementById('apiKeyInput');
-    const btn = document.getElementById('btnToggleKey');
-    if (inp.type==='password') { inp.type='text'; btn.textContent='Ocultar'; }
-    else { inp.type='password'; btn.textContent='Mostrar'; }
-  });
 
   // Reset
   document.getElementById('btnReset').addEventListener('click', async () => {
