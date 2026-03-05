@@ -45,6 +45,11 @@ app.post('/api/analyze', async (req, res) => {
   }
 });
 
+// Health check for Railway
+app.get('/healthz', (req, res) => {
+  res.status(200).send('ok');
+});
+
 // SPA fallback
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
