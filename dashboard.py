@@ -252,9 +252,12 @@ header {visibility: hidden;}
 """, unsafe_allow_html=True)
 
 # ============ AUTH GATE ============
-from auth import show_auth_page, show_logout_button, get_user_id, get_user_email
+from auth import show_auth_page, show_logout_button, get_user_id, get_user_email, try_auto_login
 from garmin_setup import show_garmin_connect_form
 from goals_setup import show_goals_setup, get_user_goals
+
+# Intentar restaurar sesion desde localStorage (Remember Me)
+try_auto_login()
 
 if not show_auth_page():
     st.stop()

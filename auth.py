@@ -1,7 +1,10 @@
 """
 Autenticacion con Supabase - Login, Registro, Logout
+Incluye "Recordarme" via localStorage del navegador
 """
+import json
 import streamlit as st
+import streamlit.components.v1 as components
 from supabase import create_client
 
 
@@ -16,6 +19,84 @@ def get_supabase():
         supabase.postgrest.auth(st.session_state.access_token)
 
     return supabase
+
+
+# ---- Funciones de localStorage (Remember Me) ----
+
+def _store_refresh_token(refresh_token):
+    """Guarda refresh token en localStorage del navegador."""
+    safe_token = json.dumps(refresh_token)
+    components.html(f"""
+    <script>
+    try {{ localStorage.setItem('ht_rt', {safe_token}); }} catch(e) {{}}
+    </script>
+    """, height=0)
+
+
+def _clear_refresh_token():
+    """Elimina refresh token de localStorage del navegador."""
+    components.html("""
+    <script>
+    try { localStorage.removeItem('ht_rt'); } catch(e) {}
+    </script>
+    """, height=0)
+
+
+def try_auto_login():
+    """Intenta restaurar sesion desde token guardado en el navegador.
+
+    Usa localStorage + query params como puente JS->Python:
+    1. Primera carga: inyecta JS que lee localStorage y redirige con ?_rt=token
+    2. Segunda carga: Python lee ?_rt, refresca sesion con Supabase, limpia URL
+
+    Retorna True si la sesion fue restaurada.
+    """
+    # Ya loggeado
+    if "user" in st.session_state and st.session_state.user:
+        return True
+
+    # Ya intentamos auto-login en esta sesion
+    if st.session_state.get("_auto_login_done"):
+        return False
+
+    params = st.query_params
+    rt = params.get("_rt")
+
+    if rt:
+        # Tenemos refresh token desde localStorage redirect
+        st.query_params.clear()
+        st.session_state["_auto_login_done"] = True
+        try:
+            supabase = get_supabase()
+            res = supabase.auth.refresh_session(rt)
+            if res and res.session:
+                st.session_state.user = res.user
+                st.session_state.access_token = res.session.access_token
+                # Actualizar token guardado (Supabase rota tokens)
+                _store_refresh_token(res.session.refresh_token)
+                st.rerun()
+        except Exception:
+            # Token invalido/expirado, limpiar storage
+            _clear_refresh_token()
+        return False
+
+    # Primera carga - inyectar JS para revisar localStorage
+    st.session_state["_auto_login_done"] = True
+    components.html("""
+    <script>
+    try {
+        const rt = localStorage.getItem('ht_rt');
+        if (rt) {
+            const url = new URL(window.parent.location.href);
+            if (!url.searchParams.has('_rt')) {
+                url.searchParams.set('_rt', rt);
+                window.parent.location.replace(url.toString());
+            }
+        }
+    } catch(e) {}
+    </script>
+    """, height=0)
+    return False
 
 
 def show_auth_page():
@@ -58,6 +139,7 @@ def show_auth_page():
     with tab1:
         email = st.text_input("Email", key="login_email", placeholder="tu@email.com")
         password = st.text_input("Password", type="password", key="login_pwd")
+        remember = st.checkbox("Recordarme", value=True, key="login_remember")
 
         if st.button("Iniciar Sesion", use_container_width=True):
             if not email or not password:
@@ -72,6 +154,8 @@ def show_auth_page():
                         })
                         st.session_state.user = res.user
                         st.session_state.access_token = res.session.access_token
+                        if remember and res.session.refresh_token:
+                            _store_refresh_token(res.session.refresh_token)
                         st.rerun()
                     except Exception as e:
                         error_msg = str(e)
@@ -104,6 +188,9 @@ def show_auth_page():
                         if res.session:
                             st.session_state.user = res.user
                             st.session_state.access_token = res.session.access_token
+                            # Auto-recordar al registrarse
+                            if res.session.refresh_token:
+                                _store_refresh_token(res.session.refresh_token)
                             st.success("Cuenta creada!")
                             st.rerun()
                         else:
@@ -119,10 +206,12 @@ def show_auth_page():
 
 
 def show_logout_button():
-    """Muestra boton de logout."""
+    """Muestra boton de logout. Limpia token guardado."""
     if st.button("LOGOUT", use_container_width=True):
+        _clear_refresh_token()
         st.session_state.user = None
         st.session_state.access_token = None
+        st.session_state["_auto_login_done"] = False
         st.rerun()
 
 
