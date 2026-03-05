@@ -11,10 +11,8 @@
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 <title>Diario</title>
 <link href="https://fonts.googleapis.com/css2?family=Crimson+Pro:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&family=DM+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400&display=swap" rel="stylesheet">
-<!-- Firebase SDK -->
-<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+<!-- Supabase SDK -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <style>
 :root {
   --bg: #1a1714;
@@ -479,24 +477,12 @@ html, body {
 
 <script>
 // =============================================================================
-// FIREBASE CONFIG - REEMPLAZA ESTOS VALORES CON LOS DE TU PROYECTO
+// SUPABASE CONFIG
 // =============================================================================
-const firebaseConfig = {
-  apiKey: "TU_API_KEY_AQUI",
-  authDomain: "TU_PROYECTO.firebaseapp.com",
-  projectId: "TU_PROJECT_ID",
-  storageBucket: "TU_PROYECTO.firebasestorage.app",
-  messagingSenderId: "123456789",
-  appId: "1:123456789:web:abcdef123456"
-};
+const SUPABASE_URL = 'https://bailojpedwczadqhtqtl.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJhaWxvanBlZHdjemFkcWh0cXRsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk3MTk3MzQsImV4cCI6MjA4NTI5NTczNH0.Hn97q3nYnJDOinFt0eEsPukwBiglqjl2I5vqoxiAgek';
 
-// Initialize Firebase
-firebase.initializeApp(firebaseConfig);
-const auth = firebase.auth();
-const db = firebase.firestore();
-
-// Enable offline persistence
-db.enablePersistence({ synchronizeTabs: true }).catch(() => {});
+const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // ===== CONSTANTS =====
 const MONTHS = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
@@ -547,42 +533,78 @@ let currentView = 'write';
 let currentUser = null;
 let calendarYear = new Date().getFullYear();
 let calendarMonth = new Date().getMonth();
-let unsubscribeEntries = null;
+let realtimeSubscription = null;
 
-// ===== FIRESTORE STORAGE =====
-function userEntriesRef() {
-  return db.collection('users').doc(currentUser.uid).collection('entries');
+// ===== SUPABASE STORAGE =====
+async function loadEntries() {
+  setSyncStatus('syncing');
+  try {
+    const { data, error } = await supabase
+      .from('journal_entries')
+      .select('entry_date, text')
+      .eq('user_id', currentUser.id);
+    if (error) throw error;
+    entries = {};
+    (data || []).forEach(row => { entries[row.entry_date] = row.text; });
+    setSyncStatus('synced');
+    renderAll();
+  } catch (e) {
+    console.error('Load error:', e);
+    setSyncStatus('error');
+  }
 }
 
 function subscribeToEntries() {
-  if (unsubscribeEntries) unsubscribeEntries();
-  setSyncStatus('syncing');
+  if (realtimeSubscription) {
+    supabase.removeChannel(realtimeSubscription);
+  }
 
-  unsubscribeEntries = userEntriesRef().onSnapshot(snapshot => {
-    entries = {};
-    snapshot.forEach(doc => {
-      entries[doc.id] = doc.data().text;
-    });
-    setSyncStatus('synced');
-    renderAll();
-  }, error => {
-    console.error('Firestore error:', error);
-    setSyncStatus('error');
-  });
+  loadEntries();
+
+  realtimeSubscription = supabase
+    .channel('journal-changes')
+    .on('postgres_changes', {
+      event: '*',
+      schema: 'public',
+      table: 'journal_entries',
+      filter: `user_id=eq.${currentUser.id}`
+    }, payload => {
+      if (payload.eventType === 'DELETE') {
+        delete entries[payload.old.entry_date];
+      } else {
+        entries[payload.new.entry_date] = payload.new.text;
+      }
+      renderAll();
+      setSyncStatus('synced');
+    })
+    .subscribe();
 }
 
 async function saveEntry(date, text) {
   setSyncStatus('syncing');
   try {
     if (text.trim()) {
-      await userEntriesRef().doc(date).set({
-        text: text,
-        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-      });
+      const { error } = await supabase
+        .from('journal_entries')
+        .upsert({
+          user_id: currentUser.id,
+          entry_date: date,
+          text: text,
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'user_id,entry_date' });
+      if (error) throw error;
+      entries[date] = text;
     } else {
-      await userEntriesRef().doc(date).delete();
+      const { error } = await supabase
+        .from('journal_entries')
+        .delete()
+        .eq('user_id', currentUser.id)
+        .eq('entry_date', date);
+      if (error) throw error;
+      delete entries[date];
     }
     setSyncStatus('synced');
+    renderAll();
   } catch (e) {
     console.error('Save error:', e);
     setSyncStatus('error');
@@ -592,8 +614,15 @@ async function saveEntry(date, text) {
 async function deleteEntry(date) {
   setSyncStatus('syncing');
   try {
-    await userEntriesRef().doc(date).delete();
+    const { error } = await supabase
+      .from('journal_entries')
+      .delete()
+      .eq('user_id', currentUser.id)
+      .eq('entry_date', date);
+    if (error) throw error;
+    delete entries[date];
     setSyncStatus('synced');
+    renderAll();
   } catch (e) {
     console.error('Delete error:', e);
     setSyncStatus('error');
@@ -603,18 +632,21 @@ async function deleteEntry(date) {
 async function deleteAllEntries() {
   setSyncStatus('syncing');
   try {
-    const snapshot = await userEntriesRef().get();
-    const batch = db.batch();
-    snapshot.docs.forEach(doc => batch.delete(doc.ref));
-    await batch.commit();
+    const { error } = await supabase
+      .from('journal_entries')
+      .delete()
+      .eq('user_id', currentUser.id);
+    if (error) throw error;
+    entries = {};
     setSyncStatus('synced');
+    renderAll();
   } catch (e) {
     console.error('Delete all error:', e);
     setSyncStatus('error');
   }
 }
 
-// Migrate localStorage entries to Firestore (one-time)
+// Migrate localStorage entries to Supabase (one-time)
 async function migrateLocalStorage() {
   try {
     const data = localStorage.getItem('diario-entries');
@@ -623,21 +655,26 @@ async function migrateLocalStorage() {
     const keys = Object.keys(localEntries);
     if (!keys.length) return;
 
-    const existing = await userEntriesRef().limit(1).get();
-    if (!existing.empty) return; // Already has data in Firestore, skip migration
+    // Check if user already has entries in Supabase
+    const { data: existing } = await supabase
+      .from('journal_entries')
+      .select('entry_date')
+      .eq('user_id', currentUser.id)
+      .limit(1);
+    if (existing && existing.length > 0) return;
 
     setSyncStatus('syncing');
-    const batch = db.batch();
-    for (const date of keys) {
-      batch.set(userEntriesRef().doc(date), {
-        text: localEntries[date],
-        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-      });
-    }
-    await batch.commit();
+    const rows = keys.map(date => ({
+      user_id: currentUser.id,
+      entry_date: date,
+      text: localEntries[date],
+      updated_at: new Date().toISOString()
+    }));
+    const { error } = await supabase.from('journal_entries').insert(rows);
+    if (error) throw error;
     localStorage.removeItem('diario-entries');
     setSyncStatus('synced');
-    console.log(`Migrated ${keys.length} entries from localStorage to Firestore`);
+    console.log(`Migrated ${keys.length} entries from localStorage to Supabase`);
   } catch (e) {
     console.error('Migration error:', e);
   }
@@ -668,20 +705,15 @@ function hideAuthError() {
   document.getElementById('authError').classList.remove('show');
 }
 
-function translateAuthError(code) {
-  const map = {
-    'auth/invalid-email': 'Email invalido.',
-    'auth/user-disabled': 'Esta cuenta ha sido deshabilitada.',
-    'auth/user-not-found': 'No existe una cuenta con ese email.',
-    'auth/wrong-password': 'Contrasena incorrecta.',
-    'auth/email-already-in-use': 'Ya existe una cuenta con ese email.',
-    'auth/weak-password': 'La contrasena debe tener al menos 6 caracteres.',
-    'auth/too-many-requests': 'Demasiados intentos. Espera un momento.',
-    'auth/popup-closed-by-user': 'Se cerro la ventana de login.',
-    'auth/network-request-failed': 'Error de conexion. Verifica tu internet.',
-    'auth/invalid-credential': 'Email o contrasena incorrectos.',
-  };
-  return map[code] || 'Error de autenticacion. Intenta de nuevo.';
+function translateAuthError(msg) {
+  const lower = (msg || '').toLowerCase();
+  if (lower.includes('invalid login')) return 'Email o contrasena incorrectos.';
+  if (lower.includes('email not confirmed')) return 'Revisa tu email para confirmar tu cuenta.';
+  if (lower.includes('user already registered')) return 'Ya existe una cuenta con ese email.';
+  if (lower.includes('password')) return 'La contrasena debe tener al menos 6 caracteres.';
+  if (lower.includes('rate limit')) return 'Demasiados intentos. Espera un momento.';
+  if (lower.includes('network')) return 'Error de conexion. Verifica tu internet.';
+  return msg || 'Error de autenticacion. Intenta de nuevo.';
 }
 
 function setupAuthUI() {
@@ -692,10 +724,13 @@ function setupAuthUI() {
   btnGoogle.addEventListener('click', async () => {
     hideAuthError();
     try {
-      const provider = new firebase.auth.GoogleAuthProvider();
-      await auth.signInWithPopup(provider);
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: { redirectTo: window.location.origin }
+      });
+      if (error) throw error;
     } catch (e) {
-      if (e.code !== 'auth/popup-closed-by-user') showAuthError(translateAuthError(e.code));
+      showAuthError(translateAuthError(e.message));
     }
   });
 
@@ -706,12 +741,16 @@ function setupAuthUI() {
     if (!email || !password) { showAuthError('Ingresa email y contrasena.'); return; }
     try {
       if (isRegistering) {
-        await auth.createUserWithEmailAndPassword(email, password);
+        const { error } = await supabase.auth.signUp({ email, password });
+        if (error) throw error;
+        showAuthError('Cuenta creada! Revisa tu email para confirmar.');
+        document.getElementById('authError').style.color = 'var(--success)';
       } else {
-        await auth.signInWithEmailAndPassword(email, password);
+        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        if (error) throw error;
       }
     } catch (e) {
-      showAuthError(translateAuthError(e.code));
+      showAuthError(translateAuthError(e.message));
     }
   });
 
@@ -740,13 +779,14 @@ function showApp(user) {
   // User info
   const avatarEl = document.getElementById('userAvatar');
   const nameEl = document.getElementById('userName');
-  if (user.photoURL) {
-    avatarEl.innerHTML = `<img src="${user.photoURL}" alt="" referrerpolicy="no-referrer">`;
+  const meta = user.user_metadata || {};
+  if (meta.avatar_url) {
+    avatarEl.innerHTML = `<img src="${meta.avatar_url}" alt="" referrerpolicy="no-referrer">`;
   } else {
-    const initial = (user.displayName || user.email || '?')[0].toUpperCase();
+    const initial = (meta.full_name || meta.name || user.email || '?')[0].toUpperCase();
     avatarEl.textContent = initial;
   }
-  nameEl.textContent = user.displayName || user.email;
+  nameEl.textContent = meta.full_name || meta.name || user.email;
 
   // Setup and load data
   migrateLocalStorage().then(() => subscribeToEntries());
@@ -754,7 +794,11 @@ function showApp(user) {
 
 function showAuthScreen() {
   currentUser = null;
-  if (unsubscribeEntries) { unsubscribeEntries(); unsubscribeEntries = null; }
+  if (realtimeSubscription) {
+    supabase.removeChannel(realtimeSubscription);
+    realtimeSubscription = null;
+  }
+  entries = {};
   document.getElementById('authLoading').classList.remove('show');
   document.getElementById('authScreen').style.display = 'flex';
   document.getElementById('appMain').style.display = 'none';
@@ -952,17 +996,26 @@ document.addEventListener('DOMContentLoaded', () => {
   setupAuthUI();
 
   // Auth state listener
-  auth.onAuthStateChanged(user => {
-    if (user) {
-      showApp(user);
+  supabase.auth.onAuthStateChange((event, session) => {
+    if (session?.user) {
+      showApp(session.user);
+    } else {
+      showAuthScreen();
+    }
+  });
+
+  // Check initial session
+  supabase.auth.getSession().then(({ data: { session } }) => {
+    if (session?.user) {
+      showApp(session.user);
     } else {
       showAuthScreen();
     }
   });
 
   // Logout
-  document.getElementById('btnLogout').addEventListener('click', () => {
-    if (confirm('Cerrar sesion?')) auth.signOut();
+  document.getElementById('btnLogout').addEventListener('click', async () => {
+    if (confirm('Cerrar sesion?')) await supabase.auth.signOut();
   });
 
   // Nav

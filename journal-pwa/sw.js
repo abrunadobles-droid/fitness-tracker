@@ -1,4 +1,4 @@
-const CACHE_NAME = 'diario-v2';
+const CACHE_NAME = 'diario-v3';
 const ASSETS = [
   '/',
   '/index.html',
@@ -25,19 +25,15 @@ self.addEventListener('activate', e => {
   );
 });
 
-// Fetch - network first for API/Firebase, cache first for assets
+// Fetch - network first for API/Supabase, cache first for assets
 self.addEventListener('fetch', e => {
   const url = new URL(e.request.url);
 
-  // Skip caching for Firebase, Anthropic API, and Google APIs
+  // Skip caching for Supabase, Anthropic API, and Google APIs
   if (
-    url.hostname.includes('firebaseapp.com') ||
+    url.hostname.includes('supabase.co') ||
     url.hostname.includes('googleapis.com') ||
-    url.hostname.includes('gstatic.com') ||
-    url.hostname.includes('anthropic.com') ||
-    url.hostname.includes('firestore.googleapis.com') ||
-    url.hostname.includes('identitytoolkit.googleapis.com') ||
-    url.hostname.includes('securetoken.googleapis.com')
+    url.hostname.includes('anthropic.com')
   ) {
     return;
   }
