@@ -28,17 +28,21 @@ def show_garmin_connect_form():
     st.markdown("""
     <style>
     .garmin-title {
-        font-family: 'Bebas Neue', sans-serif !important;
-        font-size: 2rem !important;
-        letter-spacing: 3px !important;
-        color: #fff !important;
+        font-family: 'Inter', sans-serif !important;
+        font-size: 1.8rem !important;
+        font-weight: 800 !important;
+        letter-spacing: 4px !important;
+        background: linear-gradient(135deg, #c4b5fd, #7c3aed, #06b6d4) !important;
+        -webkit-background-clip: text !important;
+        -webkit-text-fill-color: transparent !important;
+        background-clip: text !important;
         text-align: center;
         margin-bottom: 8px;
     }
     .garmin-info {
         font-family: 'Space Mono', monospace;
         font-size: 0.6rem;
-        color: #aaa;
+        color: #94a3b8;
         text-align: center;
         letter-spacing: 1px;
         margin-bottom: 24px;
@@ -47,18 +51,19 @@ def show_garmin_connect_form():
     .privacy-note {
         font-family: 'Space Mono', monospace;
         font-size: 0.55rem;
-        color: #999;
-        background: #0d0d0d;
-        border: 1px solid #1a1a1a;
-        border-radius: 8px;
-        padding: 12px 16px;
+        color: #94a3b8;
+        background: rgba(255,255,255,0.04);
+        border: 1px solid rgba(255,255,255,0.08);
+        border-radius: 12px;
+        padding: 14px 18px;
         margin-top: 16px;
-        line-height: 1.5;
+        line-height: 1.6;
+        backdrop-filter: blur(10px);
     }
     </style>
     """, unsafe_allow_html=True)
 
-    st.markdown('<div class="top-bar"></div>', unsafe_allow_html=True)
+    st.markdown('<div class="top-gradient"></div>', unsafe_allow_html=True)
     st.markdown('<div class="garmin-title">CONECTA TU GARMIN</div>', unsafe_allow_html=True)
     st.markdown('<div class="garmin-info">Ingresa tus credenciales de Garmin Connect<br>para sincronizar tus datos de fitness</div>', unsafe_allow_html=True)
 

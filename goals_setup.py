@@ -68,17 +68,21 @@ def show_goals_setup(first_time=True):
     st.markdown("""
     <style>
     .goals-title {
-        font-family: 'Bebas Neue', sans-serif !important;
-        font-size: 2rem !important;
-        letter-spacing: 3px !important;
-        color: #fff !important;
+        font-family: 'Inter', sans-serif !important;
+        font-size: 1.8rem !important;
+        font-weight: 800 !important;
+        letter-spacing: 4px !important;
+        background: linear-gradient(135deg, #c4b5fd, #7c3aed, #06b6d4) !important;
+        -webkit-background-clip: text !important;
+        -webkit-text-fill-color: transparent !important;
+        background-clip: text !important;
         text-align: center;
         margin-bottom: 8px;
     }
     .goals-subtitle {
         font-family: 'Space Mono', monospace;
         font-size: 0.6rem;
-        color: #aaa;
+        color: #94a3b8;
         text-align: center;
         letter-spacing: 1px;
         margin-bottom: 24px;
@@ -87,7 +91,7 @@ def show_goals_setup(first_time=True):
     .goal-label {
         font-family: 'Space Mono', monospace;
         font-size: 0.6rem;
-        color: #aaa;
+        color: #94a3b8;
         text-transform: uppercase;
         letter-spacing: 2px;
         margin-bottom: 4px;
@@ -95,7 +99,7 @@ def show_goals_setup(first_time=True):
     </style>
     """, unsafe_allow_html=True)
 
-    st.markdown('<div class="top-bar"></div>', unsafe_allow_html=True)
+    st.markdown('<div class="top-gradient"></div>', unsafe_allow_html=True)
 
     if first_time:
         st.markdown('<div class="goals-title">CONFIGURA TUS METAS</div>', unsafe_allow_html=True)

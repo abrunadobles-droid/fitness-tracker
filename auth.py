@@ -23,29 +23,33 @@ def show_auth_page():
     if "user" in st.session_state and st.session_state.user:
         return True
 
-    # CSS para la pagina de auth
+    # CSS para la pagina de auth (Neon Glass theme)
     st.markdown("""
     <style>
     .auth-title {
-        font-family: 'Bebas Neue', sans-serif !important;
-        font-size: 2.8rem !important;
-        letter-spacing: 4px !important;
-        color: #fff !important;
+        font-family: 'Inter', sans-serif !important;
+        font-size: 2.4rem !important;
+        font-weight: 800 !important;
+        letter-spacing: 6px !important;
+        background: linear-gradient(135deg, #c4b5fd, #7c3aed, #06b6d4) !important;
+        -webkit-background-clip: text !important;
+        -webkit-text-fill-color: transparent !important;
+        background-clip: text !important;
         text-align: center;
         margin-bottom: 8px;
     }
     .auth-subtitle {
         font-family: 'Space Mono', monospace;
-        font-size: 0.7rem;
-        color: #aaa;
+        font-size: 0.65rem;
+        color: #94a3b8;
         text-align: center;
-        letter-spacing: 2px;
+        letter-spacing: 3px;
         margin-bottom: 32px;
     }
     </style>
     """, unsafe_allow_html=True)
 
-    st.markdown('<div class="top-bar"></div>', unsafe_allow_html=True)
+    st.markdown('<div class="top-gradient"></div>', unsafe_allow_html=True)
     st.markdown('<div class="auth-title">HABIT TRACKER</div>', unsafe_allow_html=True)
     st.markdown('<div class="auth-subtitle">TRACK YOUR HABITS</div>', unsafe_allow_html=True)
 

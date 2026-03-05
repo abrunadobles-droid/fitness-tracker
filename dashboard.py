@@ -1,10 +1,11 @@
 """
-Habit Tracker - Sport HUD - Multi-usuario
+Habit Tracker - Neon Glass - Multi-usuario
 """
 
 import streamlit as st
 from datetime import datetime, timedelta
 from calendar import monthrange
+import math
 
 st.set_page_config(
     page_title="Habit Tracker",
@@ -14,246 +15,238 @@ st.set_page_config(
 
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap');
 
-* { font-family: 'DM Sans', sans-serif; }
+* { font-family: 'Inter', sans-serif; }
 
-.stApp { background-color: #050505 !important; color: #e1e8ed !important; }
+.stApp {
+    background: #0a0e1a !important;
+    color: #e2e8f0 !important;
+}
 
 #MainMenu {visibility: hidden;}
 footer {visibility: hidden;}
 header {visibility: hidden;}
 
-.top-bar {
+.top-gradient {
     height: 3px;
-    background: linear-gradient(90deg, #00ff87, #00d4ff, #ff0080);
-    margin-bottom: 24px;
+    background: linear-gradient(90deg, #7c3aed, #06b6d4, #22c55e);
+    margin-bottom: 20px;
     border-radius: 2px;
 }
 
 .hud-title {
-    font-family: 'Bebas Neue', sans-serif !important;
-    font-size: 2.8rem !important;
-    letter-spacing: 4px !important;
-    color: #fff !important;
-    line-height: 1 !important;
+    font-family: 'Inter', sans-serif !important;
+    font-size: 2.4rem !important;
+    font-weight: 800 !important;
+    letter-spacing: 6px !important;
+    background: linear-gradient(135deg, #c4b5fd, #7c3aed, #06b6d4) !important;
+    -webkit-background-clip: text !important;
+    -webkit-text-fill-color: transparent !important;
+    background-clip: text !important;
+    line-height: 1.1 !important;
     margin: 0 !important;
 }
 
 .date-badge {
     font-family: 'Space Mono', monospace;
     font-size: 0.6rem;
-    color: #00ff87;
-    background: #0d0d0d;
-    border: 1px solid #1a1a1a;
-    border-radius: 6px;
-    padding: 6px 14px;
+    color: #94a3b8;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 10px;
+    padding: 8px 16px;
     display: inline-block;
     letter-spacing: 2px;
-    margin-bottom: 28px;
+    margin-bottom: 24px;
+    backdrop-filter: blur(10px);
 }
 
 .section-label {
     font-family: 'Space Mono', monospace;
     font-size: 0.6rem;
-    color: #aaa;
+    color: #94a3b8;
     text-transform: uppercase;
     letter-spacing: 4px;
-    margin-bottom: 20px;
+    margin-bottom: 16px;
     margin-top: 8px;
 }
 
-.metric-wrap { margin-bottom: 20px; }
+.glass-card {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 16px;
+    padding: 20px;
+    margin-bottom: 14px;
+    backdrop-filter: blur(20px);
+    transition: border-color 0.3s ease;
+}
 
-.metric-header {
+.glass-card:hover {
+    border-color: rgba(255,255,255,0.15);
+}
+
+.metric-card-name {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.55rem;
+    color: #94a3b8;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    margin-bottom: 14px;
+}
+
+.metric-card-body {
     display: flex;
-    justify-content: space-between;
     align-items: center;
+    gap: 18px;
+}
+
+.metric-ring-wrap {
+    width: 80px;
+    height: 80px;
+    flex-shrink: 0;
+}
+
+.metric-ring-svg {
+    width: 80px;
+    height: 80px;
+    filter: drop-shadow(0 0 6px rgba(0,0,0,0.3));
+}
+
+.metric-card-info {
+    flex: 1;
+}
+
+.metric-card-value {
+    font-family: 'Inter', sans-serif;
+    font-size: 1.6rem;
+    font-weight: 700;
+    line-height: 1;
     margin-bottom: 6px;
 }
 
-.metric-name {
-    font-family: 'Space Mono', monospace;
-    font-size: 0.6rem;
-    color: #aaa;
-    text-transform: uppercase;
-    letter-spacing: 2px;
-}
-
-.metric-value {
-    font-family: 'Space Mono', monospace;
-    font-size: 0.85rem;
-    font-weight: 700;
-}
-
-.val-green { color: #00ff87; }
-.val-yellow { color: #ffd700; }
-.val-red { color: #ff4444; }
-
-.metric-bar-bg {
-    height: 3px;
-    background: #1a1a1a;
-    border-radius: 2px;
-    overflow: hidden;
-}
-
-.metric-bar-fill-green {
-    height: 3px;
-    background: linear-gradient(90deg, #00ff87, #00d4ff);
-    border-radius: 2px;
-}
-
-.metric-bar-fill-yellow {
-    height: 3px;
-    background: linear-gradient(90deg, #ffd700, #ff8c00);
-    border-radius: 2px;
-}
-
-.metric-bar-fill-red {
-    height: 3px;
-    background: linear-gradient(90deg, #ff0080, #ff4444);
-    border-radius: 2px;
-}
-
-.metric-pct {
+.metric-card-goal {
     font-family: 'Space Mono', monospace;
     font-size: 0.55rem;
-    color: #999;
-    margin-top: 4px;
-    text-align: right;
-}
-
-.big-stats-row {
-    display: flex;
-    gap: 12px;
-    margin-top: 8px;
-}
-
-.big-stat-box {
-    flex: 1;
-    background: #0d0d0d;
-    border: 1px solid #1a1a1a;
-    border-radius: 10px;
-    padding: 16px;
-}
-
-.big-stat-val {
-    font-family: 'Bebas Neue', sans-serif;
-    font-size: 2rem;
-    letter-spacing: 2px;
-    line-height: 1;
-}
-
-.big-stat-label {
-    font-family: 'Space Mono', monospace;
-    font-size: 0.5rem;
-    color: #aaa;
-    text-transform: uppercase;
-    letter-spacing: 2px;
-    margin-top: 6px;
-}
-
-.divider { height: 1px; background: #1a1a1a; margin: 24px 0; }
-
-.historical-title {
-    font-family: 'Bebas Neue', sans-serif;
-    font-size: 2rem;
-    letter-spacing: 3px;
-    color: #fff;
-}
-
-.historical-month {
-    font-family: 'Bebas Neue', sans-serif;
-    font-size: 1.2rem;
-    color: #aaa;
-    letter-spacing: 2px;
-    margin: 20px 0 12px;
-}
-
-.avg-section {
-    background: #0d0d0d;
-    border: 1px solid #00ff87;
-    border-radius: 10px;
-    padding: 20px;
-    margin-top: 8px;
-}
-
-.avg-title {
-    font-family: 'Bebas Neue', sans-serif;
-    font-size: 1.4rem;
-    letter-spacing: 3px;
-    color: #00ff87;
-    margin-bottom: 16px;
-}
-
-.avg-metric-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 8px 0;
-    border-bottom: 1px solid #1a1a1a;
-}
-
-.avg-metric-row:last-child { border-bottom: none; }
-
-.avg-metric-name {
-    font-family: 'Space Mono', monospace;
-    font-size: 0.6rem;
-    color: #aaa;
-    text-transform: uppercase;
+    color: #64748b;
     letter-spacing: 1px;
 }
 
-.avg-metric-val {
-    font-family: 'Space Mono', monospace;
-    font-size: 0.85rem;
-    font-weight: 700;
+.metric-bar-bg {
+    height: 3px;
+    background: rgba(255,255,255,0.06);
+    border-radius: 3px;
+    overflow: hidden;
+    margin-top: 14px;
 }
 
-.avg-metric-vs {
-    font-family: 'Space Mono', monospace;
-    font-size: 0.6rem;
-    padding: 2px 8px;
-    border-radius: 4px;
+.metric-bar-fill {
+    height: 3px;
+    border-radius: 3px;
+    transition: width 0.5s ease;
 }
 
-.vs-good { background: #052e16; color: #00ff87; }
-.vs-warn { background: #1c1008; color: #ffd700; }
-.vs-bad { background: #1c0808; color: #ff4444; }
+.summary-row {
+    display: flex;
+    gap: 14px;
+    margin-top: 20px;
+}
+
+.summary-card {
+    flex: 1;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 16px;
+    padding: 20px;
+    backdrop-filter: blur(20px);
+    text-align: center;
+}
+
+.summary-val {
+    font-family: 'Inter', sans-serif;
+    font-size: 2rem;
+    font-weight: 800;
+    line-height: 1;
+}
+
+.summary-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.5rem;
+    color: #94a3b8;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    margin-top: 8px;
+}
+
+.divider {
+    height: 1px;
+    background: rgba(255,255,255,0.06);
+    margin: 24px 0;
+}
 
 .stButton button {
-    background: transparent !important;
-    color: #aaa !important;
-    border: 1px solid #1a1a1a !important;
-    border-radius: 8px !important;
+    background: rgba(255,255,255,0.05) !important;
+    color: #94a3b8 !important;
+    border: 1px solid rgba(255,255,255,0.1) !important;
+    border-radius: 12px !important;
     font-family: 'Space Mono', monospace !important;
-    font-size: 0.6rem !important;
+    font-size: 0.55rem !important;
     letter-spacing: 2px !important;
     text-transform: uppercase !important;
     width: 100% !important;
     padding: 10px 8px !important;
-    transition: all 0.2s ease !important;
+    backdrop-filter: blur(10px) !important;
+    transition: all 0.3s ease !important;
 }
 
 .stButton button:hover {
-    border-color: #00ff87 !important;
-    color: #fff !important;
-    background: rgba(0, 255, 135, 0.06) !important;
+    background: rgba(124, 58, 237, 0.15) !important;
+    border-color: rgba(124, 58, 237, 0.4) !important;
+    color: #e2e8f0 !important;
 }
 
 .stButton button:active, .stButton button:focus {
-    border-color: #00ff87 !important;
-    color: #00ff87 !important;
-    background: rgba(0, 255, 135, 0.08) !important;
+    background: rgba(124, 58, 237, 0.2) !important;
+    border-color: #7c3aed !important;
+    color: #c4b5fd !important;
 }
 
 .user-badge {
     font-family: 'Space Mono', monospace;
-    font-size: 0.55rem;
-    color: #888;
+    font-size: 0.5rem;
+    color: #64748b;
     letter-spacing: 1px;
     text-align: right;
     margin-bottom: 8px;
+}
+
+.timestamp {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.5rem;
+    color: #475569;
+    text-align: right;
+    margin-top: 24px;
+    letter-spacing: 2px;
+}
+
+.hist-title {
+    font-family: 'Inter', sans-serif;
+    font-size: 1.8rem;
+    font-weight: 800;
+    letter-spacing: 4px;
+    background: linear-gradient(135deg, #c4b5fd, #7c3aed, #06b6d4);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.no-data-msg {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.7rem;
+    color: #64748b;
+    margin-top: 40px;
+    text-align: center;
+    letter-spacing: 2px;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -302,7 +295,7 @@ with col_nav1:
         st.rerun()
 
 with col_nav2:
-    if st.button("HISTÓRICO", use_container_width=True):
+    if st.button("HISTORICO", use_container_width=True):
         st.session_state.vista = "historico"
         st.rerun()
 
@@ -423,17 +416,32 @@ def get_monthly_data(_user_id, year, month):
         data['sleep_hours_avg'] = round(total_sleep_secs / sleep_days / 3600, 1) if sleep_days > 0 else 0
         data['days_before_930'] = days_75_plus
     except Exception as e:
-        st.error(f"⚠️ Error: {str(e)}")
+        st.error(f"Error: {str(e)}")
 
     return data
 
 # Cargar metas personalizadas del usuario
 metas = get_user_goals()
 
+# ============ COLORES Y RENDERING ============
+
 def get_color(pct):
-    if pct >= 100: return "green"
-    elif pct >= 70: return "yellow"
-    else: return "red"
+    """Verde >= 100%, Amarillo >= 70%, Rojo < 70%"""
+    if pct >= 100:
+        return "#22c55e"
+    elif pct >= 70:
+        return "#f59e0b"
+    else:
+        return "#ef4444"
+
+def get_glow(color):
+    """Retorna un color de glow para el SVG ring"""
+    if color == "#22c55e":
+        return "rgba(34,197,94,0.3)"
+    elif color == "#f59e0b":
+        return "rgba(245,158,11,0.3)"
+    else:
+        return "rgba(239,68,68,0.3)"
 
 def render_metric(nombre, valor, meta, unidad="", tipo='total'):
     if tipo == 'promedio':
@@ -443,50 +451,53 @@ def render_metric(nombre, valor, meta, unidad="", tipo='total'):
 
     pct = min((valor / esperado * 100) if esperado > 0 else 0, 100)
     color = get_color(pct)
-    val_display = f"{valor:,}" if (not unidad and valor >= 1000) else f"{valor}{unidad}"
+    glow = get_glow(color)
+
+    val_display = f"{valor:,}" if (not unidad and isinstance(valor, int) and valor >= 1000) else f"{valor}{unidad}"
+    meta_display = f"{meta:,}" if (not unidad and isinstance(meta, int) and meta >= 1000) else f"{meta}{unidad}"
+
+    # SVG ring
+    r = 36
+    circumference = 2 * math.pi * r
+    offset = circumference * (1 - pct / 100)
 
     st.markdown(f"""
-    <div class="metric-wrap">
-        <div class="metric-header">
-            <span class="metric-name">{nombre}</span>
-            <span class="metric-value val-{color}">{val_display}</span>
+    <div class="glass-card">
+        <div class="metric-card-name">{nombre}</div>
+        <div class="metric-card-body">
+            <div class="metric-ring-wrap">
+                <svg viewBox="0 0 100 100" class="metric-ring-svg">
+                    <circle cx="50" cy="50" r="{r}" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="4.5"/>
+                    <circle cx="50" cy="50" r="{r}" fill="none" stroke="{color}" stroke-width="4.5"
+                        stroke-dasharray="{circumference:.1f}" stroke-dashoffset="{offset:.1f}"
+                        transform="rotate(-90 50 50)" stroke-linecap="round"
+                        style="filter: drop-shadow(0 0 4px {glow});"/>
+                    <text x="50" y="50" text-anchor="middle" dy=".35em" fill="{color}"
+                        font-family="Space Mono, monospace" font-size="15" font-weight="700">{pct:.0f}%</text>
+                </svg>
+            </div>
+            <div class="metric-card-info">
+                <div class="metric-card-value" style="color:{color}">{val_display}</div>
+                <div class="metric-card-goal">META: {meta_display}</div>
+            </div>
         </div>
         <div class="metric-bar-bg">
-            <div class="metric-bar-fill-{color}" style="width:{int(pct)}%"></div>
+            <div class="metric-bar-fill" style="width:{int(pct)}%; background:{color};"></div>
         </div>
-        <div class="metric-pct">{pct:.0f}% — META: {meta:,}{unidad}</div>
-    </div>
-    """, unsafe_allow_html=True)
-
-def render_metric_hist(nombre, valor, meta, unidad=""):
-    pct = min((valor / meta * 100) if meta > 0 else 0, 100)
-    color = get_color(pct)
-    val_display = f"{valor:,}" if (not unidad and valor >= 1000) else f"{valor}{unidad}"
-
-    st.markdown(f"""
-    <div class="metric-wrap">
-        <div class="metric-header">
-            <span class="metric-name">{nombre}</span>
-            <span class="metric-value val-{color}">{val_display}</span>
-        </div>
-        <div class="metric-bar-bg">
-            <div class="metric-bar-fill-{color}" style="width:{int(pct)}%"></div>
-        </div>
-        <div class="metric-pct">{pct:.0f}% — META: {meta:,}{unidad}</div>
     </div>
     """, unsafe_allow_html=True)
 
 # ============ VISTA MES ACTUAL ============
 if st.session_state.vista == "mes":
 
-    st.markdown('<div class="top-bar"></div>', unsafe_allow_html=True)
+    st.markdown('<div class="top-gradient"></div>', unsafe_allow_html=True)
     st.markdown('<div class="hud-title">HABIT TRACKER</div>', unsafe_allow_html=True)
-    st.markdown(f'<div class="date-badge">{meses_nombres_upper[current_month]} {current_year} · DÍA {days_elapsed}/{days_in_month} · {progress_pct:.0f}% DEL MES</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="date-badge">{meses_nombres_upper[current_month]} {current_year} &middot; DIA {days_elapsed}/{days_in_month} &middot; {progress_pct:.0f}% DEL MES</div>', unsafe_allow_html=True)
 
     with st.spinner(''):
         data = get_monthly_data(user_id, current_year, current_month)
 
-    st.markdown('<div class="section-label">// HÁBITOS</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-label">// HABITOS</div>', unsafe_allow_html=True)
 
     col1, col2 = st.columns(2)
 
@@ -497,12 +508,13 @@ if st.session_state.vista == "mes":
         render_metric("HR ZONES 1-3", data['hr_zone_1_3'], metas['hr_zone_1_3'], "h")
 
     with col2:
-        render_metric("ACTIVITIES MES", data['activities'], metas['activities'])
-        render_metric("DÍAS 7.5+ HRS SUEÑO", data['days_before_930'], metas['days_before_930'])
+        render_metric("ACTIVITIES", data['activities'], metas['activities'])
+        render_metric("DIAS 7.5+ HRS SUENO", data['days_before_930'], metas['days_before_930'])
         render_metric("HR ZONES 4-5", data['hr_zone_4_5'], metas['hr_zone_4_5'], "h")
 
     st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
 
+    # Summary stats
     habitos_ok = sum([
         data['steps_avg'] >= metas['steps_avg'],
         data['activities'] >= (metas['activities'] / days_in_month) * days_elapsed,
@@ -513,31 +525,27 @@ if st.session_state.vista == "mes":
         data['hr_zone_4_5'] >= (metas['hr_zone_4_5'] / days_in_month) * days_elapsed,
     ])
 
-    steps_color = "#00ff87" if data['steps_avg'] >= metas['steps_avg'] else "#ff4444"
-    habitos_color = "#00ff87" if habitos_ok >= 5 else "#ffd700" if habitos_ok >= 3 else "#ff4444"
+    steps_color = "#22c55e" if data['steps_avg'] >= metas['steps_avg'] else "#ef4444"
+    habitos_color = "#22c55e" if habitos_ok >= 5 else "#f59e0b" if habitos_ok >= 3 else "#ef4444"
 
     st.markdown(f"""
-    <div class="big-stats-row">
-        <div class="big-stat-box">
-            <div class="big-stat-val" style="color:{steps_color}">{data['steps_avg']:,}</div>
-            <div class="big-stat-label">STEPS DAILY AVG</div>
+    <div class="summary-row">
+        <div class="summary-card">
+            <div class="summary-val" style="color:{steps_color}">{data['steps_avg']:,}</div>
+            <div class="summary-label">STEPS DAILY AVG</div>
         </div>
-        <div class="big-stat-box">
-            <div class="big-stat-val" style="color:{habitos_color}">{habitos_ok}/7</div>
-            <div class="big-stat-label">HÁBITOS EN META</div>
+        <div class="summary-card">
+            <div class="summary-val" style="color:{habitos_color}">{habitos_ok}/7</div>
+            <div class="summary-label">HABITOS ON TRACK</div>
         </div>
-        <div class="big-stat-box">
-            <div class="big-stat-val" style="color:#00d4ff">{progress_pct:.0f}%</div>
-            <div class="big-stat-label">PROGRESO MES</div>
+        <div class="summary-card">
+            <div class="summary-val" style="color:#7c3aed">{progress_pct:.0f}%</div>
+            <div class="summary-label">PROGRESO MES</div>
         </div>
     </div>
     """, unsafe_allow_html=True)
 
-    st.markdown(f"""
-    <div style='font-family: Space Mono, monospace; font-size: 0.55rem; color: #777; text-align: right; margin-top: 20px; letter-spacing: 2px;'>
-    LAST UPDATE: {datetime.now().strftime('%d/%m/%Y %H:%M')}
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown(f'<div class="timestamp">LAST UPDATE: {datetime.now().strftime("%d/%m/%Y %H:%M")}</div>', unsafe_allow_html=True)
 
 # ============ VISTA METAS ============
 elif st.session_state.vista == "metas":
@@ -546,8 +554,8 @@ elif st.session_state.vista == "metas":
 # ============ VISTA HISTORICO ============
 elif st.session_state.vista == "historico":
 
-    st.markdown('<div class="top-bar"></div>', unsafe_allow_html=True)
-    st.markdown(f'<div class="historical-title">HISTÓRICO {current_year}</div>', unsafe_allow_html=True)
+    st.markdown('<div class="top-gradient"></div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="hist-title">HISTORICO {current_year}</div>', unsafe_allow_html=True)
 
     meses_nombres = {
         1: 'ENE', 2: 'FEB', 3: 'MAR', 4: 'ABR',
@@ -558,11 +566,11 @@ elif st.session_state.vista == "historico":
     meses_cerrados = list(range(1, current_month))
 
     if not meses_cerrados:
-        st.markdown('<div style="font-family: Space Mono, monospace; font-size: 0.7rem; color: #888; margin-top: 40px; text-align: center; letter-spacing: 2px;">// NO HAY MESES CERRADOS AÚN</div>', unsafe_allow_html=True)
+        st.markdown('<div class="no-data-msg">// NO HAY MESES CERRADOS AUN</div>', unsafe_allow_html=True)
     else:
         all_data = []
 
-        with st.spinner('Cargando histórico...'):
+        with st.spinner('Cargando historico...'):
             for mes in meses_cerrados:
                 d = get_monthly_data(user_id, current_year, mes)
                 all_data.append(d)
@@ -579,14 +587,11 @@ elif st.session_state.vista == "historico":
             'hr_zone_4_5': round(sum(d['hr_zone_4_5'] for d in all_data) / n, 1),
         }
 
-        def avg_color(valor, meta):
+        def hist_color(valor, meta):
             pct = (valor / meta * 100) if meta > 0 else 0
-            if pct >= 100:
-                return "#00ff87", f"{pct:.0f}%"
-            elif pct >= 70:
-                return "#ffd700", f"{pct:.0f}%"
-            else:
-                return "#ff4444", f"{pct:.0f}%"
+            if pct >= 100: return "#22c55e"
+            elif pct >= 70: return "#f59e0b"
+            else: return "#ef4444"
 
         metricas_avg = [
             ("STEPS AVG", avg_data['steps_avg'], metas['steps_avg'], ""),
@@ -600,20 +605,19 @@ elif st.session_state.vista == "historico":
 
         rows_html = ""
         for nombre, valor, meta, unidad in metricas_avg:
-            color, pct_label = avg_color(valor, meta)
-            val_display = f"{valor:,}" if (not unidad and valor >= 1000) else f"{valor}{unidad}"
+            color = hist_color(valor, meta)
+            val_display = f"{valor:,}" if (not unidad and isinstance(valor, int) and valor >= 1000) else f"{valor}{unidad}"
             pct_raw = (valor / meta * 100) if meta > 0 else 0
             bar_w = min(int(pct_raw), 100)
-            bar_color = "linear-gradient(90deg, #00ff87, #00d4ff)" if pct_raw >= 100 else "linear-gradient(90deg, #ffd700, #ff8c00)" if pct_raw >= 70 else "linear-gradient(90deg, #ff0080, #ff4444)"
-            rows_html += f'<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #1a1a1a;">'
-            rows_html += f'<span style="font-family:Space Mono,monospace;font-size:0.6rem;color:#aaa;text-transform:uppercase;letter-spacing:1px;width:30%;">{nombre}</span>'
-            rows_html += f'<span style="font-family:Space Mono,monospace;font-size:0.85rem;font-weight:700;color:{color};width:20%;text-align:right;">{val_display}</span>'
-            rows_html += f'<div style="width:30%;margin:0 12px;"><div style="height:3px;background:#1a1a1a;border-radius:2px;overflow:hidden;"><div style="height:3px;background:{bar_color};border-radius:2px;width:{bar_w}%;"></div></div></div>'
-            rows_html += f'<span style="font-family:Space Mono,monospace;font-size:0.55rem;color:{color};width:10%;text-align:right;">{pct_label}</span>'
+            rows_html += f'<div style="display:flex;align-items:center;padding:12px 0;border-bottom:1px solid rgba(255,255,255,0.06);">'
+            rows_html += f'<span style="font-family:Space Mono,monospace;font-size:0.6rem;color:#94a3b8;text-transform:uppercase;letter-spacing:1px;width:28%;">{nombre}</span>'
+            rows_html += f'<span style="font-family:Inter,sans-serif;font-size:0.9rem;font-weight:700;color:{color};width:18%;text-align:right;">{val_display}</span>'
+            rows_html += f'<div style="width:34%;margin:0 14px;"><div style="height:4px;background:rgba(255,255,255,0.06);border-radius:4px;overflow:hidden;"><div style="height:4px;background:{color};border-radius:4px;width:{bar_w}%;"></div></div></div>'
+            rows_html += f'<span style="font-family:Space Mono,monospace;font-size:0.55rem;color:{color};width:10%;text-align:right;">{pct_raw:.0f}%</span>'
             rows_html += '</div>'
 
-        avg_html = f'<div style="background:#0d0d0d;border:1px solid #00ff87;border-radius:10px;padding:20px;margin-top:8px;">'
-        avg_html += f'<div style="font-family:Bebas Neue,sans-serif;font-size:1.4rem;letter-spacing:3px;color:#00ff87;margin-bottom:16px;">// PROMEDIO ANUAL ({n} MESES)</div>'
+        avg_html = f'<div class="glass-card" style="border-color:rgba(124,58,237,0.3);">'
+        avg_html += f'<div style="font-family:Inter,sans-serif;font-size:1.1rem;font-weight:700;letter-spacing:3px;background:linear-gradient(135deg,#c4b5fd,#7c3aed);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-bottom:16px;">// PROMEDIO ANUAL ({n} MESES)</div>'
         avg_html += rows_html
         avg_html += '</div>'
         st.markdown(avg_html, unsafe_allow_html=True)
@@ -633,30 +637,25 @@ elif st.session_state.vista == "historico":
             ("HR Z4-5", 'hr_zone_4_5', metas['hr_zone_4_5'], "h"),
         ]
 
-        header = '<div style="display:flex;gap:0;padding:8px 0;border-bottom:1px solid #333;">'
-        header += '<div style="font-family:Space Mono,monospace;font-size:0.55rem;color:#aaa;letter-spacing:1px;width:25%;text-transform:uppercase;">MÉTRICA</div>'
+        header = '<div style="display:flex;gap:0;padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.1);">'
+        header += '<div style="font-family:Space Mono,monospace;font-size:0.55rem;color:#94a3b8;letter-spacing:1px;width:25%;text-transform:uppercase;">METRICA</div>'
         for mes in meses_cerrados:
-            header += f'<div style="font-family:Space Mono,monospace;font-size:0.55rem;color:#888;letter-spacing:1px;flex:1;text-align:center;">{meses_nombres[mes]}</div>'
+            header += f'<div style="font-family:Space Mono,monospace;font-size:0.55rem;color:#64748b;letter-spacing:1px;flex:1;text-align:center;">{meses_nombres[mes]}</div>'
         header += '</div>'
 
         table_rows = ""
         for label, key, meta, unidad in metric_keys:
-            table_rows += '<div style="display:flex;gap:0;padding:8px 0;border-bottom:1px solid #1a1a1a;">'
-            table_rows += f'<div style="font-family:Space Mono,monospace;font-size:0.55rem;color:#aaa;letter-spacing:1px;width:25%;text-transform:uppercase;display:flex;align-items:center;">{label}</div>'
+            table_rows += '<div style="display:flex;gap:0;padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.04);">'
+            table_rows += f'<div style="font-family:Space Mono,monospace;font-size:0.55rem;color:#94a3b8;letter-spacing:1px;width:25%;text-transform:uppercase;display:flex;align-items:center;">{label}</div>'
             for d in all_data:
                 valor = d[key]
                 pct = (valor / meta * 100) if meta > 0 else 0
-                if pct >= 100:
-                    color = "#00ff87"
-                elif pct >= 70:
-                    color = "#ffd700"
-                else:
-                    color = "#ff4444"
-                val_display = f"{valor:,}" if (not unidad and valor >= 1000) else f"{valor}{unidad}"
-                table_rows += f'<div style="font-family:Space Mono,monospace;font-size:0.75rem;font-weight:700;color:{color};flex:1;text-align:center;">{val_display}</div>'
+                color = hist_color(valor, meta)
+                val_display = f"{valor:,}" if (not unidad and isinstance(valor, int) and valor >= 1000) else f"{valor}{unidad}"
+                table_rows += f'<div style="font-family:Inter,sans-serif;font-size:0.75rem;font-weight:700;color:{color};flex:1;text-align:center;">{val_display}</div>'
             table_rows += '</div>'
 
-        table_html = f'<div style="background:#0d0d0d;border:1px solid #1a1a1a;border-radius:10px;padding:16px 20px;">{header}{table_rows}</div>'
+        table_html = f'<div class="glass-card">{header}{table_rows}</div>'
         st.markdown(table_html, unsafe_allow_html=True)
 
-        st.markdown(f'<div style="font-family:Space Mono,monospace;font-size:0.55rem;color:#444;text-align:right;margin-top:20px;letter-spacing:2px;">LAST UPDATE: {datetime.now().strftime("%d/%m/%Y %H:%M")}</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="timestamp">LAST UPDATE: {datetime.now().strftime("%d/%m/%Y %H:%M")}</div>', unsafe_allow_html=True)
