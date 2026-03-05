@@ -442,7 +442,7 @@ html, body {
 const SUPABASE_URL = 'https://bailojpedwczadqhtqtl.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJhaWxvanBlZHdjemFkcWh0cXRsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk3MTk3MzQsImV4cCI6MjA4NTI5NTczNH0.Hn97q3nYnJDOinFt0eEsPukwBiglqjl2I5vqoxiAgek';
 
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // ===== CONSTANTS =====
 const MONTHS = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
@@ -499,7 +499,7 @@ let realtimeSubscription = null;
 async function loadEntries() {
   setSyncStatus('syncing');
   try {
-    const { data, error } = await supabase
+    const { data, error } = await sb
       .from('journal_entries')
       .select('entry_date, text')
       .eq('user_id', currentUser.id);
@@ -516,12 +516,12 @@ async function loadEntries() {
 
 function subscribeToEntries() {
   if (realtimeSubscription) {
-    supabase.removeChannel(realtimeSubscription);
+    sb.removeChannel(realtimeSubscription);
   }
 
   loadEntries();
 
-  realtimeSubscription = supabase
+  realtimeSubscription = sb
     .channel('journal-changes')
     .on('postgres_changes', {
       event: '*',
@@ -544,7 +544,7 @@ async function saveEntry(date, text) {
   setSyncStatus('syncing');
   try {
     if (text.trim()) {
-      const { error } = await supabase
+      const { error } = await sb
         .from('journal_entries')
         .upsert({
           user_id: currentUser.id,
@@ -555,7 +555,7 @@ async function saveEntry(date, text) {
       if (error) throw error;
       entries[date] = text;
     } else {
-      const { error } = await supabase
+      const { error } = await sb
         .from('journal_entries')
         .delete()
         .eq('user_id', currentUser.id)
@@ -574,7 +574,7 @@ async function saveEntry(date, text) {
 async function deleteEntry(date) {
   setSyncStatus('syncing');
   try {
-    const { error } = await supabase
+    const { error } = await sb
       .from('journal_entries')
       .delete()
       .eq('user_id', currentUser.id)
@@ -592,7 +592,7 @@ async function deleteEntry(date) {
 async function deleteAllEntries() {
   setSyncStatus('syncing');
   try {
-    const { error } = await supabase
+    const { error } = await sb
       .from('journal_entries')
       .delete()
       .eq('user_id', currentUser.id);
@@ -616,7 +616,7 @@ async function migrateLocalStorage() {
     if (!keys.length) return;
 
     // Check if user already has entries in Supabase
-    const { data: existing } = await supabase
+    const { data: existing } = await sb
       .from('journal_entries')
       .select('entry_date')
       .eq('user_id', currentUser.id)
@@ -630,7 +630,7 @@ async function migrateLocalStorage() {
       text: localEntries[date],
       updated_at: new Date().toISOString()
     }));
-    const { error } = await supabase.from('journal_entries').insert(rows);
+    const { error } = await sb.from('journal_entries').insert(rows);
     if (error) throw error;
     localStorage.removeItem('diario-entries');
     setSyncStatus('synced');
@@ -685,12 +685,12 @@ function setupAuthUI() {
     if (!email || !password) { showAuthError('Ingresa email y contrasena.'); return; }
     try {
       if (isRegistering) {
-        const { error } = await supabase.auth.signUp({ email, password });
+        const { error } = await sb.auth.signUp({ email, password });
         if (error) throw error;
         showAuthError('Cuenta creada! Revisa tu email para confirmar.');
         document.getElementById('authError').style.color = 'var(--success)';
       } else {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        const { error } = await sb.auth.signInWithPassword({ email, password });
         if (error) throw error;
       }
     } catch (e) {
@@ -739,7 +739,7 @@ function showApp(user) {
 function showAuthScreen() {
   currentUser = null;
   if (realtimeSubscription) {
-    supabase.removeChannel(realtimeSubscription);
+    sb.removeChannel(realtimeSubscription);
     realtimeSubscription = null;
   }
   entries = {};
@@ -932,7 +932,7 @@ document.addEventListener('DOMContentLoaded', () => {
   setupAuthUI();
 
   // Auth state listener
-  supabase.auth.onAuthStateChange((event, session) => {
+  sb.auth.onAuthStateChange((event, session) => {
     if (session?.user) {
       showApp(session.user);
     } else {
@@ -941,7 +941,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // Check initial session
-  supabase.auth.getSession().then(({ data: { session } }) => {
+  sb.auth.getSession().then(({ data: { session } }) => {
     if (session?.user) {
       showApp(session.user);
     } else {
@@ -951,7 +951,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Logout
   document.getElementById('btnLogout').addEventListener('click', async () => {
-    if (confirm('Cerrar sesion?')) await supabase.auth.signOut();
+    if (confirm('Cerrar sesion?')) await sb.auth.signOut();
   });
 
   // Nav
