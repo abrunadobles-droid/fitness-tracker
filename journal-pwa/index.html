@@ -1,0 +1,993 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#1a1714">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Diario">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<title>Diario</title>
+<link href="https://fonts.googleapis.com/css2?family=Crimson+Pro:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&family=DM+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400&display=swap" rel="stylesheet">
+<!-- Supabase SDK -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<style>
+:root {
+  --bg: #1a1714;
+  --surface: #23201b;
+  --card: #2a2520;
+  --border: #3d362e;
+  --border-light: #4a4238;
+  --text: #e8e0d4;
+  --text-muted: #9c9285;
+  --text-dim: #6b6359;
+  --accent: #c4956a;
+  --accent-soft: rgba(196,149,106,0.15);
+  --accent-glow: rgba(196,149,106,0.3);
+  --success: #7db87d;
+  --success-soft: rgba(125,184,125,0.2);
+  --danger: #c47a6a;
+  --danger-soft: rgba(196,122,106,0.15);
+  --font-serif: 'Crimson Pro', Georgia, serif;
+  --font-sans: 'DM Sans', 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+* { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+html, body {
+  background:var(--bg); color:var(--text); font-family:var(--font-sans);
+  min-height:100vh; min-height:100dvh; overflow-x:hidden;
+}
+::-webkit-scrollbar { width:5px; }
+::-webkit-scrollbar-track { background:transparent; }
+::-webkit-scrollbar-thumb { background:var(--border-light); border-radius:3px; }
+@keyframes fadeUp { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} }
+@keyframes fadeIn { from{opacity:0} to{opacity:1} }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.5} }
+@keyframes shimmer { 0%{background-position:-200% 0} 100%{background-position:200% 0} }
+@keyframes spin { to{transform:rotate(360deg)} }
+.container { max-width:720px; margin:0 auto; padding:0 20px 40px; }
+
+/* ===== AUTH SCREEN ===== */
+.auth-screen {
+  min-height:100vh; min-height:100dvh;
+  display:flex; align-items:center; justify-content:center;
+  padding:20px; animation:fadeIn .5s ease;
+}
+.auth-card {
+  width:100%; max-width:380px;
+  background:var(--surface); border:1px solid var(--border); border-radius:16px;
+  padding:40px 32px; animation:fadeUp .6s ease both;
+}
+.auth-card .auth-logo {
+  text-align:center; margin-bottom:32px;
+}
+.auth-card .auth-logo h1 {
+  font-family:var(--font-serif); font-size:42px; font-weight:300;
+  letter-spacing:-0.02em; color:var(--text);
+}
+.auth-card .auth-logo p {
+  font-family:var(--font-serif); font-size:14px; color:var(--text-dim);
+  font-style:italic; margin-top:4px;
+}
+.auth-card .auth-divider {
+  display:flex; align-items:center; gap:12px; margin:20px 0;
+}
+.auth-card .auth-divider::before,
+.auth-card .auth-divider::after {
+  content:''; flex:1; height:1px; background:var(--border);
+}
+.auth-card .auth-divider span {
+  font-family:var(--font-sans); font-size:11px; color:var(--text-dim);
+  text-transform:uppercase; letter-spacing:.1em;
+}
+.auth-input-group { margin-bottom:14px; }
+.auth-input-group label {
+  font-family:var(--font-sans); font-size:12px; font-weight:500;
+  color:var(--text-muted); display:block; margin-bottom:6px;
+}
+.auth-input-group input {
+  width:100%; padding:12px 14px; background:var(--bg); border:1px solid var(--border);
+  border-radius:10px; font-family:var(--font-sans); font-size:14px; color:var(--text);
+  outline:none; transition:border-color .2s;
+}
+.auth-input-group input:focus { border-color:var(--accent); }
+.auth-input-group input::placeholder { color:var(--text-dim); }
+.auth-btn {
+  width:100%; padding:13px; border-radius:10px; border:none;
+  font-family:var(--font-sans); font-size:14px; font-weight:600;
+  cursor:pointer; transition:all .2s ease; margin-bottom:10px;
+}
+.auth-btn:active { transform:scale(.98); }
+.auth-btn-primary { background:var(--accent); color:var(--bg); }
+.auth-toggle {
+  text-align:center; margin-top:16px;
+  font-family:var(--font-sans); font-size:13px; color:var(--text-dim);
+}
+.auth-toggle a {
+  color:var(--accent); cursor:pointer; text-decoration:underline;
+  text-underline-offset:3px;
+}
+.auth-error {
+  font-family:var(--font-sans); font-size:12px; color:var(--danger);
+  background:var(--danger-soft); padding:10px 14px; border-radius:8px;
+  margin-bottom:14px; display:none; animation:fadeIn .3s ease;
+}
+.auth-error.show { display:block; }
+.auth-loading {
+  display:none; align-items:center; justify-content:center;
+  min-height:100vh; min-height:100dvh;
+}
+.auth-loading.show { display:flex; }
+.auth-spinner {
+  width:32px; height:32px; border:3px solid var(--border);
+  border-top-color:var(--accent); border-radius:50%; animation:spin .8s linear infinite;
+}
+/* User bar */
+.user-bar {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:4px 0 0; margin-bottom:-8px;
+}
+.user-info {
+  font-family:var(--font-sans); font-size:11px; color:var(--text-dim);
+  display:flex; align-items:center; gap:6px;
+}
+.user-avatar {
+  width:22px; height:22px; border-radius:50%; background:var(--accent-soft);
+  display:flex; align-items:center; justify-content:center;
+  font-size:10px; color:var(--accent); font-weight:700; overflow:hidden;
+}
+.user-avatar img { width:100%; height:100%; object-fit:cover; border-radius:50%; }
+.btn-logout {
+  font-family:var(--font-sans); font-size:11px; color:var(--text-dim);
+  background:transparent; border:1px solid var(--border); border-radius:6px;
+  padding:4px 10px; cursor:pointer; transition:all .2s;
+}
+.btn-logout:hover { border-color:var(--border-light); color:var(--text-muted); }
+
+/* Header */
+.header { padding:24px 20px 0; max-width:720px; margin:0 auto; }
+.header h1 { font-family:var(--font-serif); font-size:36px; font-weight:300; letter-spacing:-0.02em; line-height:1.1; }
+.header .date { font-family:var(--font-serif); font-size:14px; color:var(--text-dim); font-style:italic; margin-top:4px; }
+.save-badge {
+  font-family:var(--font-sans); font-size:11px; color:var(--success);
+  padding:6px 12px; background:var(--success-soft); border-radius:20px;
+  animation:fadeIn .3s ease; display:none;
+}
+.save-badge.show { display:inline-block; }
+/* Nav */
+.nav { display:flex; gap:4px; background:var(--surface); border-radius:10px; padding:4px; margin:20px 0 24px; }
+.nav button {
+  flex:1; font-family:var(--font-sans); font-size:13px; font-weight:400;
+  padding:10px 0; border-radius:8px; border:none; background:transparent;
+  color:var(--text-dim); cursor:pointer; transition:all .2s ease;
+}
+.nav button.active { background:var(--card); color:var(--text); font-weight:600; }
+/* Stat cards */
+.stats { display:flex; gap:12px; flex-wrap:wrap; margin-bottom:20px; }
+.stat-card {
+  background:var(--surface); border:1px solid var(--border); border-radius:12px;
+  padding:18px 20px; flex:1; min-width:130px; animation:fadeUp .5s ease both;
+}
+.stat-card .label { display:flex; align-items:center; gap:8px; margin-bottom:10px; }
+.stat-card .label span:last-child {
+  font-family:var(--font-sans); font-size:11px; font-weight:600;
+  text-transform:uppercase; letter-spacing:.08em; color:var(--text-muted);
+}
+.stat-card .value { font-family:var(--font-serif); font-size:32px; font-weight:300; color:var(--accent); line-height:1; }
+.stat-card .sub { font-family:var(--font-sans); font-size:11px; color:var(--text-dim); margin-top:6px; }
+/* Calendar */
+.calendar {
+  background:var(--surface); border:1px solid var(--border); border-radius:12px;
+  padding:20px; margin-bottom:20px; animation:fadeUp .6s ease both;
+}
+.calendar .cal-nav {
+  display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;
+}
+.calendar .month-label {
+  font-family:var(--font-sans); font-size:13px; font-weight:600; color:var(--text-muted);
+  text-transform:uppercase; letter-spacing:.06em;
+}
+.calendar .cal-arrow {
+  background:transparent; border:1px solid var(--border); border-radius:6px;
+  color:var(--text-muted); width:28px; height:28px; cursor:pointer;
+  display:flex; align-items:center; justify-content:center; font-size:14px;
+  transition:all .2s;
+}
+.calendar .cal-arrow:hover { border-color:var(--border-light); color:var(--text); }
+.cal-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:4px; }
+.cal-header {
+  font-family:var(--font-sans); font-size:10px; color:var(--text-dim);
+  text-align:center; padding:4px 0; font-weight:600;
+}
+.cal-day {
+  aspect-ratio:1; border-radius:6px; display:flex; align-items:center; justify-content:center;
+  font-size:12px; font-family:var(--font-sans); font-weight:500; cursor:pointer;
+  border:1px solid transparent; transition:all .2s ease; background:rgba(255,255,255,.02); color:var(--text-dim);
+}
+.cal-day.empty { background:transparent; cursor:default; }
+.cal-day.has-entry { background:var(--accent-soft); color:var(--accent); }
+.cal-day.selected { background:var(--accent); color:var(--bg); }
+.cal-day.today:not(.selected) { border-color:var(--border-light); }
+/* Editor */
+.editor {
+  background:var(--surface); border:1px solid var(--border); border-radius:12px;
+  overflow:hidden; animation:fadeUp .7s ease both;
+}
+.editor-header {
+  padding:14px 20px; border-bottom:1px solid var(--border);
+  display:flex; justify-content:space-between; align-items:center;
+}
+.editor-header .date-label { font-family:var(--font-sans); font-size:13px; font-weight:500; color:var(--text-muted); }
+.editor-header .today-badge { color:var(--accent); margin-left:8px; font-size:11px; }
+.editor-header .word-count { font-family:var(--font-mono); font-size:11px; color:var(--text-dim); }
+.editor textarea {
+  width:100%; min-height:220px; padding:20px; background:transparent; border:none; outline:none;
+  font-family:var(--font-serif); font-size:16px; line-height:1.8; color:var(--text); resize:vertical;
+}
+.editor textarea::placeholder { color:var(--text-dim); }
+.editor-footer {
+  padding:12px 20px; border-top:1px solid var(--border);
+  display:flex; justify-content:flex-end; gap:8px;
+}
+.btn {
+  font-family:var(--font-sans); font-size:12px; font-weight:600; padding:8px 20px;
+  border-radius:8px; border:none; cursor:pointer; transition:all .2s ease;
+}
+.btn-primary { background:var(--accent); color:var(--bg); }
+.btn-primary:active { transform:scale(.97); }
+.btn-outline { border:1px solid var(--border); background:transparent; color:var(--danger); font-weight:500; }
+.btn-text {
+  font-family:var(--font-sans); font-size:11px; color:var(--text-dim);
+  background:transparent; border:none; cursor:pointer; text-decoration:underline;
+  text-underline-offset:3px;
+}
+/* Sync indicator */
+.sync-indicator {
+  font-family:var(--font-sans); font-size:10px; color:var(--text-dim);
+  display:flex; align-items:center; gap:4px;
+}
+.sync-dot {
+  width:6px; height:6px; border-radius:50%; background:var(--success);
+}
+.sync-dot.syncing { background:var(--accent); animation:pulse 1s ease infinite; }
+.sync-dot.error { background:var(--danger); }
+/* History */
+.entry-card {
+  background:var(--surface); border:1px solid var(--border); border-radius:12px;
+  padding:16px 20px; cursor:pointer; transition:all .2s ease; margin-bottom:12px;
+}
+.entry-card:hover { border-color:var(--border-light); }
+.entry-card .entry-header {
+  display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;
+}
+.entry-card .entry-date { font-family:var(--font-sans); font-size:13px; font-weight:600; color:var(--accent); }
+.entry-card .entry-words { font-family:var(--font-mono); font-size:11px; color:var(--text-dim); }
+.entry-card .entry-preview {
+  font-family:var(--font-serif); font-size:14px; line-height:1.6; color:var(--text-muted);
+  overflow:hidden; text-overflow:ellipsis; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical;
+}
+.empty-state {
+  text-align:center; padding:60px 0;
+  font-family:var(--font-serif); font-size:16px; color:var(--text-dim); font-style:italic;
+}
+/* AI Panel */
+.ai-panel {
+  background:linear-gradient(135deg, var(--surface), var(--card));
+  border:1px solid var(--border); border-radius:12px; padding:24px;
+  animation:fadeUp .7s ease both;
+}
+.ai-panel .panel-header {
+  display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;
+}
+.ai-panel .panel-title { display:flex; align-items:center; gap:10px; }
+.ai-panel .panel-title span:last-child {
+  font-family:var(--font-sans); font-size:13px; font-weight:600;
+  text-transform:uppercase; letter-spacing:.06em; color:var(--text-muted);
+}
+.ai-btn {
+  font-family:var(--font-sans); font-size:12px; font-weight:600; padding:8px 16px;
+  border-radius:8px; border:none; background:var(--accent); color:var(--bg); cursor:pointer;
+}
+.ai-btn:disabled { background:var(--border-light); cursor:not-allowed; }
+.ai-loading {
+  height:120px; display:flex; align-items:center; justify-content:center; flex-direction:column; gap:12px;
+}
+.ai-loading .bar {
+  width:60%; height:8px; border-radius:4px;
+  background:linear-gradient(90deg, var(--border), var(--accent-soft), var(--border));
+  background-size:200% 100%; animation:shimmer 1.5s ease infinite;
+}
+.ai-loading span { font-family:var(--font-sans); font-size:12px; color:var(--text-dim); animation:pulse 1.5s ease infinite; }
+.ai-section { margin-bottom:16px; }
+.ai-section .section-label {
+  font-family:var(--font-sans); font-size:10px; font-weight:700;
+  text-transform:uppercase; letter-spacing:.1em; color:var(--text-dim); margin-bottom:6px;
+}
+.ai-section .section-text { font-family:var(--font-serif); font-size:15px; line-height:1.7; color:var(--text); }
+.ai-section .section-text.italic { font-size:16px; font-style:italic; }
+.ai-tags { display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; }
+.ai-tag {
+  font-family:var(--font-sans); font-size:12px; padding:5px 12px; border-radius:20px;
+  background:var(--accent-soft); color:var(--accent); font-weight:500;
+}
+.ai-suggestion {
+  background:var(--success-soft); border-radius:8px; padding:14px; margin-bottom:16px;
+}
+.ai-suggestion .section-label { color:var(--success); }
+.ai-suggestion .section-text { font-size:14px; }
+.ai-quote {
+  font-family:var(--font-serif); font-size:13px; color:var(--text-muted); font-style:italic;
+  border-left:2px solid var(--border-light); padding-left:14px;
+}
+.ai-placeholder { font-family:var(--font-serif); font-size:14px; color:var(--text-dim); font-style:italic; padding:8px 0; }
+.ai-error { font-family:var(--font-sans); font-size:13px; color:var(--danger); padding:12px 0; }
+/* View sections */
+.view-section { display:none; }
+.view-section.active { display:block; animation:fadeUp .4s ease; }
+/* App wrapper - hidden until auth */
+#appMain { display:none; }
+</style>
+</head>
+<body>
+
+<!-- ===== AUTH LOADING ===== -->
+<div class="auth-loading show" id="authLoading">
+  <div class="auth-spinner"></div>
+</div>
+
+<!-- ===== AUTH SCREEN ===== -->
+<div class="auth-screen" id="authScreen" style="display:none">
+  <div class="auth-card">
+    <div class="auth-logo">
+      <h1>Diario</h1>
+      <p>Tu espacio personal de reflexion</p>
+    </div>
+
+    <div class="auth-error" id="authError"></div>
+
+    <!-- Email/Password -->
+    <div class="auth-input-group">
+      <label>Email</label>
+      <input type="email" id="authEmail" placeholder="tu@email.com" autocomplete="email">
+    </div>
+    <div class="auth-input-group">
+      <label>Contrasena</label>
+      <input type="password" id="authPassword" placeholder="Minimo 6 caracteres" autocomplete="current-password">
+    </div>
+
+    <button class="auth-btn auth-btn-primary" id="btnEmailAuth">Iniciar sesion</button>
+
+    <div class="auth-toggle" id="authToggle">
+      No tienes cuenta? <a id="authToggleLink">Crear cuenta</a>
+    </div>
+  </div>
+</div>
+
+<!-- ===== MAIN APP ===== -->
+<div id="appMain">
+  <div class="header">
+    <div class="user-bar" id="userBar">
+      <div class="user-info">
+        <div class="user-avatar" id="userAvatar"></div>
+        <span id="userName"></span>
+        <div class="sync-indicator" id="syncIndicator">
+          <div class="sync-dot" id="syncDot"></div>
+          <span id="syncText">Sincronizado</span>
+        </div>
+      </div>
+      <button class="btn-logout" id="btnLogout">Salir</button>
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px;margin-top:12px">
+      <div>
+        <h1>Diario</h1>
+        <p class="date" id="todayDate"></p>
+      </div>
+      <span class="save-badge" id="saveBadge">&#10003; Guardado</span>
+    </div>
+    <div class="nav" id="nav">
+      <button data-view="write" class="active">&#9997;&#65039; Escribir</button>
+      <button data-view="history">&#128214; Historial</button>
+      <button data-view="insights">&#128302; Insights</button>
+    </div>
+  </div>
+  <div class="container">
+    <!-- WRITE -->
+    <div class="view-section active" id="view-write">
+      <div class="stats" id="writeStats"></div>
+      <div class="calendar" id="calendar"></div>
+      <div class="editor">
+        <div class="editor-header">
+          <span class="date-label" id="editorDate"></span>
+          <span class="word-count" id="wordCount">0 palabras</span>
+        </div>
+        <textarea id="entryText" placeholder="Que tienes en mente hoy?"></textarea>
+        <div class="editor-footer">
+          <button class="btn btn-outline" id="btnDelete" style="display:none">Borrar</button>
+          <button class="btn btn-primary" id="btnSave">Guardar</button>
+        </div>
+      </div>
+    </div>
+    <!-- HISTORY -->
+    <div class="view-section" id="view-history">
+      <div id="historyList"></div>
+    </div>
+    <!-- INSIGHTS -->
+    <div class="view-section" id="view-insights">
+      <div class="stats" id="insightStats"></div>
+      <div class="ai-panel">
+        <div class="panel-header">
+          <div class="panel-title">
+            <span style="font-size:20px">&#128302;</span>
+            <span>AI Analysis</span>
+          </div>
+          <button class="ai-btn" id="btnAnalyze">Generar analisis</button>
+        </div>
+        <div id="aiContent">
+          <div class="ai-placeholder">Presiona "Generar analisis" para que la AI analice tus entradas recientes y encuentre patrones.</div>
+        </div>
+      </div>
+      <div style="text-align:center;padding-top:24px">
+        <button class="btn-text" id="btnReset">Borrar todos los datos</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// =============================================================================
+// SUPABASE CONFIG
+// =============================================================================
+const SUPABASE_URL = 'https://bailojpedwczadqhtqtl.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJhaWxvanBlZHdjemFkcWh0cXRsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk3MTk3MzQsImV4cCI6MjA4NTI5NTczNH0.Hn97q3nYnJDOinFt0eEsPukwBiglqjl2I5vqoxiAgek';
+
+const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// ===== CONSTANTS =====
+const MONTHS = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
+const MONTHS_FULL = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
+const DAYS_L = ["L","M","X","J","V","S","D"];
+
+// ===== UTILS =====
+const todayStr = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+};
+const fmtDate = ds => {
+  const [y,m,d] = ds.split('-');
+  return `${parseInt(d)} ${MONTHS[parseInt(m)-1]} ${y}`;
+};
+const wordCount = t => t.trim().split(/\s+/).filter(Boolean).length;
+const daysInMonth = (y,m) => new Date(y,m+1,0).getDate();
+const firstDow = (y,m) => { const d=new Date(y,m,1).getDay(); return d===0?6:d-1; };
+
+function calcStreak(entries) {
+  const dates = Object.keys(entries).sort().reverse();
+  if (!dates.length) return {current:0,best:0};
+  let current = 0;
+  const t = todayStr();
+  const yd = new Date(); yd.setDate(yd.getDate()-1);
+  const yesterday = `${yd.getFullYear()}-${String(yd.getMonth()+1).padStart(2,'0')}-${String(yd.getDate()).padStart(2,'0')}`;
+  if (dates[0]===t || dates[0]===yesterday) {
+    let check = new Date(dates[0]);
+    for (const ds of dates) {
+      const exp = `${check.getFullYear()}-${String(check.getMonth()+1).padStart(2,'0')}-${String(check.getDate()).padStart(2,'0')}`;
+      if (ds===exp) { current++; check.setDate(check.getDate()-1); } else break;
+    }
+  }
+  let best=0, run=0;
+  const sorted = Object.keys(entries).sort();
+  for (let i=0;i<sorted.length;i++) {
+    if (i===0) run=1;
+    else { const diff=(new Date(sorted[i])-new Date(sorted[i-1]))/864e5; run=diff===1?run+1:1; }
+    best=Math.max(best,run);
+  }
+  return {current,best};
+}
+
+// ===== STATE =====
+let entries = {};
+let selectedDate = todayStr();
+let currentView = 'write';
+let currentUser = null;
+let calendarYear = new Date().getFullYear();
+let calendarMonth = new Date().getMonth();
+let realtimeSubscription = null;
+
+// ===== SUPABASE STORAGE =====
+async function loadEntries() {
+  setSyncStatus('syncing');
+  try {
+    const { data, error } = await supabase
+      .from('journal_entries')
+      .select('entry_date, text')
+      .eq('user_id', currentUser.id);
+    if (error) throw error;
+    entries = {};
+    (data || []).forEach(row => { entries[row.entry_date] = row.text; });
+    setSyncStatus('synced');
+    renderAll();
+  } catch (e) {
+    console.error('Load error:', e);
+    setSyncStatus('error');
+  }
+}
+
+function subscribeToEntries() {
+  if (realtimeSubscription) {
+    supabase.removeChannel(realtimeSubscription);
+  }
+
+  loadEntries();
+
+  realtimeSubscription = supabase
+    .channel('journal-changes')
+    .on('postgres_changes', {
+      event: '*',
+      schema: 'public',
+      table: 'journal_entries',
+      filter: `user_id=eq.${currentUser.id}`
+    }, payload => {
+      if (payload.eventType === 'DELETE') {
+        delete entries[payload.old.entry_date];
+      } else {
+        entries[payload.new.entry_date] = payload.new.text;
+      }
+      renderAll();
+      setSyncStatus('synced');
+    })
+    .subscribe();
+}
+
+async function saveEntry(date, text) {
+  setSyncStatus('syncing');
+  try {
+    if (text.trim()) {
+      const { error } = await supabase
+        .from('journal_entries')
+        .upsert({
+          user_id: currentUser.id,
+          entry_date: date,
+          text: text,
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'user_id,entry_date' });
+      if (error) throw error;
+      entries[date] = text;
+    } else {
+      const { error } = await supabase
+        .from('journal_entries')
+        .delete()
+        .eq('user_id', currentUser.id)
+        .eq('entry_date', date);
+      if (error) throw error;
+      delete entries[date];
+    }
+    setSyncStatus('synced');
+    renderAll();
+  } catch (e) {
+    console.error('Save error:', e);
+    setSyncStatus('error');
+  }
+}
+
+async function deleteEntry(date) {
+  setSyncStatus('syncing');
+  try {
+    const { error } = await supabase
+      .from('journal_entries')
+      .delete()
+      .eq('user_id', currentUser.id)
+      .eq('entry_date', date);
+    if (error) throw error;
+    delete entries[date];
+    setSyncStatus('synced');
+    renderAll();
+  } catch (e) {
+    console.error('Delete error:', e);
+    setSyncStatus('error');
+  }
+}
+
+async function deleteAllEntries() {
+  setSyncStatus('syncing');
+  try {
+    const { error } = await supabase
+      .from('journal_entries')
+      .delete()
+      .eq('user_id', currentUser.id);
+    if (error) throw error;
+    entries = {};
+    setSyncStatus('synced');
+    renderAll();
+  } catch (e) {
+    console.error('Delete all error:', e);
+    setSyncStatus('error');
+  }
+}
+
+// Migrate localStorage entries to Supabase (one-time)
+async function migrateLocalStorage() {
+  try {
+    const data = localStorage.getItem('diario-entries');
+    if (!data) return;
+    const localEntries = JSON.parse(data);
+    const keys = Object.keys(localEntries);
+    if (!keys.length) return;
+
+    // Check if user already has entries in Supabase
+    const { data: existing } = await supabase
+      .from('journal_entries')
+      .select('entry_date')
+      .eq('user_id', currentUser.id)
+      .limit(1);
+    if (existing && existing.length > 0) return;
+
+    setSyncStatus('syncing');
+    const rows = keys.map(date => ({
+      user_id: currentUser.id,
+      entry_date: date,
+      text: localEntries[date],
+      updated_at: new Date().toISOString()
+    }));
+    const { error } = await supabase.from('journal_entries').insert(rows);
+    if (error) throw error;
+    localStorage.removeItem('diario-entries');
+    setSyncStatus('synced');
+    console.log(`Migrated ${keys.length} entries from localStorage to Supabase`);
+  } catch (e) {
+    console.error('Migration error:', e);
+  }
+}
+
+function setSyncStatus(status) {
+  const dot = document.getElementById('syncDot');
+  const text = document.getElementById('syncText');
+  if (!dot || !text) return;
+  dot.className = 'sync-dot';
+  if (status === 'syncing') { dot.classList.add('syncing'); text.textContent = 'Sincronizando...'; }
+  else if (status === 'error') { dot.classList.add('error'); text.textContent = 'Error de sync'; }
+  else { text.textContent = 'Sincronizado'; }
+}
+
+
+// ===== AUTH =====
+let isRegistering = false;
+
+function showAuthError(msg) {
+  const el = document.getElementById('authError');
+  el.textContent = msg;
+  el.classList.add('show');
+}
+function hideAuthError() {
+  document.getElementById('authError').classList.remove('show');
+}
+
+function translateAuthError(msg) {
+  const lower = (msg || '').toLowerCase();
+  if (lower.includes('invalid login')) return 'Email o contrasena incorrectos.';
+  if (lower.includes('email not confirmed')) return 'Revisa tu email para confirmar tu cuenta.';
+  if (lower.includes('user already registered')) return 'Ya existe una cuenta con ese email.';
+  if (lower.includes('password')) return 'La contrasena debe tener al menos 6 caracteres.';
+  if (lower.includes('rate limit')) return 'Demasiados intentos. Espera un momento.';
+  if (lower.includes('network')) return 'Error de conexion. Verifica tu internet.';
+  return msg || 'Error de autenticacion. Intenta de nuevo.';
+}
+
+function setupAuthUI() {
+  const btnEmail = document.getElementById('btnEmailAuth');
+  const toggleLink = document.getElementById('authToggleLink');
+
+  btnEmail.addEventListener('click', async () => {
+    hideAuthError();
+    const email = document.getElementById('authEmail').value.trim();
+    const password = document.getElementById('authPassword').value;
+    if (!email || !password) { showAuthError('Ingresa email y contrasena.'); return; }
+    try {
+      if (isRegistering) {
+        const { error } = await supabase.auth.signUp({ email, password });
+        if (error) throw error;
+        showAuthError('Cuenta creada! Revisa tu email para confirmar.');
+        document.getElementById('authError').style.color = 'var(--success)';
+      } else {
+        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        if (error) throw error;
+      }
+    } catch (e) {
+      showAuthError(translateAuthError(e.message));
+    }
+  });
+
+  // Enter key on password field
+  document.getElementById('authPassword').addEventListener('keydown', e => {
+    if (e.key === 'Enter') btnEmail.click();
+  });
+
+  toggleLink.addEventListener('click', () => {
+    isRegistering = !isRegistering;
+    hideAuthError();
+    document.getElementById('btnEmailAuth').textContent = isRegistering ? 'Crear cuenta' : 'Iniciar sesion';
+    document.getElementById('authToggle').innerHTML = isRegistering
+      ? 'Ya tienes cuenta? <a id="authToggleLink">Iniciar sesion</a>'
+      : 'No tienes cuenta? <a id="authToggleLink">Crear cuenta</a>';
+    document.getElementById('authToggleLink').addEventListener('click', arguments.callee);
+  });
+}
+
+function showApp(user) {
+  currentUser = user;
+  document.getElementById('authLoading').classList.remove('show');
+  document.getElementById('authScreen').style.display = 'none';
+  document.getElementById('appMain').style.display = 'block';
+
+  // User info
+  const avatarEl = document.getElementById('userAvatar');
+  const nameEl = document.getElementById('userName');
+  const meta = user.user_metadata || {};
+  if (meta.avatar_url) {
+    avatarEl.innerHTML = `<img src="${meta.avatar_url}" alt="" referrerpolicy="no-referrer">`;
+  } else {
+    const initial = (meta.full_name || meta.name || user.email || '?')[0].toUpperCase();
+    avatarEl.textContent = initial;
+  }
+  nameEl.textContent = meta.full_name || meta.name || user.email;
+
+  // Setup and load data
+  migrateLocalStorage().then(() => subscribeToEntries());
+}
+
+function showAuthScreen() {
+  currentUser = null;
+  if (realtimeSubscription) {
+    supabase.removeChannel(realtimeSubscription);
+    realtimeSubscription = null;
+  }
+  entries = {};
+  document.getElementById('authLoading').classList.remove('show');
+  document.getElementById('authScreen').style.display = 'flex';
+  document.getElementById('appMain').style.display = 'none';
+}
+
+// ===== RENDER =====
+function showSaved() {
+  const b = document.getElementById('saveBadge');
+  b.classList.add('show');
+  setTimeout(()=>b.classList.remove('show'),1200);
+}
+
+function renderStats(containerId, full) {
+  const s = calcStreak(entries);
+  const total = Object.keys(entries).length;
+  const words = Object.values(entries).reduce((a,t)=>a+wordCount(t),0);
+  const el = document.getElementById(containerId);
+
+  if (full) {
+    el.innerHTML = `
+      <div class="stat-card"><div class="label"><span>&#128293;</span><span>Racha actual</span></div><div class="value">${s.current}</div><div class="sub">dias consecutivos</div></div>
+      <div class="stat-card"><div class="label"><span>&#127942;</span><span>Mejor racha</span></div><div class="value">${s.best}</div><div class="sub">dias consecutivos</div></div>
+      <div class="stat-card"><div class="label"><span>&#128221;</span><span>Total entradas</span></div><div class="value">${total}</div><div class="sub">${words.toLocaleString()} palabras total</div></div>
+    `;
+  } else {
+    el.innerHTML = `
+      <div class="stat-card"><div class="label"><span>&#128293;</span><span>Racha</span></div><div class="value">${s.current}</div><div class="sub">Mejor: ${s.best} dias</div></div>
+      <div class="stat-card"><div class="label"><span>&#128221;</span><span>Entradas</span></div><div class="value">${total}</div><div class="sub">${words.toLocaleString()} palabras</div></div>
+    `;
+  }
+}
+
+function renderCalendar() {
+  const y = calendarYear, m = calendarMonth;
+  const days = daysInMonth(y,m);
+  const first = firstDow(y,m);
+  const el = document.getElementById('calendar');
+
+  let html = `<div class="cal-nav">
+    <button class="cal-arrow" id="calPrev">&#9664;</button>
+    <div class="month-label">${MONTHS_FULL[m]} ${y}</div>
+    <button class="cal-arrow" id="calNext">&#9654;</button>
+  </div><div class="cal-grid">`;
+  DAYS_L.forEach(d => html += `<div class="cal-header">${d}</div>`);
+  for (let i=0;i<first;i++) html += `<div class="cal-day empty"></div>`;
+  for (let d=1;d<=days;d++) {
+    const ds = `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const cls = ['cal-day'];
+    if (ds===selectedDate) cls.push('selected');
+    else if (entries[ds]) cls.push('has-entry');
+    if (ds===todayStr() && ds!==selectedDate) cls.push('today');
+    html += `<div class="${cls.join(' ')}" data-date="${ds}">${d}</div>`;
+  }
+  html += '</div>';
+  el.innerHTML = html;
+
+  el.querySelectorAll('.cal-day:not(.empty)').forEach(d => {
+    d.addEventListener('click', () => { selectedDate=d.dataset.date; renderAll(); });
+  });
+  document.getElementById('calPrev').addEventListener('click', () => {
+    calendarMonth--;
+    if (calendarMonth < 0) { calendarMonth = 11; calendarYear--; }
+    renderCalendar();
+  });
+  document.getElementById('calNext').addEventListener('click', () => {
+    calendarMonth++;
+    if (calendarMonth > 11) { calendarMonth = 0; calendarYear++; }
+    renderCalendar();
+  });
+}
+
+function renderEditor() {
+  const text = entries[selectedDate] || '';
+  const ta = document.getElementById('entryText');
+  ta.value = text;
+
+  document.getElementById('editorDate').innerHTML = fmtDate(selectedDate) +
+    (selectedDate===todayStr() ? '<span class="today-badge">hoy</span>' : '');
+  document.getElementById('wordCount').textContent = wordCount(text) + ' palabras';
+  document.getElementById('btnDelete').style.display = entries[selectedDate] ? 'inline-block' : 'none';
+}
+
+function renderHistory() {
+  const el = document.getElementById('historyList');
+  const sorted = Object.keys(entries).sort((a,b)=>b.localeCompare(a));
+
+  if (!sorted.length) {
+    el.innerHTML = '<div class="empty-state">Aun no hay entradas. Empieza a escribir!</div>';
+    return;
+  }
+
+  el.innerHTML = sorted.map(date => {
+    const safeText = entries[date].replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    return `
+    <div class="entry-card" data-date="${date}">
+      <div class="entry-header">
+        <span class="entry-date">${fmtDate(date)}</span>
+        <span class="entry-words">${wordCount(entries[date])} pal.</span>
+      </div>
+      <p class="entry-preview">${safeText}</p>
+    </div>
+  `;}).join('');
+
+  el.querySelectorAll('.entry-card').forEach(c => {
+    c.addEventListener('click', () => {
+      selectedDate = c.dataset.date;
+      switchView('write');
+    });
+  });
+}
+
+function renderAll() {
+  renderStats('writeStats', false);
+  renderStats('insightStats', true);
+  renderCalendar();
+  renderEditor();
+  renderHistory();
+
+}
+
+// ===== NAV =====
+function switchView(v) {
+  currentView = v;
+  document.querySelectorAll('.nav button').forEach(b => b.classList.toggle('active', b.dataset.view===v));
+  document.querySelectorAll('.view-section').forEach(s => s.classList.toggle('active', s.id===`view-${v}`));
+  if (v==='write') renderEditor();
+  if (v==='history') renderHistory();
+}
+
+// ===== AI ANALYSIS =====
+async function runAnalysis() {
+  const entryList = Object.entries(entries).sort(([a],[b])=>b.localeCompare(a));
+  if (entryList.length < 2) { document.getElementById('aiContent').innerHTML = '<div class="ai-error">Necesitas al menos 2 entradas para generar un analisis.</div>'; return; }
+
+  const btn = document.getElementById('btnAnalyze');
+  btn.disabled = true; btn.textContent = 'Analizando...';
+  document.getElementById('aiContent').innerHTML = `
+    <div class="ai-loading"><div class="bar"></div><span>Leyendo tus entradas...</span></div>
+  `;
+
+  const recent = entryList.slice(0,15).map(([d,t])=>`[${fmtDate(d)}]: ${t.slice(0,500)}`).join('\n\n');
+  const streak = calcStreak(entries);
+
+  const prompt = `Eres un coach personal y analista de journaling. Analiza estas entradas de diario y genera un resumen perspicaz EN ESPANOL.
+Datos del usuario:
+- Total de entradas: ${entryList.length}
+- Racha actual: ${streak.current} dias
+- Mejor racha: ${streak.best} dias
+Entradas recientes:
+${recent}
+Responde SOLO con un JSON valido sin backticks ni markdown:
+{"mood_summary":"Resumen del estado emocional general en 1-2 oraciones","themes":["tema1","tema2","tema3"],"insight":"Un insight profundo y personalizado sobre patrones observados (2-3 oraciones)","suggestion":"Una sugerencia practica y especifica basada en lo escrito (1-2 oraciones)","consistency_note":"Comentario motivacional sobre la consistencia de escritura (1 oracion)"}`;
+
+  try {
+    const res = await fetch('/api/analyze', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt })
+    });
+    const data = await res.json();
+
+    if (data.error) throw new Error(data.error);
+
+    const text = data.content.map(c=>c.text||'').join('');
+    const clean = text.replace(/```json|```/g,'').trim();
+    const analysis = JSON.parse(clean);
+
+    document.getElementById('aiContent').innerHTML = `
+      <div class="ai-section"><div class="section-label">Estado emocional</div><div class="section-text italic">${analysis.mood_summary}</div></div>
+      <div class="ai-section"><div class="section-label">Temas recurrentes</div><div class="ai-tags">${(analysis.themes||[]).map(t=>`<span class="ai-tag">${t}</span>`).join('')}</div></div>
+      <div class="ai-section"><div class="section-label">Insight</div><div class="section-text">${analysis.insight}</div></div>
+      <div class="ai-suggestion"><div class="section-label">Sugerencia</div><div class="section-text">${analysis.suggestion}</div></div>
+      <div class="ai-quote">${analysis.consistency_note}</div>
+    `;
+  } catch(e) {
+    document.getElementById('aiContent').innerHTML = `<div class="ai-error">Error: ${e.message}. Intenta de nuevo.</div>`;
+  }
+
+  btn.disabled = false; btn.textContent = 'Generar analisis';
+}
+
+// ===== EVENTS =====
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('todayDate').textContent = fmtDate(todayStr());
+
+  // Auth UI
+  setupAuthUI();
+
+  // Auth state listener
+  supabase.auth.onAuthStateChange((event, session) => {
+    if (session?.user) {
+      showApp(session.user);
+    } else {
+      showAuthScreen();
+    }
+  });
+
+  // Check initial session
+  supabase.auth.getSession().then(({ data: { session } }) => {
+    if (session?.user) {
+      showApp(session.user);
+    } else {
+      showAuthScreen();
+    }
+  });
+
+  // Logout
+  document.getElementById('btnLogout').addEventListener('click', async () => {
+    if (confirm('Cerrar sesion?')) await supabase.auth.signOut();
+  });
+
+  // Nav
+  document.querySelectorAll('.nav button').forEach(b => {
+    b.addEventListener('click', () => switchView(b.dataset.view));
+  });
+
+  // Editor
+  document.getElementById('entryText').addEventListener('input', e => {
+    document.getElementById('wordCount').textContent = wordCount(e.target.value) + ' palabras';
+  });
+
+  document.getElementById('btnSave').addEventListener('click', async () => {
+    const text = document.getElementById('entryText').value;
+    await saveEntry(selectedDate, text);
+    showSaved();
+  });
+
+  document.getElementById('btnDelete').addEventListener('click', async () => {
+    await deleteEntry(selectedDate);
+  });
+
+  // AI
+  document.getElementById('btnAnalyze').addEventListener('click', runAnalysis);
+
+  // Reset
+  document.getElementById('btnReset').addEventListener('click', async () => {
+    if (!confirm('Borrar todas las entradas? Esta accion no se puede deshacer.')) return;
+    await deleteAllEntries();
+  });
+});
+
+// ===== SERVICE WORKER =====
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js').catch(()=>{});
+}
+</script>
+</body>
+</html>
