@@ -1,12 +1,12 @@
 """
 Formulario para conectar cuenta de Garmin
-Soporta cuentas con MFA/2FA habilitado
+Flujo de 2 fases: Login SSO → MFA (si necesario) → OAuth exchange
 """
 import streamlit as st
 from datetime import datetime
-from garminconnect import Garmin
-from crypto import encrypt, decrypt
+from crypto import encrypt
 from auth import get_supabase, get_user_id
+from garmin_auth import garmin_login, garmin_verify_mfa, garmin_connect_with_ticket
 
 
 def check_garmin_connection():
@@ -19,43 +19,6 @@ def check_garmin_connection():
     ).execute()
 
     return bool(result.data)
-
-
-def _is_mfa_error(error_msg):
-    """Detecta si el error es por MFA/2FA requerido."""
-    mfa_indicators = [
-        "MFA",
-        "OAuth1 token is required",
-        "EOFError",
-        "2FA",
-        "two-factor",
-        "verification",
-    ]
-    error_lower = error_msg.lower()
-    return any(ind.lower() in error_lower for ind in mfa_indicators)
-
-
-def _garmin_login(email, password, mfa_code=None):
-    """Login a Garmin Connect con soporte MFA.
-
-    Usa garth directamente para pasar prompt_mfa callback.
-    Retorna el cliente Garmin autenticado.
-    """
-    client = Garmin(email, password)
-
-    if mfa_code:
-        # Login con codigo MFA via garth
-        client.garth.login(email, password, prompt_mfa=lambda: mfa_code)
-    else:
-        # Login normal - si MFA es requerido y no hay codigo,
-        # prompt_mfa default (input()) fallara en el servidor
-        client.garth.login(email, password)
-
-    # Setear profile info (normalmente lo hace Garmin.login())
-    client.display_name = client.garth.profile["displayName"]
-    client.full_name = client.garth.profile["fullName"]
-
-    return client
 
 
 def show_garmin_connect_form():
@@ -117,100 +80,116 @@ def show_garmin_connect_form():
     st.markdown('<div class="garmin-title">CONECTA TU GARMIN</div>', unsafe_allow_html=True)
     st.markdown('<div class="garmin-info">Ingresa tus credenciales de Garmin Connect<br>para sincronizar tus datos de fitness</div>', unsafe_allow_html=True)
 
-    # MFA - mostrar aviso si se detecto que la cuenta lo necesita
-    mfa_needed = st.session_state.get("_garmin_mfa_needed", False)
+    # Check if we're in MFA phase (Phase 2)
+    mfa_phase = st.session_state.get("_garmin_mfa_session") is not None
 
-    if mfa_needed:
+    if mfa_phase:
+        # ---- PHASE 2: MFA Code Input ----
         st.markdown("""
         <div class="mfa-note">
         ⚠️ TU CUENTA DE GARMIN TIENE VERIFICACION DE 2 PASOS (MFA).<br>
-        INGRESA EL CODIGO DE TU APP DE AUTENTICACION Y HAZ CLIC EN CONECTAR.
+        INGRESA EL CODIGO DE TU APP DE AUTENTICACION.
         </div>
         """, unsafe_allow_html=True)
 
-    # Usar st.form para que los valores no se pierdan en mobile
-    with st.form("garmin_connect_form"):
-        garmin_email = st.text_input(
-            "Email de Garmin",
-            placeholder="tu@email.com",
-            key="garmin_email"
-        )
-        garmin_password = st.text_input(
-            "Password de Garmin",
-            type="password",
-            key="garmin_pwd"
-        )
-
-        mfa_code = ""
-        if mfa_needed:
+        with st.form("garmin_mfa_form"):
             mfa_code = st.text_input(
                 "Codigo MFA / 2FA",
                 placeholder="123456",
-                key="garmin_mfa_code",
-                max_chars=10
+                key="garmin_mfa_input",
+                max_chars=10,
+            )
+            mfa_submitted = st.form_submit_button(
+                "Verificar Codigo", use_container_width=True
             )
 
-        submitted = st.form_submit_button(
-            "Conectar Garmin",
-            use_container_width=True
-        )
+        # Cancel button outside form
+        if st.button("Cancelar", use_container_width=True):
+            st.session_state["_garmin_mfa_session"] = None
+            st.session_state.pop("_garmin_email_tmp", None)
+            st.session_state.pop("_garmin_pwd_tmp", None)
+            st.rerun()
 
-    # Procesar fuera del form para poder usar st.spinner y st.rerun
-    if submitted:
-        if not garmin_email or not garmin_password:
-            st.error("Ingresa email y password de Garmin")
-        elif mfa_needed and not mfa_code:
-            st.error("Ingresa el codigo MFA de tu app de autenticacion")
-        else:
-            with st.spinner("Verificando credenciales de Garmin..."):
-                try:
-                    client = _garmin_login(
-                        garmin_email.strip(),
-                        garmin_password,
-                        mfa_code=mfa_code.strip() if mfa_code else None
-                    )
+        if mfa_submitted:
+            if not mfa_code or not mfa_code.strip():
+                st.error("Ingresa el codigo MFA")
+            else:
+                with st.spinner("Verificando codigo MFA..."):
+                    try:
+                        mfa_session = st.session_state["_garmin_mfa_session"]
+                        email_tmp = st.session_state.get("_garmin_email_tmp", "")
+                        pwd_tmp = st.session_state.get("_garmin_pwd_tmp", "")
 
-                    # Serializar tokens de sesion
-                    token_string = client.garth.dumps()
+                        # Phase 2: Submit MFA code → get ticket
+                        ticket = garmin_verify_mfa(mfa_session, mfa_code.strip())
 
-                    # Guardar en Supabase (password encriptado)
-                    supabase = get_supabase()
-                    user_id = get_user_id()
+                        # Phase 3: Exchange ticket → OAuth tokens
+                        client = garmin_connect_with_ticket(email_tmp, pwd_tmp, ticket)
 
-                    supabase.table("garmin_connections").insert({
-                        "user_id": user_id,
-                        "garmin_email": garmin_email.strip(),
-                        "garmin_password_encrypted": encrypt(garmin_password),
-                        "garmin_tokens": token_string,
-                        "tokens_updated_at": datetime.utcnow().isoformat()
-                    }).execute()
+                        # Save to Supabase
+                        _save_garmin_connection(client, email_tmp, pwd_tmp)
 
-                    # Limpiar estado MFA
-                    st.session_state["_garmin_mfa_needed"] = False
-                    st.success("Garmin conectado exitosamente!")
-                    st.rerun()
-                except Exception as e:
-                    error_msg = str(e)
-                    if _is_mfa_error(error_msg):
-                        st.session_state["_garmin_mfa_needed"] = True
-                        st.warning(
-                            "Tu cuenta de Garmin tiene verificacion de "
-                            "2 pasos (MFA). Ingresa el codigo de tu app "
-                            "de autenticacion y vuelve a intentar."
-                        )
+                        # Clean up MFA state
+                        st.session_state["_garmin_mfa_session"] = None
+                        st.session_state.pop("_garmin_email_tmp", None)
+                        st.session_state.pop("_garmin_pwd_tmp", None)
+
+                        st.success("Garmin conectado exitosamente!")
                         st.rerun()
-                    elif "401" in error_msg or "Unauthorized" in error_msg:
-                        st.error(
-                            "Credenciales de Garmin incorrectas. "
-                            "Verifica tu email y password."
+                    except Exception as e:
+                        st.error(f"Error: {str(e)}")
+
+    else:
+        # ---- PHASE 1: Email/Password Login ----
+        with st.form("garmin_connect_form"):
+            garmin_email = st.text_input(
+                "Email de Garmin",
+                placeholder="tu@email.com",
+                key="garmin_email",
+            )
+            garmin_password = st.text_input(
+                "Password de Garmin",
+                type="password",
+                key="garmin_pwd",
+            )
+            submitted = st.form_submit_button(
+                "Conectar Garmin", use_container_width=True
+            )
+
+        if submitted:
+            if not garmin_email or not garmin_password:
+                st.error("Ingresa email y password de Garmin")
+            else:
+                with st.spinner("Conectando con Garmin..."):
+                    try:
+                        # Phase 1: SSO Login
+                        result = garmin_login(
+                            garmin_email.strip(),
+                            garmin_password,
                         )
-                    elif "429" in error_msg or "Too Many" in error_msg:
-                        st.error(
-                            "Demasiados intentos. Espera unos minutos "
-                            "y vuelve a intentar."
-                        )
-                    else:
-                        st.error(f"Error al conectar: {error_msg}")
+
+                        if result.get("mfa_required"):
+                            # MFA needed → save session and switch to Phase 2
+                            st.session_state["_garmin_mfa_session"] = result["session"]
+                            st.session_state["_garmin_email_tmp"] = garmin_email.strip()
+                            st.session_state["_garmin_pwd_tmp"] = garmin_password
+                            st.rerun()
+                        else:
+                            # No MFA → exchange ticket directly
+                            ticket = result["ticket"]
+                            client = garmin_connect_with_ticket(
+                                garmin_email.strip(),
+                                garmin_password,
+                                ticket,
+                            )
+                            _save_garmin_connection(
+                                client, garmin_email.strip(), garmin_password
+                            )
+                            st.success("Garmin conectado exitosamente!")
+                            st.rerun()
+
+                    except Exception as e:
+                        st.error(f"Error al conectar: {str(e)}")
 
     st.markdown("""
     <div class="privacy-note">
@@ -221,6 +200,21 @@ def show_garmin_connect_form():
     """, unsafe_allow_html=True)
 
     return False
+
+
+def _save_garmin_connection(client, email, password):
+    """Guarda la conexion de Garmin en Supabase."""
+    token_string = client.garth.dumps()
+    supabase = get_supabase()
+    user_id = get_user_id()
+
+    supabase.table("garmin_connections").insert({
+        "user_id": user_id,
+        "garmin_email": email,
+        "garmin_password_encrypted": encrypt(password),
+        "garmin_tokens": token_string,
+        "tokens_updated_at": datetime.utcnow().isoformat(),
+    }).execute()
 
 
 def disconnect_garmin():
