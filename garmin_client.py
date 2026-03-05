@@ -42,8 +42,17 @@ class GarminClient:
             except Exception:
                 pass  # Tokens expiraron, hacer login con password
 
-        # Login con password (lento)
-        self.client.login()
+        # Login con password (lento) - usar garth directamente para evitar
+        # que prompt_mfa=input() falle en el servidor
+        self.client.garth.login(
+            garmin_email,
+            garmin_password,
+            prompt_mfa=lambda: (_ for _ in ()).throw(
+                Exception("MFA requerido - reconecta Garmin desde la app")
+            ),
+        )
+        self.client.display_name = self.client.garth.profile["displayName"]
+        self.client.full_name = self.client.garth.profile["fullName"]
 
         # Guardar tokens nuevos en Supabase
         new_tokens = self.client.garth.dumps()
