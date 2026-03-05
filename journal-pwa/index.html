@@ -897,7 +897,7 @@ Responde SOLO con un JSON valido sin backticks ni markdown:
 {"mood_summary":"Resumen del estado emocional general en 1-2 oraciones","themes":["tema1","tema2","tema3"],"insight":"Un insight profundo y personalizado sobre patrones observados (2-3 oraciones)","suggestion":"Una sugerencia practica y especifica basada en lo escrito (1-2 oraciones)","consistency_note":"Comentario motivacional sobre la consistencia de escritura (1 oracion)"}`;
 
   try {
-    const res = await fetch('/.netlify/functions/analyze', {
+    const res = await fetch('/api/analyze', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ prompt })
