@@ -9,7 +9,6 @@ DEFAULT_GOALS = {
     'steps_avg': 10000,
     'activities': 28,
     'strength': 10,
-    'sleep_75_days': 15,
     'sleep_hours_avg': 7.5,
     'hr_zone_1_3': 19.3,
     'hr_zone_4_5': 2.9,
@@ -31,7 +30,6 @@ def get_user_goals():
             'steps_avg': row.get('steps_avg', DEFAULT_GOALS['steps_avg']),
             'activities': row.get('activities', DEFAULT_GOALS['activities']),
             'strength': row.get('strength', DEFAULT_GOALS['strength']),
-            'days_before_930': row.get('sleep_75_days', DEFAULT_GOALS['sleep_75_days']),
             'sleep_hours_avg': float(row.get('sleep_hours_avg', DEFAULT_GOALS['sleep_hours_avg'])),
             'hr_zone_1_3': float(row.get('hr_zone_1_3', DEFAULT_GOALS['hr_zone_1_3'])),
             'hr_zone_4_5': float(row.get('hr_zone_4_5', DEFAULT_GOALS['hr_zone_4_5'])),
@@ -41,7 +39,6 @@ def get_user_goals():
         'steps_avg': DEFAULT_GOALS['steps_avg'],
         'activities': DEFAULT_GOALS['activities'],
         'strength': DEFAULT_GOALS['strength'],
-        'days_before_930': DEFAULT_GOALS['sleep_75_days'],
         'sleep_hours_avg': DEFAULT_GOALS['sleep_hours_avg'],
         'hr_zone_1_3': DEFAULT_GOALS['hr_zone_1_3'],
         'hr_zone_4_5': DEFAULT_GOALS['hr_zone_4_5'],
@@ -82,7 +79,7 @@ def show_goals_setup(first_time=True):
     .goals-subtitle {
         font-family: 'Space Mono', monospace;
         font-size: 0.6rem;
-        color: #94a3b8;
+        color: #cbd5e1;
         text-align: center;
         letter-spacing: 1px;
         margin-bottom: 24px;
@@ -91,7 +88,7 @@ def show_goals_setup(first_time=True):
     .goal-label {
         font-family: 'Space Mono', monospace;
         font-size: 0.6rem;
-        color: #94a3b8;
+        color: #cbd5e1;
         text-transform: uppercase;
         letter-spacing: 2px;
         margin-bottom: 4px;
@@ -133,23 +130,13 @@ def show_goals_setup(first_time=True):
             help="Total de actividades fisicas al mes"
         )
 
-    st.markdown('<div class="section-label">// SUEÑO</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-label">// SUENO</div>', unsafe_allow_html=True)
 
-    col3, col4 = st.columns(2)
-
-    with col3:
-        sleep_hours = st.number_input(
-            "Horas de sueño promedio",
-            min_value=4.0, max_value=12.0, value=current['sleep_hours_avg'], step=0.5,
-            help="Promedio de horas de sueño por noche"
-        )
-
-    with col4:
-        sleep_days = st.number_input(
-            "Dias con 7.5+ hrs sueño / mes",
-            min_value=0, max_value=31, value=current['days_before_930'], step=1,
-            help="Dias al mes donde duermes 7.5 horas o mas"
-        )
+    sleep_hours = st.number_input(
+        "Horas de sueno promedio",
+        min_value=4.0, max_value=12.0, value=current['sleep_hours_avg'], step=0.5,
+        help="Promedio de horas de sueno por noche"
+    )
 
     st.markdown('<div class="section-label">// HEART RATE ZONES</div>', unsafe_allow_html=True)
 
@@ -178,7 +165,6 @@ def show_goals_setup(first_time=True):
             "steps_avg": steps,
             "activities": activities,
             "strength": strength,
-            "sleep_75_days": sleep_days,
             "sleep_hours_avg": sleep_hours,
             "hr_zone_1_3": hr_13,
             "hr_zone_4_5": hr_45,

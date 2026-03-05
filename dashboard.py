@@ -51,7 +51,7 @@ header {visibility: hidden;}
 .date-badge {
     font-family: 'Space Mono', monospace;
     font-size: 0.6rem;
-    color: #94a3b8;
+    color: #cbd5e1;
     background: rgba(255,255,255,0.04);
     border: 1px solid rgba(255,255,255,0.08);
     border-radius: 10px;
@@ -65,7 +65,7 @@ header {visibility: hidden;}
 .section-label {
     font-family: 'Space Mono', monospace;
     font-size: 0.6rem;
-    color: #94a3b8;
+    color: #cbd5e1;
     text-transform: uppercase;
     letter-spacing: 4px;
     margin-bottom: 16px;
@@ -89,7 +89,7 @@ header {visibility: hidden;}
 .metric-card-name {
     font-family: 'Space Mono', monospace;
     font-size: 0.55rem;
-    color: #94a3b8;
+    color: #cbd5e1;
     text-transform: uppercase;
     letter-spacing: 2px;
     margin-bottom: 14px;
@@ -128,7 +128,7 @@ header {visibility: hidden;}
 .metric-card-goal {
     font-family: 'Space Mono', monospace;
     font-size: 0.55rem;
-    color: #64748b;
+    color: #94a3b8;
     letter-spacing: 1px;
 }
 
@@ -172,7 +172,7 @@ header {visibility: hidden;}
 .summary-label {
     font-family: 'Space Mono', monospace;
     font-size: 0.5rem;
-    color: #94a3b8;
+    color: #cbd5e1;
     text-transform: uppercase;
     letter-spacing: 2px;
     margin-top: 8px;
@@ -186,7 +186,7 @@ header {visibility: hidden;}
 
 .stButton button {
     background: rgba(255,255,255,0.05) !important;
-    color: #94a3b8 !important;
+    color: #cbd5e1 !important;
     border: 1px solid rgba(255,255,255,0.1) !important;
     border-radius: 12px !important;
     font-family: 'Space Mono', monospace !important;
@@ -214,7 +214,7 @@ header {visibility: hidden;}
 .user-badge {
     font-family: 'Space Mono', monospace;
     font-size: 0.5rem;
-    color: #64748b;
+    color: #94a3b8;
     letter-spacing: 1px;
     text-align: right;
     margin-bottom: 8px;
@@ -223,7 +223,7 @@ header {visibility: hidden;}
 .timestamp {
     font-family: 'Space Mono', monospace;
     font-size: 0.5rem;
-    color: #475569;
+    color: #94a3b8;
     text-align: right;
     margin-top: 24px;
     letter-spacing: 2px;
@@ -243,7 +243,7 @@ header {visibility: hidden;}
 .no-data-msg {
     font-family: 'Space Mono', monospace;
     font-size: 0.7rem;
-    color: #64748b;
+    color: #94a3b8;
     margin-top: 40px;
     text-align: center;
     letter-spacing: 2px;
@@ -320,7 +320,7 @@ def get_monthly_data(_user_id, year, month):
     data = {
         'month': month, 'year': year,
         'steps_avg': 0, 'activities': 0, 'strength': 0,
-        'days_before_930': 0, 'sleep_hours_avg': 0,
+        'sleep_hours_avg': 0,
         'hr_zone_1_3': 0, 'hr_zone_4_5': 0
     }
 
@@ -394,7 +394,6 @@ def get_monthly_data(_user_id, year, month):
 
         # Sleep data
         total_sleep_secs = 0
-        days_75_plus = 0
         sleep_days = 0
 
         current_date = start_date
@@ -406,15 +405,11 @@ def get_monthly_data(_user_id, year, month):
                     sleep_secs = dto.get('sleepTimeSeconds', 0)
                     total_sleep_secs += sleep_secs
                     sleep_days += 1
-
-                    if sleep_secs >= 7.5 * 3600:
-                        days_75_plus += 1
             except:
                 pass
             current_date += timedelta(days=1)
 
         data['sleep_hours_avg'] = round(total_sleep_secs / sleep_days / 3600, 1) if sleep_days > 0 else 0
-        data['days_before_930'] = days_75_plus
     except Exception as e:
         st.error(f"Error: {str(e)}")
 
@@ -509,7 +504,6 @@ if st.session_state.vista == "mes":
 
     with col2:
         render_metric("ACTIVITIES", data['activities'], metas['activities'])
-        render_metric("DIAS 7.5+ HRS SUENO", data['days_before_930'], metas['days_before_930'])
         render_metric("HR ZONES 4-5", data['hr_zone_4_5'], metas['hr_zone_4_5'], "h")
 
     st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
@@ -519,14 +513,13 @@ if st.session_state.vista == "mes":
         data['steps_avg'] >= metas['steps_avg'],
         data['activities'] >= (metas['activities'] / days_in_month) * days_elapsed,
         data['strength'] >= (metas['strength'] / days_in_month) * days_elapsed,
-        data['days_before_930'] >= (metas['days_before_930'] / days_in_month) * days_elapsed,
         data['sleep_hours_avg'] >= metas['sleep_hours_avg'],
         data['hr_zone_1_3'] >= (metas['hr_zone_1_3'] / days_in_month) * days_elapsed,
         data['hr_zone_4_5'] >= (metas['hr_zone_4_5'] / days_in_month) * days_elapsed,
     ])
 
     steps_color = "#22c55e" if data['steps_avg'] >= metas['steps_avg'] else "#ef4444"
-    habitos_color = "#22c55e" if habitos_ok >= 5 else "#f59e0b" if habitos_ok >= 3 else "#ef4444"
+    habitos_color = "#22c55e" if habitos_ok >= 4 else "#f59e0b" if habitos_ok >= 3 else "#ef4444"
 
     st.markdown(f"""
     <div class="summary-row">
@@ -535,7 +528,7 @@ if st.session_state.vista == "mes":
             <div class="summary-label">STEPS DAILY AVG</div>
         </div>
         <div class="summary-card">
-            <div class="summary-val" style="color:{habitos_color}">{habitos_ok}/7</div>
+            <div class="summary-val" style="color:{habitos_color}">{habitos_ok}/6</div>
             <div class="summary-label">HABITOS ON TRACK</div>
         </div>
         <div class="summary-card">
@@ -581,7 +574,6 @@ elif st.session_state.vista == "historico":
             'steps_avg': round(sum(d['steps_avg'] for d in all_data) / n),
             'activities': round(sum(d['activities'] for d in all_data) / n, 1),
             'strength': round(sum(d['strength'] for d in all_data) / n, 1),
-            'days_before_930': round(sum(d['days_before_930'] for d in all_data) / n, 1),
             'sleep_hours_avg': round(sum(d['sleep_hours_avg'] for d in all_data) / n, 1),
             'hr_zone_1_3': round(sum(d['hr_zone_1_3'] for d in all_data) / n, 1),
             'hr_zone_4_5': round(sum(d['hr_zone_4_5'] for d in all_data) / n, 1),
@@ -597,7 +589,6 @@ elif st.session_state.vista == "historico":
             ("STEPS AVG", avg_data['steps_avg'], metas['steps_avg'], ""),
             ("ACTIVITIES", avg_data['activities'], metas['activities'], ""),
             ("STRENGTH", avg_data['strength'], metas['strength'], ""),
-            ("7.5+ HRS", avg_data['days_before_930'], metas['days_before_930'], ""),
             ("SLEEP", avg_data['sleep_hours_avg'], metas['sleep_hours_avg'], "h"),
             ("HR Z1-3", avg_data['hr_zone_1_3'], metas['hr_zone_1_3'], "h"),
             ("HR Z4-5", avg_data['hr_zone_4_5'], metas['hr_zone_4_5'], "h"),
@@ -610,7 +601,7 @@ elif st.session_state.vista == "historico":
             pct_raw = (valor / meta * 100) if meta > 0 else 0
             bar_w = min(int(pct_raw), 100)
             rows_html += f'<div style="display:flex;align-items:center;padding:12px 0;border-bottom:1px solid rgba(255,255,255,0.06);">'
-            rows_html += f'<span style="font-family:Space Mono,monospace;font-size:0.6rem;color:#94a3b8;text-transform:uppercase;letter-spacing:1px;width:28%;">{nombre}</span>'
+            rows_html += f'<span style="font-family:Space Mono,monospace;font-size:0.6rem;color:#cbd5e1;text-transform:uppercase;letter-spacing:1px;width:28%;">{nombre}</span>'
             rows_html += f'<span style="font-family:Inter,sans-serif;font-size:0.9rem;font-weight:700;color:{color};width:18%;text-align:right;">{val_display}</span>'
             rows_html += f'<div style="width:34%;margin:0 14px;"><div style="height:4px;background:rgba(255,255,255,0.06);border-radius:4px;overflow:hidden;"><div style="height:4px;background:{color};border-radius:4px;width:{bar_w}%;"></div></div></div>'
             rows_html += f'<span style="font-family:Space Mono,monospace;font-size:0.55rem;color:{color};width:10%;text-align:right;">{pct_raw:.0f}%</span>'
@@ -631,7 +622,6 @@ elif st.session_state.vista == "historico":
             ("STEPS AVG", 'steps_avg', metas['steps_avg'], ""),
             ("ACTIVITIES", 'activities', metas['activities'], ""),
             ("STRENGTH", 'strength', metas['strength'], ""),
-            ("7.5+ HRS", 'days_before_930', metas['days_before_930'], ""),
             ("SLEEP", 'sleep_hours_avg', metas['sleep_hours_avg'], "h"),
             ("HR Z1-3", 'hr_zone_1_3', metas['hr_zone_1_3'], "h"),
             ("HR Z4-5", 'hr_zone_4_5', metas['hr_zone_4_5'], "h"),

@@ -41,7 +41,7 @@ def show_auth_page():
     .auth-subtitle {
         font-family: 'Space Mono', monospace;
         font-size: 0.65rem;
-        color: #94a3b8;
+        color: #cbd5e1;
         text-align: center;
         letter-spacing: 3px;
         margin-bottom: 32px;
