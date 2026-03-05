@@ -28,22 +28,42 @@ def show_garmin_connect_form():
 
     st.markdown("""
     <style>
+    .garmin-header {
+        text-align: center;
+        margin-bottom: 28px;
+    }
+    .garmin-logo-container {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 14px;
+        margin-bottom: 12px;
+    }
+    .garmin-logo-container img {
+        height: 32px;
+        filter: brightness(0) invert(1);
+    }
     .garmin-title {
         font-family: 'Inter', sans-serif !important;
-        font-size: 1.8rem !important;
+        font-size: 1.6rem !important;
         font-weight: 800 !important;
         letter-spacing: 4px !important;
-        background: linear-gradient(135deg, #c4b5fd, #7c3aed, #06b6d4) !important;
-        -webkit-background-clip: text !important;
-        -webkit-text-fill-color: transparent !important;
-        background-clip: text !important;
-        text-align: center;
-        margin-bottom: 8px;
+        color: #f1f5f9 !important;
+        -webkit-text-fill-color: #f1f5f9 !important;
     }
     .garmin-info {
         font-family: 'Space Mono', monospace;
-        font-size: 0.6rem;
-        color: #cbd5e1;
+        font-size: 0.7rem;
+        color: #e2e8f0;
+        text-align: center;
+        letter-spacing: 1px;
+        margin-bottom: 8px;
+        line-height: 1.6;
+    }
+    .garmin-info-sub {
+        font-family: 'Space Mono', monospace;
+        font-size: 0.55rem;
+        color: #94a3b8;
         text-align: center;
         letter-spacing: 1px;
         margin-bottom: 24px;
@@ -52,7 +72,7 @@ def show_garmin_connect_form():
     .privacy-note {
         font-family: 'Space Mono', monospace;
         font-size: 0.55rem;
-        color: #cbd5e1;
+        color: #e2e8f0;
         background: rgba(255,255,255,0.04);
         border: 1px solid rgba(255,255,255,0.08);
         border-radius: 12px;
@@ -63,8 +83,8 @@ def show_garmin_connect_form():
     }
     .mfa-note {
         font-family: 'Space Mono', monospace;
-        font-size: 0.55rem;
-        color: #f59e0b;
+        font-size: 0.6rem;
+        color: #fbbf24;
         background: rgba(245,158,11,0.08);
         border: 1px solid rgba(245,158,11,0.2);
         border-radius: 12px;
@@ -77,8 +97,17 @@ def show_garmin_connect_form():
     """, unsafe_allow_html=True)
 
     st.markdown('<div class="top-gradient"></div>', unsafe_allow_html=True)
-    st.markdown('<div class="garmin-title">CONECTA TU GARMIN</div>', unsafe_allow_html=True)
-    st.markdown('<div class="garmin-info">Ingresa tus credenciales de Garmin Connect<br>para sincronizar tus datos de fitness</div>', unsafe_allow_html=True)
+    st.markdown("""
+    <div class="garmin-header">
+        <div class="garmin-logo-container">
+            <img src="https://cdn.worldvectorlogo.com/logos/garmin-logo-1.svg"
+                 alt="Garmin" onerror="this.style.display='none'">
+            <span class="garmin-title">CONNECT</span>
+        </div>
+        <div class="garmin-info">Conecta tu cuenta de Garmin</div>
+        <div class="garmin-info-sub">Ingresa las credenciales que usas en la app Garmin Connect</div>
+    </div>
+    """, unsafe_allow_html=True)
 
     # Check if we're in MFA phase (Phase 2)
     mfa_phase = st.session_state.get("_garmin_mfa_session") is not None
