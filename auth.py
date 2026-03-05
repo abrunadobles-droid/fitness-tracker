@@ -137,11 +137,15 @@ def show_auth_page():
     tab1, tab2 = st.tabs(["LOGIN", "REGISTRO"])
 
     with tab1:
-        email = st.text_input("Email", key="login_email", placeholder="tu@email.com")
-        password = st.text_input("Password", type="password", key="login_pwd")
-        remember = st.checkbox("Recordarme", value=True, key="login_remember")
+        with st.form("login_form"):
+            email = st.text_input("Email", key="login_email", placeholder="tu@email.com")
+            password = st.text_input("Password", type="password", key="login_pwd")
+            remember = st.checkbox("Recordarme", value=True, key="login_remember")
+            login_submitted = st.form_submit_button(
+                "Iniciar Sesion", use_container_width=True
+            )
 
-        if st.button("Iniciar Sesion", use_container_width=True):
+        if login_submitted:
             if not email or not password:
                 st.error("Ingresa email y password")
             else:
@@ -149,7 +153,7 @@ def show_auth_page():
                     try:
                         supabase = get_supabase()
                         res = supabase.auth.sign_in_with_password({
-                            "email": email,
+                            "email": email.strip(),
                             "password": password
                         })
                         st.session_state.user = res.user
@@ -165,11 +169,15 @@ def show_auth_page():
                             st.error(f"Error: {error_msg}")
 
     with tab2:
-        reg_email = st.text_input("Email", key="reg_email", placeholder="tu@email.com")
-        reg_password = st.text_input("Password", type="password", key="reg_pwd")
-        reg_password2 = st.text_input("Confirmar Password", type="password", key="reg_pwd2")
+        with st.form("register_form"):
+            reg_email = st.text_input("Email", key="reg_email", placeholder="tu@email.com")
+            reg_password = st.text_input("Password", type="password", key="reg_pwd")
+            reg_password2 = st.text_input("Confirmar Password", type="password", key="reg_pwd2")
+            reg_submitted = st.form_submit_button(
+                "Crear Cuenta", use_container_width=True
+            )
 
-        if st.button("Crear Cuenta", use_container_width=True):
+        if reg_submitted:
             if not reg_email or not reg_password:
                 st.error("Ingresa email y password")
             elif reg_password != reg_password2:
@@ -181,7 +189,7 @@ def show_auth_page():
                     try:
                         supabase = get_supabase()
                         res = supabase.auth.sign_up({
-                            "email": reg_email,
+                            "email": reg_email.strip(),
                             "password": reg_password
                         })
                         # Auto-login si no requiere confirmacion de email
