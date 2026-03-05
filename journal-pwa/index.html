@@ -436,6 +436,7 @@ html, body {
 </div>
 
 <script>
+(function() {
 // =============================================================================
 // SUPABASE CONFIG
 // =============================================================================
@@ -988,6 +989,7 @@ document.addEventListener('DOMContentLoaded', () => {
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('sw.js').catch(()=>{});
 }
+})();
 </script>
 </body>
 </html>
