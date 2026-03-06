@@ -11,7 +11,7 @@
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 <title>Diario</title>
 <link href="https://fonts.googleapis.com/css2?family=Crimson+Pro:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&family=DM+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400&display=swap" rel="stylesheet">
-<!-- Supabase SDK loaded as ESM in main script -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <style>
 :root {
   --bg: #1a1714;
@@ -434,16 +434,15 @@ html, body {
   </div>
 </div>
 
-<script type="module">
-import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
-
+<script>
+(function() {
 // =============================================================================
 // SUPABASE CONFIG
 // =============================================================================
-const SUPABASE_URL = 'https://bailojpedwczadqhtqtl.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJhaWxvanBlZHdjemFkcWh0cXRsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk3MTk3MzQsImV4cCI6MjA4NTI5NTczNH0.Hn97q3nYnJDOinFt0eEsPukwBiglqjl2I5vqoxiAgek';
+var SUPABASE_URL = 'https://bailojpedwczadqhtqtl.supabase.co';
+var SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJhaWxvanBlZHdjemFkcWh0cXRsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk3MTk3MzQsImV4cCI6MjA4NTI5NTczNH0.Hn97q3nYnJDOinFt0eEsPukwBiglqjl2I5vqoxiAgek';
 
-const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+var sb = window['supabase'].createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // ===== CONSTANTS =====
 const MONTHS = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
@@ -925,8 +924,9 @@ Responde SOLO con un JSON valido sin backticks ni markdown:
   btn.disabled = false; btn.textContent = 'Generar analisis';
 }
 
-// ===== INIT (modules run after DOM is ready) =====
-document.getElementById('todayDate').textContent = fmtDate(todayStr());
+// ===== EVENTS =====
+document.addEventListener('DOMContentLoaded', function() {
+  document.getElementById('todayDate').textContent = fmtDate(todayStr());
 
 // Auth UI
 setupAuthUI();
@@ -985,8 +985,10 @@ document.getElementById('btnReset').addEventListener('click', async () => {
 
 // ===== SERVICE WORKER =====
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('sw.js').catch(()=>{});
+  navigator.serviceWorker.register('sw.js').catch(function(){});
 }
+});
+})();
 </script>
 </body>
 </html>
