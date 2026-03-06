@@ -1,4 +1,4 @@
-const CACHE_NAME = 'diario-v5';
+const CACHE_NAME = 'diario-v6';
 const ASSETS = [
   '/',
   '/index.html',
