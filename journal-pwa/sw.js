@@ -35,6 +35,7 @@ self.addEventListener('fetch', function(e) {
     url.hostname.includes('googleapis.com') ||
     url.hostname.includes('anthropic.com') ||
     url.hostname.includes('jsdelivr.net') ||
+    url.hostname.includes('unpkg.com') ||
     url.pathname.startsWith('/api/')
   ) {
     return;
