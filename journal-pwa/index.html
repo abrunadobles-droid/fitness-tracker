@@ -925,64 +925,62 @@ Responde SOLO con un JSON valido sin backticks ni markdown:
   btn.disabled = false; btn.textContent = 'Generar analisis';
 }
 
-// ===== EVENTS =====
-document.addEventListener('DOMContentLoaded', () => {
-  document.getElementById('todayDate').textContent = fmtDate(todayStr());
+// ===== INIT (modules run after DOM is ready) =====
+document.getElementById('todayDate').textContent = fmtDate(todayStr());
 
-  // Auth UI
-  setupAuthUI();
+// Auth UI
+setupAuthUI();
 
-  // Auth state listener
-  sb.auth.onAuthStateChange((event, session) => {
-    if (session?.user) {
-      showApp(session.user);
-    } else {
-      showAuthScreen();
-    }
-  });
+// Auth state listener
+sb.auth.onAuthStateChange((event, session) => {
+  if (session?.user) {
+    showApp(session.user);
+  } else {
+    showAuthScreen();
+  }
+});
 
-  // Check initial session
-  sb.auth.getSession().then(({ data: { session } }) => {
-    if (session?.user) {
-      showApp(session.user);
-    } else {
-      showAuthScreen();
-    }
-  });
+// Check initial session
+sb.auth.getSession().then(({ data: { session } }) => {
+  if (session?.user) {
+    showApp(session.user);
+  } else {
+    showAuthScreen();
+  }
+});
 
-  // Logout
-  document.getElementById('btnLogout').addEventListener('click', async () => {
-    if (confirm('Cerrar sesion?')) await sb.auth.signOut();
-  });
+// Logout
+document.getElementById('btnLogout').addEventListener('click', async () => {
+  if (confirm('Cerrar sesion?')) await sb.auth.signOut();
+});
 
-  // Nav
-  document.querySelectorAll('.nav button').forEach(b => {
-    b.addEventListener('click', () => switchView(b.dataset.view));
-  });
+// Nav
+document.querySelectorAll('.nav button').forEach(b => {
+  b.addEventListener('click', () => switchView(b.dataset.view));
+});
 
-  // Editor
-  document.getElementById('entryText').addEventListener('input', e => {
-    document.getElementById('wordCount').textContent = wordCount(e.target.value) + ' palabras';
-  });
+// Editor
+document.getElementById('entryText').addEventListener('input', e => {
+  document.getElementById('wordCount').textContent = wordCount(e.target.value) + ' palabras';
+});
 
-  document.getElementById('btnSave').addEventListener('click', async () => {
-    const text = document.getElementById('entryText').value;
-    await saveEntry(selectedDate, text);
-    showSaved();
-  });
+document.getElementById('btnSave').addEventListener('click', async () => {
+  const text = document.getElementById('entryText').value;
+  await saveEntry(selectedDate, text);
+  showSaved();
+});
 
-  document.getElementById('btnDelete').addEventListener('click', async () => {
-    await deleteEntry(selectedDate);
-  });
+document.getElementById('btnDelete').addEventListener('click', async () => {
+  await deleteEntry(selectedDate);
+});
 
-  // AI
-  document.getElementById('btnAnalyze').addEventListener('click', runAnalysis);
+// AI
+document.getElementById('btnAnalyze').addEventListener('click', runAnalysis);
 
-  // Reset
-  document.getElementById('btnReset').addEventListener('click', async () => {
-    if (!confirm('Borrar todas las entradas? Esta accion no se puede deshacer.')) return;
-    await deleteAllEntries();
-  });
+// Reset
+document.getElementById('btnReset').addEventListener('click', async () => {
+  if (!confirm('Borrar todas las entradas? Esta accion no se puede deshacer.')) return;
+  await deleteAllEntries();
 });
 
 // ===== SERVICE WORKER =====
