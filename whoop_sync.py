@@ -52,6 +52,8 @@ def sync_month(whoop, year, month, cache):
             'hr_zones_4_5_hours': round(summary.get('hr_zones_4_5_hours', 0), 2),
             'avg_hrv': round(summary.get('avg_hrv', 0), 1),
             'avg_recovery_score': round(summary.get('avg_recovery_score', 0), 1),
+            'avg_resting_hr': round(summary.get('avg_resting_hr', 0), 1),
+            'avg_sleep_consistency': round(summary.get('avg_sleep_consistency', 0), 1),
             'num_sleeps': len(summary.get('sleep', [])),
             'num_workouts': len(summary.get('workouts', [])),
         }
@@ -63,6 +65,8 @@ def sync_month(whoop, year, month, cache):
         print(f"   HR Zones 4-5:  {d['hr_zones_4_5_hours']}h")
         print(f"   HRV avg:       {d['avg_hrv']}ms")
         print(f"   Recovery avg:  {d['avg_recovery_score']}%")
+        print(f"   Resting HR:    {d['avg_resting_hr']} bpm")
+        print(f"   Sleep Consist: {d['avg_sleep_consistency']}%")
 
     except Exception as e:
         print(f"   ERROR sincronizando {key}: {e}")
