@@ -1,5 +1,5 @@
 """
-Autenticación WHOOP con OAuth2
+Autenticación WHOOP con OAuth2 - Con refresh preventivo
 """
 
 import requests
@@ -8,6 +8,7 @@ import webbrowser
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import json
 import os
+import time
 from urllib.parse import urlencode, parse_qs
 import config
 
@@ -50,6 +51,9 @@ class WhoopAuth:
         return None
     
     def _save_tokens(self, tokens):
+        # Save expires_at timestamp for preventive refresh
+        if 'expires_in' in tokens and 'expires_at' not in tokens:
+            tokens['expires_at'] = time.time() + tokens['expires_in']
         with open(WHOOP_TOKENS_FILE, 'w') as f:
             json.dump(tokens, f)
         self.tokens = tokens
@@ -130,6 +134,16 @@ class WhoopAuth:
     def get_access_token(self):
         if not self.tokens:
             raise Exception("No hay tokens. Ejecuta authorize() primero.")
+
+        # Preventive refresh: if token expires in < 10 minutes, refresh now
+        expires_at = self.tokens.get('expires_at', 0)
+        if expires_at and time.time() > (expires_at - 600):
+            print("   [WHOOP] Token a punto de expirar, renovando preventivamente...")
+            try:
+                self.refresh_access_token()
+            except Exception as e:
+                print(f"   [WHOOP] Error en refresh preventivo: {e}")
+
         return self.tokens['access_token']
     
     def is_authenticated(self):

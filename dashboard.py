@@ -399,7 +399,7 @@ def get_monthly_data(year, month):
         is_current = (year == current_year and month == current_month)
         end_date = today if is_current else datetime(year, month, last_day)
 
-        # --- Steps ---
+        # --- Steps (Garmin) ---
         total_steps = 0
         days_with_steps = 0
 
@@ -416,7 +416,7 @@ def get_monthly_data(year, month):
 
         data['steps_avg'] = round(total_steps / days_with_steps) if days_with_steps > 0 else 0
 
-        # --- Activities ---
+        # --- Activities (Garmin) ---
         all_activities = garmin.get_activities(start_date, end_date, limit=100)
         filtered_activities = []
         strength_count = 0
@@ -435,54 +435,82 @@ def get_monthly_data(year, month):
         data['activities'] = len(filtered_activities)
         data['strength'] = strength_count
 
-        # --- HR Zones ---
-        total_zone_1_3_secs = 0
-        total_zone_4_5_secs = 0
+        # --- HR Zones + Sleep: WHOOP (primary) with Garmin fallback ---
+        whoop_ok = False
+        try:
+            from whoop_client_v2_corrected import WhoopClientV2
+            whoop = WhoopClientV2()
 
-        for activity in filtered_activities:
-            activity_id = activity.get('activityId')
-            if activity_id:
+            if whoop.auth.is_authenticated():
+                whoop_summary = whoop.get_monthly_summary(year, month)
+
+                # HR Zones from WHOOP (total hours for the month)
+                data['hr_zones_1_3'] = round(whoop_summary.get('hr_zones_1_3_hours', 0), 1)
+                data['hr_zones_4_5'] = round(whoop_summary.get('hr_zones_4_5_hours', 0), 1)
+
+                # Sleep from WHOOP (more accurate with continuous wrist sensor)
+                if whoop_summary.get('avg_sleep_hours', 0) > 0:
+                    data['sleep_hours_avg'] = round(whoop_summary['avg_sleep_hours'], 1)
+                    data['days_before_930'] = whoop_summary.get('days_sleep_before_930pm', 0)
+
+                whoop_ok = True
+                print(f"   [WHOOP] HR zones 1-3: {data['hr_zones_1_3']}h, 4-5: {data['hr_zones_4_5']}h")
+                print(f"   [WHOOP] Sleep avg: {data['sleep_hours_avg']}h, before 9:30: {data['days_before_930']}")
+            else:
+                print("   [WHOOP] No tokens - usando Garmin como fallback")
+        except Exception as e:
+            print(f"   [WHOOP] Error: {e} - usando Garmin como fallback")
+
+        # Garmin fallback for HR zones if WHOOP failed
+        if not whoop_ok:
+            total_zone_1_3_secs = 0
+            total_zone_4_5_secs = 0
+
+            for activity in filtered_activities:
+                activity_id = activity.get('activityId')
+                if activity_id:
+                    try:
+                        hr_zones = garmin.client.get_activity_hr_in_timezones(activity_id)
+                        if hr_zones:
+                            for zone in hr_zones:
+                                zone_num = zone.get('zoneNumber', 0)
+                                secs = zone.get('secsInZone', 0)
+                                if zone_num in [1, 2, 3]:
+                                    total_zone_1_3_secs += secs
+                                elif zone_num in [4, 5]:
+                                    total_zone_4_5_secs += secs
+                    except:
+                        pass
+
+            data['hr_zones_1_3'] = round(total_zone_1_3_secs / 3600, 1)
+            data['hr_zones_4_5'] = round(total_zone_4_5_secs / 3600, 1)
+
+            # Garmin fallback for sleep
+            total_sleep_secs = 0
+            days_before_930 = 0
+            sleep_days = 0
+
+            current_date = start_date
+            while current_date <= end_date:
                 try:
-                    hr_zones = garmin.client.get_activity_hr_in_timezones(activity_id)
-                    if hr_zones:
-                        for zone in hr_zones:
-                            zone_num = zone.get('zoneNumber', 0)
-                            secs = zone.get('secsInZone', 0)
-                            if zone_num in [1, 2, 3]:
-                                total_zone_1_3_secs += secs
-                            elif zone_num in [4, 5]:
-                                total_zone_4_5_secs += secs
+                    sleep_data = garmin.client.get_sleep_data(current_date.strftime('%Y-%m-%d'))
+                    if sleep_data and 'dailySleepDTO' in sleep_data:
+                        dto = sleep_data['dailySleepDTO']
+                        total_sleep_secs += dto.get('sleepTimeSeconds', 0)
+                        sleep_days += 1
+
+                        sleep_start_ts = dto.get('sleepStartTimestampLocal')
+                        if sleep_start_ts:
+                            sleep_start = datetime.fromtimestamp(sleep_start_ts / 1000)
+                            if sleep_start.hour < 21 or (sleep_start.hour == 21 and sleep_start.minute <= 30):
+                                days_before_930 += 1
                 except:
                     pass
+                current_date += timedelta(days=1)
 
-        data['hr_zones_1_3'] = round(total_zone_1_3_secs / 3600, 1)
-        data['hr_zones_4_5'] = round(total_zone_4_5_secs / 3600, 1)
+            data['sleep_hours_avg'] = round(total_sleep_secs / sleep_days / 3600, 1) if sleep_days > 0 else 0
+            data['days_before_930'] = days_before_930
 
-        # --- Sleep ---
-        total_sleep_secs = 0
-        days_before_930 = 0
-        sleep_days = 0
-
-        current_date = start_date
-        while current_date <= end_date:
-            try:
-                sleep_data = garmin.client.get_sleep_data(current_date.strftime('%Y-%m-%d'))
-                if sleep_data and 'dailySleepDTO' in sleep_data:
-                    dto = sleep_data['dailySleepDTO']
-                    total_sleep_secs += dto.get('sleepTimeSeconds', 0)
-                    sleep_days += 1
-
-                    sleep_start_ts = dto.get('sleepStartTimestampLocal')
-                    if sleep_start_ts:
-                        sleep_start = datetime.fromtimestamp(sleep_start_ts / 1000)
-                        if sleep_start.hour < 21 or (sleep_start.hour == 21 and sleep_start.minute <= 30):
-                            days_before_930 += 1
-            except:
-                pass
-            current_date += timedelta(days=1)
-
-        data['sleep_hours_avg'] = round(total_sleep_secs / sleep_days / 3600, 1) if sleep_days > 0 else 0
-        data['days_before_930'] = days_before_930
     except Exception as e:
         st.error(f"Error cargando datos: {str(e)}")
 
