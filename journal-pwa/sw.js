@@ -29,14 +29,16 @@ self.addEventListener('activate', function(e) {
 self.addEventListener('fetch', function(e) {
   var url = new URL(e.request.url);
 
-  // Skip caching for external services entirely
+  // Skip caching for external services and rescue page entirely
   if (
     url.hostname.includes('supabase.co') ||
     url.hostname.includes('googleapis.com') ||
     url.hostname.includes('anthropic.com') ||
     url.hostname.includes('jsdelivr.net') ||
     url.hostname.includes('unpkg.com') ||
-    url.pathname.startsWith('/api/')
+    url.pathname.startsWith('/api/') ||
+    url.pathname.includes('rescue') ||
+    url.pathname.includes('export')
   ) {
     return;
   }
