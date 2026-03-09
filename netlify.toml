@@ -10,6 +10,16 @@
   status = 200
 
 [[redirects]]
+  from = "/export.html"
+  to = "/export.html"
+  status = 200
+
+[[redirects]]
+  from = "/rescue.html"
+  to = "/rescue.html"
+  status = 200
+
+[[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200
