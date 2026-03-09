@@ -334,7 +334,69 @@ html, body {
 <!-- ===== AUTH LOADING ===== -->
 <div class="auth-loading show" id="authLoading">
   <div class="auth-spinner"></div>
+  <div style="margin-top:30px;text-align:center;">
+    <button id="btnExportRescue" style="background:transparent;border:1px solid #3d362e;color:#9c9285;font-family:var(--font-sans);font-size:12px;padding:8px 16px;border-radius:8px;cursor:pointer;">
+      Exportar mis datos
+    </button>
+    <div id="rescueResult" style="margin-top:12px;max-width:90vw;text-align:left;"></div>
+  </div>
 </div>
+
+<script>
+document.getElementById('btnExportRescue').addEventListener('click', function() {
+  var result = document.getElementById('rescueResult');
+  var data = localStorage.getItem('diario-entries');
+  if (!data) {
+    // Search all keys
+    var allKeys = [];
+    var allData = {};
+    for (var i = 0; i < localStorage.length; i++) {
+      var key = localStorage.key(i);
+      allKeys.push(key);
+      try { allData[key] = JSON.parse(localStorage.getItem(key)); } catch(e) { allData[key] = localStorage.getItem(key); }
+    }
+    if (allKeys.length === 0) {
+      result.innerHTML = '<p style="color:#c47a6a;font-size:12px;">No hay datos en localStorage.</p>';
+    } else {
+      result.innerHTML = '<p style="color:#c4956a;font-size:12px;margin-bottom:8px;">No se encontro "diario-entries". Keys: ' + allKeys.join(', ') + '</p>'
+        + '<button id="btnDumpAll" style="background:#c4956a;color:#1a1714;border:none;font-size:12px;padding:8px 16px;border-radius:8px;cursor:pointer;margin-bottom:8px;">Descargar todo</button>'
+        + '<button id="btnCopyAll" style="background:#3d362e;color:#e8e0d4;border:none;font-size:12px;padding:8px 16px;border-radius:8px;cursor:pointer;">Copiar todo</button>';
+      document.getElementById('btnDumpAll').addEventListener('click', function() { downloadRescue(allData, 'diario-all-data'); });
+      document.getElementById('btnCopyAll').addEventListener('click', function() { copyRescue(JSON.stringify(allData, null, 2), result); });
+    }
+    return;
+  }
+  var entries = JSON.parse(data);
+  var keys = Object.keys(entries).sort();
+  var exportObj = { exported_at: new Date().toISOString(), total_entries: keys.length, entries: keys.map(function(d) { return { date: d, text: entries[d] }; }) };
+  result.innerHTML = '<p style="color:#7db87d;font-size:13px;margin-bottom:8px;">' + keys.length + ' entradas encontradas!</p>'
+    + '<button id="btnDlEntries" style="background:#c4956a;color:#1a1714;border:none;font-size:13px;padding:10px 20px;border-radius:8px;cursor:pointer;width:100%;margin-bottom:8px;font-weight:600;">Descargar JSON</button>'
+    + '<button id="btnCpEntries" style="background:#3d362e;color:#e8e0d4;border:none;font-size:13px;padding:10px 20px;border-radius:8px;cursor:pointer;width:100%;">Copiar al portapapeles</button>';
+  document.getElementById('btnDlEntries').addEventListener('click', function() { downloadRescue(exportObj, 'diario-backup'); });
+  document.getElementById('btnCpEntries').addEventListener('click', function() { copyRescue(JSON.stringify(exportObj, null, 2), result); });
+});
+
+function downloadRescue(obj, name) {
+  var blob = new Blob([JSON.stringify(obj, null, 2)], { type: 'application/json' });
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = name + '-' + new Date().toISOString().slice(0,10) + '.json';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+}
+
+function copyRescue(text, container) {
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(text).then(function() {
+      var d = document.createElement('p');
+      d.style.cssText = 'color:#7db87d;font-size:12px;margin-top:8px;';
+      d.textContent = 'Copiado!';
+      container.appendChild(d);
+    });
+  }
+}
+</script>
 
 <!-- ===== AUTH SCREEN ===== -->
 <div class="auth-screen" id="authScreen" style="display:none">
