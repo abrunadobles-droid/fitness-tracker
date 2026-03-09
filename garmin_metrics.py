@@ -50,17 +50,9 @@ class GarminMetrics:
                     sleep_seconds = sleep_dto.get('sleepTimeSeconds', 0)
                     total_sleep_seconds += sleep_seconds
                     
-                    # Sleep before 9:30 PM
-                    sleep_start_ts = sleep_dto.get('sleepStartTimestampLocal')
-                    if sleep_start_ts:
-                        # Convertir timestamp a hora local
-                        sleep_start = datetime.fromtimestamp(sleep_start_ts / 1000)
-                        hour = sleep_start.hour
-                        minute = sleep_start.minute
-                        
-                        # Contar si se durmió antes de 21:30
-                        if hour < 21 or (hour == 21 and minute <= 30):
-                            days_before_930 += 1
+                    # Days with 7.5+ hours of sleep
+                    if sleep_seconds >= 7.5 * 3600:
+                        days_before_930 += 1
                 
             except Exception as e:
                 print(f"⚠️ [GARMIN] Error día {date_str}: {e}")
