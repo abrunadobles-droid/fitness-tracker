@@ -4,136 +4,221 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Exportar Diario</title>
-<script src="https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 body { background:#1a1714; color:#e8e0d4; font-family:system-ui,sans-serif; padding:20px; min-height:100vh; }
-.card { max-width:400px; margin:40px auto; background:#23201b; border:1px solid #3d362e; border-radius:12px; padding:24px; }
-h1 { font-size:20px; font-weight:300; margin-bottom:16px; text-align:center; }
-label { font-size:12px; color:#9c9285; display:block; margin-bottom:4px; }
-input { width:100%; padding:10px; background:#1a1714; border:1px solid #3d362e; border-radius:8px; color:#e8e0d4; font-size:14px; margin-bottom:12px; }
-input:focus { outline:none; border-color:#c4956a; }
+.card { max-width:400px; margin:20px auto; background:#23201b; border:1px solid #3d362e; border-radius:12px; padding:24px; }
+h1 { font-size:20px; font-weight:300; margin-bottom:4px; text-align:center; }
+h2 { font-size:15px; font-weight:400; color:#9c9285; margin-bottom:16px; text-align:center; }
 button { width:100%; padding:12px; border:none; border-radius:8px; font-size:14px; font-weight:600; cursor:pointer; margin-bottom:8px; }
 .btn-primary { background:#c4956a; color:#1a1714; }
 .btn-secondary { background:#3d362e; color:#e8e0d4; }
-.msg { font-size:13px; padding:10px; border-radius:8px; margin-bottom:12px; display:none; }
-.msg.error { display:block; background:rgba(196,122,106,0.15); color:#c47a6a; }
-.msg.success { display:block; background:rgba(125,184,125,0.2); color:#7db87d; }
-.msg.info { display:block; background:rgba(196,149,106,0.15); color:#c4956a; }
-pre { background:#1a1714; border:1px solid #3d362e; border-radius:8px; padding:12px; font-size:11px; max-height:300px; overflow:auto; white-space:pre-wrap; word-break:break-all; margin-top:12px; }
+.msg { font-size:13px; padding:10px; border-radius:8px; margin-bottom:12px; }
+.msg.error { background:rgba(196,122,106,0.15); color:#c47a6a; }
+.msg.success { background:rgba(125,184,125,0.2); color:#7db87d; }
+.msg.info { background:rgba(196,149,106,0.15); color:#c4956a; }
 .hidden { display:none; }
+pre { background:#1a1714; border:1px solid #3d362e; border-radius:8px; padding:12px; font-size:11px; max-height:400px; overflow:auto; white-space:pre-wrap; word-break:break-all; margin-top:12px; }
 .count { text-align:center; font-size:14px; color:#9c9285; margin:12px 0; }
+.divider { border:none; border-top:1px solid #3d362e; margin:16px 0; }
+label { font-size:12px; color:#9c9285; display:block; margin-bottom:4px; }
+input { width:100%; padding:10px; background:#1a1714; border:1px solid #3d362e; border-radius:8px; color:#e8e0d4; font-size:14px; margin-bottom:12px; }
+input:focus { outline:none; border-color:#c4956a; }
 </style>
 </head>
 <body>
 
-<div class="card" id="loginCard">
+<div class="card">
   <h1>Exportar datos del Diario</h1>
-  <div class="msg" id="loginMsg"></div>
+  <h2>Datos guardados en este navegador</h2>
+
+  <div id="localResult"></div>
+  <button class="btn-primary" id="btnLocal">Buscar datos en localStorage</button>
+</div>
+
+<div class="card">
+  <h2>Datos en Supabase (si creaste cuenta)</h2>
+  <div id="supaMsg"></div>
   <label>Email</label>
   <input type="email" id="email" placeholder="tu@email.com">
   <label>Contraseña</label>
   <input type="password" id="password" placeholder="Tu contraseña">
-  <button class="btn-primary" id="btnLogin">Iniciar sesión</button>
+  <button class="btn-secondary" id="btnSupabase">Buscar en Supabase</button>
+  <div id="supaResult"></div>
 </div>
 
-<div class="card hidden" id="exportCard">
-  <h1>Tus datos</h1>
-  <div class="msg" id="exportMsg"></div>
-  <div class="count" id="countInfo"></div>
-  <button class="btn-primary" id="btnDownload">Descargar JSON</button>
-  <button class="btn-secondary" id="btnCopy">Copiar al portapapeles</button>
-  <pre id="preview"></pre>
-</div>
-
+<script src="https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script>
-var SUPABASE_URL = 'https://bailojpedwczadqhtqtl.supabase.co';
-var SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJhaWxvanBlZHdjemFkcWh0cXRsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk3MTk3MzQsImV4cCI6MjA4NTI5NTczNH0.Hn97q3nYnJDOinFt0eEsPukwBiglqjl2I5vqoxiAgek';
+// ============ LOCAL STORAGE EXPORT ============
+document.getElementById('btnLocal').addEventListener('click', function() {
+  var result = document.getElementById('localResult');
+  var allData = {};
+  var found = false;
 
-var sb = window['supabase'].createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-var exportData = null;
+  // Check all localStorage keys for journal data
+  for (var i = 0; i < localStorage.length; i++) {
+    var key = localStorage.key(i);
+    try {
+      var val = localStorage.getItem(key);
+      // Try to parse as JSON
+      try { val = JSON.parse(val); } catch(e) {}
+      allData[key] = val;
+    } catch(e) {}
+  }
 
-document.getElementById('btnLogin').addEventListener('click', async function() {
-  var msg = document.getElementById('loginMsg');
+  // Look specifically for journal entries
+  var journalData = null;
+  var possibleKeys = ['diario-entries', 'journal-entries', 'entries', 'diario'];
+  for (var k = 0; k < possibleKeys.length; k++) {
+    var d = localStorage.getItem(possibleKeys[k]);
+    if (d) {
+      journalData = { key: possibleKeys[k], data: JSON.parse(d) };
+      found = true;
+      break;
+    }
+  }
+
+  if (found && journalData) {
+    var entries = journalData.data;
+    var keys = Object.keys(entries);
+    var exportObj = {
+      source: 'localStorage',
+      key: journalData.key,
+      exported_at: new Date().toISOString(),
+      total_entries: keys.length,
+      entries: keys.sort().map(function(date) {
+        return { date: date, text: entries[date] };
+      })
+    };
+
+    result.innerHTML = '<div class="msg success">Encontradas ' + keys.length + ' entradas en "' + journalData.key + '"</div>'
+      + '<button class="btn-primary" id="btnDownloadLocal">Descargar JSON</button>'
+      + '<button class="btn-secondary" id="btnCopyLocal">Copiar al portapapeles</button>'
+      + '<pre>' + escapeHtml(JSON.stringify(exportObj, null, 2)) + '</pre>';
+
+    document.getElementById('btnDownloadLocal').addEventListener('click', function() {
+      downloadJSON(exportObj, 'diario-local-backup');
+    });
+    document.getElementById('btnCopyLocal').addEventListener('click', function() {
+      copyText(JSON.stringify(exportObj, null, 2), result);
+    });
+  } else {
+    // Show ALL localStorage keys so user can see what's there
+    var keyList = [];
+    for (var j = 0; j < localStorage.length; j++) {
+      keyList.push(localStorage.key(j));
+    }
+    if (keyList.length === 0) {
+      result.innerHTML = '<div class="msg error">No hay datos en localStorage de este navegador.</div>'
+        + '<div class="msg info" style="margin-top:8px;">Nota: Necesitas abrir esta pagina en el MISMO navegador donde usabas el Diario.</div>';
+    } else {
+      result.innerHTML = '<div class="msg info">No se encontro "diario-entries". Keys en localStorage:</div>'
+        + '<pre>' + escapeHtml(keyList.join('\n')) + '</pre>'
+        + '<hr class="divider">'
+        + '<button class="btn-secondary" id="btnDumpAll">Descargar TODO el localStorage</button>';
+
+      document.getElementById('btnDumpAll').addEventListener('click', function() {
+        downloadJSON(allData, 'localStorage-full-dump');
+      });
+    }
+  }
+});
+
+// ============ SUPABASE EXPORT ============
+document.getElementById('btnSupabase').addEventListener('click', async function() {
+  var msg = document.getElementById('supaMsg');
+  var result = document.getElementById('supaResult');
   var email = document.getElementById('email').value.trim();
   var password = document.getElementById('password').value;
 
   if (!email || !password) {
-    msg.className = 'msg error';
-    msg.textContent = 'Ingresa email y contraseña.';
+    msg.innerHTML = '<div class="msg error">Ingresa email y contraseña.</div>';
     return;
   }
 
-  msg.className = 'msg info';
-  msg.textContent = 'Conectando...';
+  if (!window['supabase']) {
+    msg.innerHTML = '<div class="msg error">Supabase SDK no cargo. Intenta recargar.</div>';
+    return;
+  }
+
+  msg.innerHTML = '<div class="msg info">Conectando...</div>';
 
   try {
-    var result = await sb.auth.signInWithPassword({ email: email, password: password });
-    if (result.error) throw result.error;
+    var sb = window['supabase'].createClient(
+      'https://bailojpedwczadqhtqtl.supabase.co',
+      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJhaWxvanBlZHdjemFkcWh0cXRsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk3MTk3MzQsImV4cCI6MjA4NTI5NTczNH0.Hn97q3nYnJDOinFt0eEsPukwBiglqjl2I5vqoxiAgek'
+    );
 
-    msg.className = 'msg info';
-    msg.textContent = 'Cargando entradas...';
+    var loginResult = await sb.auth.signInWithPassword({ email: email, password: password });
+    if (loginResult.error) throw loginResult.error;
+
+    msg.innerHTML = '<div class="msg info">Cargando entradas...</div>';
 
     var query = await sb
       .from('journal_entries')
       .select('entry_date, text, updated_at')
-      .eq('user_id', result.data.user.id)
+      .eq('user_id', loginResult.data.user.id)
       .order('entry_date', { ascending: true });
 
     if (query.error) throw query.error;
 
-    exportData = {
+    var entries = (query.data || []);
+    var exportObj = {
+      source: 'supabase',
       exported_at: new Date().toISOString(),
       user_email: email,
-      total_entries: (query.data || []).length,
-      entries: (query.data || []).map(function(row) {
+      total_entries: entries.length,
+      entries: entries.map(function(row) {
         return { date: row.entry_date, text: row.text, updated_at: row.updated_at };
       })
     };
 
-    document.getElementById('loginCard').classList.add('hidden');
-    document.getElementById('exportCard').classList.remove('hidden');
+    msg.innerHTML = '<div class="msg success">Encontradas ' + entries.length + ' entradas en Supabase</div>';
+    result.innerHTML = '<button class="btn-primary" id="btnDownloadSupa">Descargar JSON</button>'
+      + '<button class="btn-secondary" id="btnCopySupa">Copiar al portapapeles</button>'
+      + '<pre>' + escapeHtml(JSON.stringify(exportObj, null, 2)) + '</pre>';
 
-    var count = exportData.entries.length;
-    document.getElementById('countInfo').textContent = count + ' entrada' + (count !== 1 ? 's' : '') + ' encontrada' + (count !== 1 ? 's' : '');
-
-    if (count === 0) {
-      document.getElementById('exportMsg').className = 'msg info';
-      document.getElementById('exportMsg').textContent = 'No hay entradas en Supabase. Puede que tus datos estén en localStorage del navegador.';
-    }
-
-    document.getElementById('preview').textContent = JSON.stringify(exportData, null, 2);
+    document.getElementById('btnDownloadSupa').addEventListener('click', function() {
+      downloadJSON(exportObj, 'diario-supabase-backup');
+    });
+    document.getElementById('btnCopySupa').addEventListener('click', function() {
+      copyText(JSON.stringify(exportObj, null, 2), result);
+    });
 
   } catch (e) {
-    msg.className = 'msg error';
-    msg.textContent = e.message || 'Error al conectar.';
+    msg.innerHTML = '<div class="msg error">' + escapeHtml(e.message || 'Error al conectar') + '</div>';
   }
 });
 
 document.getElementById('password').addEventListener('keydown', function(e) {
-  if (e.key === 'Enter') document.getElementById('btnLogin').click();
+  if (e.key === 'Enter') document.getElementById('btnSupabase').click();
 });
 
-document.getElementById('btnDownload').addEventListener('click', function() {
-  if (!exportData) return;
-  var blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+// ============ HELPERS ============
+function escapeHtml(str) {
+  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function downloadJSON(obj, name) {
+  var blob = new Blob([JSON.stringify(obj, null, 2)], { type: 'application/json' });
   var url = URL.createObjectURL(blob);
   var a = document.createElement('a');
   a.href = url;
-  a.download = 'diario-backup-' + new Date().toISOString().slice(0, 10) + '.json';
+  a.download = name + '-' + new Date().toISOString().slice(0, 10) + '.json';
+  document.body.appendChild(a);
   a.click();
+  document.body.removeChild(a);
   URL.revokeObjectURL(url);
-  document.getElementById('exportMsg').className = 'msg success';
-  document.getElementById('exportMsg').textContent = 'Archivo descargado!';
-});
+}
 
-document.getElementById('btnCopy').addEventListener('click', function() {
-  if (!exportData) return;
-  var text = JSON.stringify(exportData, null, 2);
+function copyText(text, container) {
   if (navigator.clipboard) {
     navigator.clipboard.writeText(text).then(function() {
-      document.getElementById('exportMsg').className = 'msg success';
-      document.getElementById('exportMsg').textContent = 'Copiado al portapapeles!';
+      var d = document.createElement('div');
+      d.className = 'msg success';
+      d.textContent = 'Copiado al portapapeles!';
+      container.prepend(d);
+      setTimeout(function() { d.remove(); }, 2000);
     });
   } else {
     var ta = document.createElement('textarea');
@@ -142,10 +227,8 @@ document.getElementById('btnCopy').addEventListener('click', function() {
     ta.select();
     document.execCommand('copy');
     document.body.removeChild(ta);
-    document.getElementById('exportMsg').className = 'msg success';
-    document.getElementById('exportMsg').textContent = 'Copiado!';
   }
-});
+}
 </script>
 </body>
 </html>
