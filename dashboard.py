@@ -1,278 +1,326 @@
 """
-Habit Tracker - Neon Glass - Multi-usuario
+Fitness Tracker - Sport HUD Dashboard v4
+- Split into Fitness Habits & Sleep Habits sections
+- HR Zones from WHOOP (total monthly hours)
+- Sleep metrics from WHOOP (duration, recovery, resting HR, consistency)
+- Steps, Activities, Strength from Garmin
 """
 
 import streamlit as st
 from datetime import datetime, timedelta
 from calendar import monthrange
-import math
 
 st.set_page_config(
-    page_title="Habit Tracker",
-    page_icon="⚡",
+    page_title="Fitness Tracker",
+    page_icon="🏃‍♂️",
     layout="wide"
 )
 
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap');
 
-* { font-family: 'Inter', sans-serif; }
+* { font-family: 'DM Sans', sans-serif; }
 
-.stApp {
-    background: #0a0e1a !important;
-    color: #e2e8f0 !important;
-}
+.stApp { background-color: #050505 !important; color: #e1e8ed !important; }
 
 #MainMenu {visibility: hidden;}
 footer {visibility: hidden;}
 header {visibility: hidden;}
 
-.top-gradient {
+.top-bar {
     height: 3px;
-    background: linear-gradient(90deg, #7c3aed, #06b6d4, #22c55e);
-    margin-bottom: 20px;
+    background: linear-gradient(90deg, #00ff87, #00d4ff, #ff0080);
+    margin-bottom: 24px;
     border-radius: 2px;
 }
 
 .hud-title {
-    font-family: 'Inter', sans-serif !important;
-    font-size: 2.4rem !important;
-    font-weight: 800 !important;
-    letter-spacing: 6px !important;
-    background: linear-gradient(135deg, #c4b5fd, #7c3aed, #06b6d4) !important;
-    -webkit-background-clip: text !important;
-    -webkit-text-fill-color: transparent !important;
-    background-clip: text !important;
-    line-height: 1.1 !important;
+    font-family: 'Bebas Neue', sans-serif !important;
+    font-size: 2.8rem !important;
+    letter-spacing: 4px !important;
+    color: #fff !important;
+    line-height: 1 !important;
     margin: 0 !important;
 }
 
 .date-badge {
     font-family: 'Space Mono', monospace;
     font-size: 0.6rem;
-    color: #cbd5e1;
-    background: rgba(255,255,255,0.04);
-    border: 1px solid rgba(255,255,255,0.08);
-    border-radius: 10px;
-    padding: 8px 16px;
+    color: #00ff87;
+    background: #0d0d0d;
+    border: 1px solid #1a1a1a;
+    border-radius: 6px;
+    padding: 6px 14px;
     display: inline-block;
     letter-spacing: 2px;
-    margin-bottom: 24px;
-    backdrop-filter: blur(10px);
+    margin-bottom: 28px;
 }
 
 .section-label {
     font-family: 'Space Mono', monospace;
     font-size: 0.6rem;
-    color: #cbd5e1;
+    color: #888;
     text-transform: uppercase;
     letter-spacing: 4px;
-    margin-bottom: 16px;
+    margin-bottom: 20px;
     margin-top: 8px;
 }
 
-.glass-card {
-    background: rgba(255,255,255,0.04);
-    border: 1px solid rgba(255,255,255,0.08);
-    border-radius: 16px;
-    padding: 20px;
-    margin-bottom: 14px;
-    backdrop-filter: blur(20px);
-    transition: border-color 0.3s ease;
+.section-divider {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, #1a1a1a, #333, #1a1a1a, transparent);
+    margin: 28px 0 20px;
 }
 
-.glass-card:hover {
-    border-color: rgba(255,255,255,0.15);
-}
+.metric-wrap { margin-bottom: 20px; }
 
-.metric-card-name {
-    font-family: 'Space Mono', monospace;
-    font-size: 0.55rem;
-    color: #cbd5e1;
-    text-transform: uppercase;
-    letter-spacing: 2px;
-    margin-bottom: 14px;
-}
-
-.metric-card-body {
+.metric-header {
     display: flex;
+    justify-content: space-between;
     align-items: center;
-    gap: 18px;
-}
-
-.metric-ring-wrap {
-    width: 80px;
-    height: 80px;
-    flex-shrink: 0;
-}
-
-.metric-ring-svg {
-    width: 80px;
-    height: 80px;
-    filter: drop-shadow(0 0 6px rgba(0,0,0,0.3));
-}
-
-.metric-card-info {
-    flex: 1;
-}
-
-.metric-card-value {
-    font-family: 'Inter', sans-serif;
-    font-size: 1.6rem;
-    font-weight: 700;
-    line-height: 1;
     margin-bottom: 6px;
 }
 
-.metric-card-goal {
+.metric-name {
     font-family: 'Space Mono', monospace;
-    font-size: 0.55rem;
-    color: #94a3b8;
-    letter-spacing: 1px;
+    font-size: 0.6rem;
+    color: #888;
+    text-transform: uppercase;
+    letter-spacing: 2px;
 }
+
+.metric-source {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.45rem;
+    color: #444;
+    letter-spacing: 1px;
+    margin-left: 6px;
+}
+
+.metric-value {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.85rem;
+    font-weight: 700;
+}
+
+.val-green { color: #00ff87; }
+.val-yellow { color: #ffd700; }
+.val-red { color: #ff4444; }
 
 .metric-bar-bg {
     height: 3px;
-    background: rgba(255,255,255,0.06);
-    border-radius: 3px;
+    background: #1a1a1a;
+    border-radius: 2px;
     overflow: hidden;
-    margin-top: 14px;
 }
 
-.metric-bar-fill {
+.metric-bar-fill-green {
     height: 3px;
-    border-radius: 3px;
-    transition: width 0.5s ease;
+    background: linear-gradient(90deg, #00ff87, #00d4ff);
+    border-radius: 2px;
 }
 
-.summary-row {
-    display: flex;
-    gap: 14px;
-    margin-top: 20px;
+.metric-bar-fill-yellow {
+    height: 3px;
+    background: linear-gradient(90deg, #ffd700, #ff8c00);
+    border-radius: 2px;
 }
 
-.summary-card {
-    flex: 1;
-    background: rgba(255,255,255,0.04);
-    border: 1px solid rgba(255,255,255,0.08);
-    border-radius: 16px;
-    padding: 20px;
-    backdrop-filter: blur(20px);
-    text-align: center;
+.metric-bar-fill-red {
+    height: 3px;
+    background: linear-gradient(90deg, #ff0080, #ff4444);
+    border-radius: 2px;
 }
 
-.summary-val {
-    font-family: 'Inter', sans-serif;
-    font-size: 2rem;
-    font-weight: 800;
-    line-height: 1;
-}
-
-.summary-label {
+.metric-pct {
     font-family: 'Space Mono', monospace;
-    font-size: 0.5rem;
-    color: #cbd5e1;
-    text-transform: uppercase;
-    letter-spacing: 2px;
+    font-size: 0.55rem;
+    color: #888;
+    margin-top: 4px;
+    text-align: right;
+}
+
+.big-stats-row {
+    display: flex;
+    gap: 12px;
     margin-top: 8px;
 }
 
-.divider {
-    height: 1px;
-    background: rgba(255,255,255,0.06);
-    margin: 24px 0;
+.big-stat-box {
+    flex: 1;
+    background: #0d0d0d;
+    border: 1px solid #1a1a1a;
+    border-radius: 10px;
+    padding: 16px;
 }
 
+.big-stat-val {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 2rem;
+    letter-spacing: 2px;
+    line-height: 1;
+}
+
+.big-stat-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.5rem;
+    color: #888;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    margin-top: 6px;
+}
+
+.divider { height: 1px; background: #1a1a1a; margin: 24px 0; }
+
+.historical-title {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 2rem;
+    letter-spacing: 3px;
+    color: #fff;
+}
+
+.historical-month {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 1.2rem;
+    color: #888;
+    letter-spacing: 2px;
+    margin: 20px 0 12px;
+}
+
+.avg-section {
+    background: #0d0d0d;
+    border: 1px solid #00ff87;
+    border-radius: 10px;
+    padding: 20px;
+    margin-top: 8px;
+}
+
+.avg-title {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 1.4rem;
+    letter-spacing: 3px;
+    color: #00ff87;
+    margin-bottom: 16px;
+}
+
+.avg-metric-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid #1a1a1a;
+}
+
+.avg-metric-row:last-child { border-bottom: none; }
+
+.avg-metric-name {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.6rem;
+    color: #888;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.avg-metric-val {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.85rem;
+    font-weight: 700;
+}
+
+.avg-metric-vs {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.6rem;
+    padding: 2px 8px;
+    border-radius: 4px;
+}
+
+.vs-good { background: #052e16; color: #00ff87; }
+.vs-warn { background: #1c1008; color: #ffd700; }
+.vs-bad { background: #1c0808; color: #ff4444; }
+
 .stButton button {
-    background: rgba(255,255,255,0.05) !important;
-    color: #cbd5e1 !important;
-    border: 1px solid rgba(255,255,255,0.1) !important;
-    border-radius: 12px !important;
+    background: #0d0d0d !important;
+    color: #888 !important;
+    border: 1px solid #1a1a1a !important;
+    border-radius: 6px !important;
     font-family: 'Space Mono', monospace !important;
-    font-size: 0.55rem !important;
-    letter-spacing: 2px !important;
-    text-transform: uppercase !important;
+    font-size: 0.65rem !important;
+    letter-spacing: 1px !important;
     width: 100% !important;
-    padding: 10px 8px !important;
-    backdrop-filter: blur(10px) !important;
-    transition: all 0.3s ease !important;
 }
 
 .stButton button:hover {
-    background: rgba(124, 58, 237, 0.15) !important;
-    border-color: rgba(124, 58, 237, 0.4) !important;
-    color: #e2e8f0 !important;
+    border-color: #00ff87 !important;
+    color: #00ff87 !important;
 }
 
-.stButton button:active, .stButton button:focus {
-    background: rgba(124, 58, 237, 0.2) !important;
-    border-color: #7c3aed !important;
-    color: #c4b5fd !important;
+.month-header-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin: 20px 0 12px;
 }
 
-.user-badge {
-    font-family: 'Space Mono', monospace;
-    font-size: 0.5rem;
-    color: #94a3b8;
-    letter-spacing: 1px;
-    text-align: right;
-    margin-bottom: 8px;
-}
-
-.timestamp {
-    font-family: 'Space Mono', monospace;
-    font-size: 0.5rem;
-    color: #94a3b8;
-    text-align: right;
-    margin-top: 24px;
-    letter-spacing: 2px;
-}
-
-.hist-title {
-    font-family: 'Inter', sans-serif;
-    font-size: 1.8rem;
-    font-weight: 800;
-    letter-spacing: 4px;
-    background: linear-gradient(135deg, #c4b5fd, #7c3aed, #06b6d4);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-}
-
-.no-data-msg {
+.month-score {
     font-family: 'Space Mono', monospace;
     font-size: 0.7rem;
-    color: #94a3b8;
-    margin-top: 40px;
-    text-align: center;
-    letter-spacing: 2px;
+    padding: 4px 12px;
+    border-radius: 6px;
+    letter-spacing: 1px;
 }
+
+.score-good { background: #052e16; color: #00ff87; border: 1px solid #00ff87; }
+.score-mid { background: #1c1008; color: #ffd700; border: 1px solid #ffd700; }
+.score-bad { background: #1c0808; color: #ff4444; border: 1px solid #ff4444; }
+
+.comparison-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.6rem;
+    margin-top: 12px;
+}
+
+.comparison-table th {
+    color: #00d4ff;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    padding: 10px 8px;
+    border-bottom: 2px solid #1a1a1a;
+    text-align: center;
+    font-size: 0.55rem;
+}
+
+.comparison-table th:first-child { text-align: left; }
+
+.comparison-table td {
+    padding: 8px;
+    border-bottom: 1px solid #111;
+    text-align: center;
+    color: #ccc;
+}
+
+.comparison-table td:first-child {
+    text-align: left;
+    color: #888;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.comparison-table tr:last-child td { border-bottom: none; }
+
+.td-good { color: #00ff87 !important; font-weight: 700; }
+.td-warn { color: #ffd700 !important; }
+.td-bad { color: #ff4444 !important; }
+
+.trend-up { color: #00ff87; }
+.trend-down { color: #ff4444; }
+.trend-flat { color: #888; }
 </style>
 """, unsafe_allow_html=True)
 
-# ============ AUTH GATE ============
-from auth import show_auth_page, show_logout_button, get_user_id, get_user_email, try_auto_login
-from garmin_setup import show_garmin_connect_form
-from goals_setup import show_goals_setup, get_user_goals
-
-# Intentar restaurar sesion desde localStorage (Remember Me)
-try_auto_login()
-
-if not show_auth_page():
-    st.stop()
-
-if not show_garmin_connect_form():
-    st.stop()
-
-if not show_goals_setup(first_time=True):
-    st.stop()
-
-# ============ USUARIO AUTENTICADO + GARMIN CONECTADO + METAS LISTAS ============
-
-user_id = get_user_id()
-user_email = get_user_email()
-
+# ============ GLOBAL STATE ============
 today = datetime.now()
 current_month = today.month
 current_year = today.year
@@ -280,17 +328,51 @@ days_in_month = monthrange(current_year, current_month)[1]
 days_elapsed = today.day
 progress_pct = (days_elapsed / days_in_month * 100)
 
-meses_nombres_upper = {
+MESES_NOMBRES = {
+    1: 'ENERO', 2: 'FEBRERO', 3: 'MARZO', 4: 'ABRIL',
+    5: 'MAYO', 6: 'JUNIO', 7: 'JULIO', 8: 'AGOSTO',
+    9: 'SEPTIEMBRE', 10: 'OCTUBRE', 11: 'NOVIEMBRE', 12: 'DICIEMBRE'
+}
+
+MESES_CORTOS = {
     1: 'ENE', 2: 'FEB', 3: 'MAR', 4: 'ABR',
     5: 'MAY', 6: 'JUN', 7: 'JUL', 8: 'AGO',
     9: 'SEP', 10: 'OCT', 11: 'NOV', 12: 'DIC'
 }
 
+# Default goals (used if no DB goals available)
+metas = {
+    'steps_avg': 10000, 'activities': 28, 'strength': 10,
+    'sleep_hours_avg': 7.5,
+    'hr_zones_1_3': 19.3, 'hr_zones_4_5': 2.9,
+    'recovery_score': 50.0, 'resting_hr': 55.0, 'sleep_consistency': 80.0,
+}
+
+# Fitness Habits metrics (Garmin + WHOOP HR zones)
+FITNESS_METRICS = [
+    # (key, label, unit, type)
+    ('steps_avg', 'STEPS DAILY AVG', '', 'promedio'),
+    ('activities', 'ACTIVITIES / MES', '', 'total'),
+    ('strength', 'STRENGTH TRAINING', '', 'total'),
+    ('hr_zones_1_3', 'HR ZONES 1-3', 'h', 'total'),
+    ('hr_zones_4_5', 'HR ZONES 4-5', 'h', 'total'),
+]
+
+# Sleep Habits metrics (all WHOOP)
+SLEEP_METRICS = [
+    ('sleep_hours_avg', 'AVE SLEEP DURATION', 'h', 'promedio'),
+    ('recovery_score', 'RECOVERY SCORE', '%', 'promedio'),
+    ('resting_hr', 'RESTING HR', ' bpm', 'promedio_inverted'),
+    ('sleep_consistency', 'SLEEP CONSISTENCY', '%', 'promedio'),
+]
+
+ALL_METRIC_KEYS = [m[0] for m in FITNESS_METRICS + SLEEP_METRICS]
+
 if 'vista' not in st.session_state:
     st.session_state.vista = "mes"
 
-# NAVEGACION
-col_nav1, col_nav2, col_nav3, col_nav4, col_nav5 = st.columns([1, 1, 1, 1, 1])
+# ============ NAVIGATION ============
+col_nav1, col_nav2, col_nav3 = st.columns([1, 1, 1])
 
 with col_nav1:
     if st.button("MES ACTUAL", use_container_width=True):
@@ -303,47 +385,48 @@ with col_nav2:
         st.rerun()
 
 with col_nav3:
-    if st.button("METAS", use_container_width=True):
-        st.session_state.vista = "metas"
-        st.rerun()
-
-with col_nav4:
-    if st.button("REFRESH", use_container_width=True):
+    if st.button("ACTUALIZAR", use_container_width=True):
         st.cache_data.clear()
         st.rerun()
 
-with col_nav5:
-    show_logout_button()
-
-st.markdown(f'<div class="user-badge">{user_email}</div>', unsafe_allow_html=True)
 st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
 
-@st.cache_data(ttl=60, show_spinner=False)
-def get_monthly_data(_user_id, year, month):
+# ============ DATA FETCHING ============
+def _load_whoop_cache():
+    """Load WHOOP data from local cache file (generated by whoop_sync.py)."""
+    import json, os
+    cache_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'whoop_cache.json')
+    if os.path.exists(cache_path):
+        with open(cache_path, 'r') as f:
+            return json.load(f)
+    return {}
+
+
+@st.cache_data(ttl=60)
+def get_monthly_data(year, month):
     data = {
         'month': month, 'year': year,
         'steps_avg': 0, 'activities': 0, 'strength': 0,
         'sleep_hours_avg': 0,
-        'hr_zone_1_3': 0, 'hr_zone_4_5': 0
+        'hr_zones_1_3': 0, 'hr_zones_4_5': 0,
+        'recovery_score': 0, 'resting_hr': 0, 'sleep_consistency': 0,
     }
 
+    # --- GARMIN: Steps, Activities, Strength ---
     try:
         from garmin_client import GarminClient
 
-        garmin = GarminClient(_user_id)
+        garmin = GarminClient()
         garmin.login()
 
-        _today = datetime.now()
-        _current_year = _today.year
-        _current_month = _today.month
-
         start_date = datetime(year, month, 1)
-        end_date = _today if (year == _current_year and month == _current_month) else datetime(year, month, monthrange(year, month)[1])
+        last_day = monthrange(year, month)[1]
+        is_current = (year == current_year and month == current_month)
+        end_date = today if is_current else datetime(year, month, last_day)
 
+        # Steps
         total_steps = 0
         days_with_steps = 0
-        activities = []
-        strength_count = 0
 
         current_date = start_date
         while current_date <= end_date:
@@ -356,7 +439,13 @@ def get_monthly_data(_user_id, year, month):
                 pass
             current_date += timedelta(days=1)
 
+        data['steps_avg'] = round(total_steps / days_with_steps) if days_with_steps > 0 else 0
+
+        # Activities & Strength
         all_activities = garmin.get_activities(start_date, end_date, limit=100)
+        filtered_activities = []
+        strength_count = 0
+
         for activity in all_activities:
             activity_date_str = activity.get('startTimeLocal', '')
             if activity_date_str:
@@ -364,356 +453,493 @@ def get_monthly_data(_user_id, year, month):
                 if activity_date.year == year and activity_date.month == month:
                     activity_type = activity.get('activityType', {}).get('typeKey', '').lower()
                     if 'breath' not in activity_type and 'meditation' not in activity_type:
-                        activities.append(activity)
+                        filtered_activities.append(activity)
                         if any(kw in activity_type for kw in ['strength', 'training', 'gym', 'weight']):
                             strength_count += 1
 
-        data['steps_avg'] = round(total_steps / days_with_steps) if days_with_steps > 0 else 0
-        data['activities'] = len(activities)
+        data['activities'] = len(filtered_activities)
         data['strength'] = strength_count
 
-        # Calcular HR zones
-        total_zone_1_3_secs = 0
-        total_zone_4_5_secs = 0
-
-        for activity in activities:
-            activity_id = activity.get('activityId')
-            if activity_id:
-                try:
-                    hr_zones = garmin.client.get_activity_hr_in_timezones(activity_id)
-                    if hr_zones:
-                        for zone in hr_zones:
-                            zone_num = zone.get('zoneNumber', 0)
-                            secs = zone.get('secsInZone', 0)
-                            if zone_num in [1, 2, 3]:
-                                total_zone_1_3_secs += secs
-                            elif zone_num in [4, 5]:
-                                total_zone_4_5_secs += secs
-                except:
-                    pass
-
-        data['hr_zone_1_3'] = round(total_zone_1_3_secs / 3600, 1)
-        data['hr_zone_4_5'] = round(total_zone_4_5_secs / 3600, 1)
-
-        # Sleep data
-        total_sleep_secs = 0
-        sleep_days = 0
-
-        current_date = start_date
-        while current_date <= end_date:
-            try:
-                sleep_data = garmin.client.get_sleep_data(current_date.strftime('%Y-%m-%d'))
-                if sleep_data and 'dailySleepDTO' in sleep_data:
-                    dto = sleep_data['dailySleepDTO']
-                    sleep_secs = dto.get('sleepTimeSeconds', 0)
-                    total_sleep_secs += sleep_secs
-                    sleep_days += 1
-            except:
-                pass
-            current_date += timedelta(days=1)
-
-        data['sleep_hours_avg'] = round(total_sleep_secs / sleep_days / 3600, 1) if sleep_days > 0 else 0
     except Exception as e:
-        st.error(f"Error: {str(e)}")
+        st.error(f"Error cargando Garmin: {str(e)}")
+
+    # --- WHOOP: HR Zones, Sleep, Recovery, Resting HR, Sleep Consistency ---
+    try:
+        whoop_cache = _load_whoop_cache()
+        cache_key = f"{year}-{month:02d}"
+
+        if cache_key in whoop_cache:
+            wc = whoop_cache[cache_key]
+
+            # HR Zones (total hours for the month)
+            data['hr_zones_1_3'] = round(wc.get('hr_zones_1_3_hours', 0), 1)
+            data['hr_zones_4_5'] = round(wc.get('hr_zones_4_5_hours', 0), 1)
+
+            # Sleep
+            data['sleep_hours_avg'] = round(wc.get('sleep_hours_avg', 0), 1)
+
+            # Recovery & Resting HR
+            data['recovery_score'] = round(wc.get('avg_recovery_score', 0), 1)
+            data['resting_hr'] = round(wc.get('avg_resting_hr', 0), 1)
+
+            # Sleep Consistency
+            data['sleep_consistency'] = round(wc.get('avg_sleep_consistency', 0), 1)
+
+            synced = wc.get('synced_at', '?')
+            print(f"   [WHOOP] {cache_key} loaded (sync: {synced})")
+        else:
+            print(f"   [WHOOP] No data for {cache_key}")
+    except Exception as e:
+        print(f"   [WHOOP] Error: {e}")
 
     return data
 
-# Cargar metas personalizadas del usuario
-metas = get_user_goals()
 
-# ============ COLORES Y RENDERING ============
-
+# ============ HELPER FUNCTIONS ============
 def get_color(pct):
-    """Verde >= 100%, Amarillo >= 70%, Rojo < 70%"""
-    if pct >= 100:
-        return "#22c55e"
-    elif pct >= 70:
-        return "#f59e0b"
-    else:
-        return "#ef4444"
+    if pct >= 100: return "green"
+    elif pct >= 70: return "yellow"
+    else: return "red"
 
-def get_glow(color):
-    """Retorna un color de glow para el SVG ring"""
-    if color == "#22c55e":
-        return "rgba(34,197,94,0.3)"
-    elif color == "#f59e0b":
-        return "rgba(245,158,11,0.3)"
-    else:
-        return "rgba(239,68,68,0.3)"
 
 def render_metric(nombre, valor, meta, unidad="", tipo='total'):
-    if tipo == 'promedio':
+    """Render a metric bar. tipo='promedio_inverted' means lower is better (e.g. resting HR)."""
+    inverted = tipo == 'promedio_inverted'
+
+    if inverted:
+        # For inverted metrics (lower is better): at or below goal = 100%
+        pct = min((meta / valor * 100) if valor > 0 else 100, 100)
+    elif tipo == 'promedio' or tipo == 'promedio_inverted':
         esperado = meta
+        pct = min((valor / esperado * 100) if esperado > 0 else 0, 100)
     else:
         esperado = (meta / days_in_month) * days_elapsed
+        pct = min((valor / esperado * 100) if esperado > 0 else 0, 100)
 
-    pct = min((valor / esperado * 100) if esperado > 0 else 0, 100)
     color = get_color(pct)
-    glow = get_glow(color)
 
-    val_display = f"{valor:,}" if (not unidad and isinstance(valor, int) and valor >= 1000) else f"{valor}{unidad}"
-    meta_display = f"{meta:,}" if (not unidad and isinstance(meta, int) and meta >= 1000) else f"{meta}{unidad}"
+    if isinstance(valor, float):
+        val_display = f"{valor}{unidad}"
+    elif not unidad and isinstance(valor, int) and valor >= 1000:
+        val_display = f"{valor:,}"
+    else:
+        val_display = f"{valor}{unidad}"
 
-    # SVG ring
-    r = 36
-    circumference = 2 * math.pi * r
-    offset = circumference * (1 - pct / 100)
+    meta_label = f"{'MAX' if inverted else 'META'}: {meta}{unidad}"
 
     st.markdown(f"""
-    <div class="glass-card">
-        <div class="metric-card-name">{nombre}</div>
-        <div class="metric-card-body">
-            <div class="metric-ring-wrap">
-                <svg viewBox="0 0 100 100" class="metric-ring-svg">
-                    <circle cx="50" cy="50" r="{r}" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="4.5"/>
-                    <circle cx="50" cy="50" r="{r}" fill="none" stroke="{color}" stroke-width="4.5"
-                        stroke-dasharray="{circumference:.1f}" stroke-dashoffset="{offset:.1f}"
-                        transform="rotate(-90 50 50)" stroke-linecap="round"
-                        style="filter: drop-shadow(0 0 4px {glow});"/>
-                    <text x="50" y="50" text-anchor="middle" dy=".35em" fill="{color}"
-                        font-family="Space Mono, monospace" font-size="15" font-weight="700">{pct:.0f}%</text>
-                </svg>
-            </div>
-            <div class="metric-card-info">
-                <div class="metric-card-value" style="color:{color}">{val_display}</div>
-                <div class="metric-card-goal">META: {meta_display}</div>
-            </div>
+    <div class="metric-wrap">
+        <div class="metric-header">
+            <span class="metric-name">{nombre}</span>
+            <span class="metric-value val-{color}">{val_display}</span>
         </div>
         <div class="metric-bar-bg">
-            <div class="metric-bar-fill" style="width:{int(pct)}%; background:{color};"></div>
+            <div class="metric-bar-fill-{color}" style="width:{int(pct)}%"></div>
         </div>
+        <div class="metric-pct">{pct:.0f}% — {meta_label}</div>
     </div>
     """, unsafe_allow_html=True)
 
-# ============ VISTA MES ACTUAL ============
+
+def render_metric_hist(nombre, valor, meta, unidad="", inverted=False):
+    if inverted:
+        pct = min((meta / valor * 100) if valor > 0 else 100, 100)
+    else:
+        pct = min((valor / meta * 100) if meta > 0 else 0, 100)
+    color = get_color(pct)
+
+    if isinstance(valor, float):
+        val_display = f"{valor}{unidad}"
+    elif not unidad and isinstance(valor, int) and valor >= 1000:
+        val_display = f"{valor:,}"
+    else:
+        val_display = f"{valor}{unidad}"
+
+    meta_label = f"{'MAX' if inverted else 'META'}: {meta}{unidad}"
+
+    st.markdown(f"""
+    <div class="metric-wrap">
+        <div class="metric-header">
+            <span class="metric-name">{nombre}</span>
+            <span class="metric-value val-{color}">{val_display}</span>
+        </div>
+        <div class="metric-bar-bg">
+            <div class="metric-bar-fill-{color}" style="width:{int(pct)}%"></div>
+        </div>
+        <div class="metric-pct">{pct:.0f}% — {meta_label}</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+
+def is_metric_on_track(key, valor, meta):
+    """Check if a metric is on track (for current month with prorated totals)."""
+    metric_type = dict((m[0], m[3]) for m in FITNESS_METRICS + SLEEP_METRICS).get(key, 'total')
+    if metric_type == 'promedio_inverted':
+        return valor <= meta
+    elif metric_type == 'promedio':
+        return valor >= meta
+    else:
+        esperado = (meta / days_in_month) * days_elapsed
+        return valor >= esperado
+
+
+def is_metric_met(key, valor, meta):
+    """Check if a metric met its goal (for closed months)."""
+    metric_type = dict((m[0], m[3]) for m in FITNESS_METRICS + SLEEP_METRICS).get(key, 'total')
+    if metric_type == 'promedio_inverted':
+        return valor <= meta
+    else:
+        return valor >= meta
+
+
+def calculate_score(data):
+    """Calculate how many goals are met."""
+    score = 0
+    for key in ALL_METRIC_KEYS:
+        if is_metric_met(key, data[key], metas[key]):
+            score += 1
+    return score
+
+
+def score_css_class(score):
+    total = len(ALL_METRIC_KEYS)
+    if score >= total - 2: return "score-good"
+    elif score >= total // 2: return "score-mid"
+    else: return "score-bad"
+
+
+def avg_vs_meta(key, valor, meta):
+    """Get CSS class and label for average vs meta comparison."""
+    metric_type = dict((m[0], m[3]) for m in FITNESS_METRICS + SLEEP_METRICS).get(key, 'total')
+    if metric_type == 'promedio_inverted':
+        # Lower is better
+        pct = (meta / valor * 100) if valor > 0 else 100
+    else:
+        pct = (valor / meta * 100) if meta > 0 else 0
+
+    if pct >= 100:
+        return "vs-good", f"{pct:.0f}%"
+    elif pct >= 70:
+        return "vs-warn", f"~ {pct:.0f}%"
+    else:
+        return "vs-bad", f"{pct:.0f}%"
+
+
+def value_color_class(key, valor, meta):
+    metric_type = dict((m[0], m[3]) for m in FITNESS_METRICS + SLEEP_METRICS).get(key, 'total')
+    if metric_type == 'promedio_inverted':
+        pct = (meta / valor * 100) if valor > 0 else 100
+    else:
+        pct = (valor / meta * 100) if meta > 0 else 0
+    if pct >= 100: return "td-good"
+    elif pct >= 70: return "td-warn"
+    else: return "td-bad"
+
+
+def calculate_averages(all_data):
+    """Calculate averages across multiple months of data."""
+    n = len(all_data)
+    if n == 0:
+        return {}
+    avg = {}
+    for key in ALL_METRIC_KEYS:
+        total = sum(d[key] for d in all_data)
+        if key == 'steps_avg':
+            avg[key] = round(total / n)
+        else:
+            avg[key] = round(total / n, 1)
+    return avg
+
+
+def format_val(valor, unidad):
+    if isinstance(valor, float):
+        return f"{valor}{unidad}"
+    elif not unidad and isinstance(valor, int) and valor >= 1000:
+        return f"{valor:,}"
+    return f"{valor}{unidad}"
+
+
+# ============ VIEW: MES ACTUAL ============
 if st.session_state.vista == "mes":
 
-    st.markdown('<div class="top-gradient"></div>', unsafe_allow_html=True)
-    st.markdown('<div class="hud-title">HABIT TRACKER</div>', unsafe_allow_html=True)
-    st.markdown(f'<div class="date-badge">{meses_nombres_upper[current_month]} {current_year} &middot; DIA {days_elapsed}/{days_in_month} &middot; {progress_pct:.0f}% DEL MES</div>', unsafe_allow_html=True)
+    month_name = MESES_CORTOS[current_month]
+
+    st.markdown('<div class="top-bar"></div>', unsafe_allow_html=True)
+    st.markdown('<div class="hud-title">FITNESS TRACKER</div>', unsafe_allow_html=True)
+    st.markdown(
+        f'<div class="date-badge">{month_name} {current_year} · DIA {days_elapsed}/{days_in_month} · {progress_pct:.0f}% DEL MES</div>',
+        unsafe_allow_html=True
+    )
 
     with st.spinner(''):
-        data = get_monthly_data(user_id, current_year, current_month)
+        data = get_monthly_data(current_year, current_month)
 
-    st.markdown('<div class="section-label">// HABITOS</div>', unsafe_allow_html=True)
+    # ---- FITNESS HABITS ----
+    st.markdown('<div class="section-label">// FITNESS HABITS</div>', unsafe_allow_html=True)
 
     col1, col2 = st.columns(2)
 
     with col1:
         render_metric("STEPS DAILY AVG", data['steps_avg'], metas['steps_avg'], tipo='promedio')
         render_metric("STRENGTH TRAINING", data['strength'], metas['strength'])
-        render_metric("SLEEP DURATION", data['sleep_hours_avg'], metas['sleep_hours_avg'], "h", tipo='promedio')
-        render_metric("HR ZONES 1-3", data['hr_zone_1_3'], metas['hr_zone_1_3'], "h")
+        render_metric("HR ZONES 1-3", data['hr_zones_1_3'], metas['hr_zones_1_3'], "h")
 
     with col2:
-        render_metric("ACTIVITIES", data['activities'], metas['activities'])
-        render_metric("HR ZONES 4-5", data['hr_zone_4_5'], metas['hr_zone_4_5'], "h")
+        render_metric("ACTIVITIES / MES", data['activities'], metas['activities'])
+        render_metric("HR ZONES 4-5", data['hr_zones_4_5'], metas['hr_zones_4_5'], "h")
+
+    # ---- SLEEP HABITS ----
+    st.markdown('<div class="section-divider"></div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-label">// SLEEP HABITS</div>', unsafe_allow_html=True)
+
+    col3, col4 = st.columns(2)
+
+    with col3:
+        render_metric("AVE SLEEP DURATION", data['sleep_hours_avg'], metas['sleep_hours_avg'], "h", tipo='promedio')
+        render_metric("RESTING HR", data['resting_hr'], metas['resting_hr'], " bpm", tipo='promedio_inverted')
+
+    with col4:
+        render_metric("RECOVERY SCORE", data['recovery_score'], metas['recovery_score'], "%", tipo='promedio')
+        render_metric("SLEEP CONSISTENCY", data['sleep_consistency'], metas['sleep_consistency'], "%", tipo='promedio')
 
     st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
 
-    # Summary stats
-    habitos_ok = sum([
-        data['steps_avg'] >= metas['steps_avg'],
-        data['activities'] >= (metas['activities'] / days_in_month) * days_elapsed,
-        data['strength'] >= (metas['strength'] / days_in_month) * days_elapsed,
-        data['sleep_hours_avg'] >= metas['sleep_hours_avg'],
-        data['hr_zone_1_3'] >= (metas['hr_zone_1_3'] / days_in_month) * days_elapsed,
-        data['hr_zone_4_5'] >= (metas['hr_zone_4_5'] / days_in_month) * days_elapsed,
-    ])
+    # ---- SUMMARY STATS ----
+    fitness_ok = sum(
+        is_metric_on_track(k, data[k], metas[k])
+        for k, _, _, _ in FITNESS_METRICS
+    )
+    sleep_ok = sum(
+        is_metric_on_track(k, data[k], metas[k])
+        for k, _, _, _ in SLEEP_METRICS
+    )
+    total_ok = fitness_ok + sleep_ok
+    total_metrics = len(ALL_METRIC_KEYS)
 
-    steps_color = "#22c55e" if data['steps_avg'] >= metas['steps_avg'] else "#ef4444"
-    habitos_color = "#22c55e" if habitos_ok >= 4 else "#f59e0b" if habitos_ok >= 3 else "#ef4444"
+    steps_color = "#00ff87" if data['steps_avg'] >= metas['steps_avg'] else "#ff4444"
+    habitos_color = "#00ff87" if total_ok >= total_metrics - 2 else "#ffd700" if total_ok >= total_metrics // 2 else "#ff4444"
+    recovery_color = "#00ff87" if data['recovery_score'] >= metas['recovery_score'] else "#ffd700" if data['recovery_score'] >= metas['recovery_score'] * 0.7 else "#ff4444"
 
     st.markdown(f"""
-    <div class="summary-row">
-        <div class="summary-card">
-            <div class="summary-val" style="color:{steps_color}">{data['steps_avg']:,}</div>
-            <div class="summary-label">STEPS DAILY AVG</div>
+    <div class="big-stats-row">
+        <div class="big-stat-box">
+            <div class="big-stat-val" style="color:{steps_color}">{data['steps_avg']:,}</div>
+            <div class="big-stat-label">STEPS DAILY AVG</div>
         </div>
-        <div class="summary-card">
-            <div class="summary-val" style="color:{habitos_color}">{habitos_ok}/6</div>
-            <div class="summary-label">HABITOS ON TRACK</div>
+        <div class="big-stat-box">
+            <div class="big-stat-val" style="color:{habitos_color}">{total_ok}/{total_metrics}</div>
+            <div class="big-stat-label">HABITOS EN META</div>
         </div>
-        <div class="summary-card">
-            <div class="summary-val" style="color:#7c3aed">{progress_pct:.0f}%</div>
-            <div class="summary-label">PROGRESO MES</div>
+        <div class="big-stat-box">
+            <div class="big-stat-val" style="color:{recovery_color}">{data['recovery_score']}%</div>
+            <div class="big-stat-label">RECOVERY</div>
+        </div>
+        <div class="big-stat-box">
+            <div class="big-stat-val" style="color:#00d4ff">{progress_pct:.0f}%</div>
+            <div class="big-stat-label">PROGRESO MES</div>
         </div>
     </div>
     """, unsafe_allow_html=True)
 
-    st.markdown(f'<div class="timestamp">LAST UPDATE: {datetime.now().strftime("%d/%m/%Y %H:%M")}</div>', unsafe_allow_html=True)
+    st.markdown(f"""
+    <div style='font-family: Space Mono, monospace; font-size: 0.55rem; color: #444; text-align: right; margin-top: 20px; letter-spacing: 2px;'>
+    LAST UPDATE: {datetime.now().strftime('%d/%m/%Y %H:%M')}
+    </div>
+    """, unsafe_allow_html=True)
 
-# ============ VISTA METAS ============
-elif st.session_state.vista == "metas":
-    show_goals_setup(first_time=False)
+# ============ VIEW: HISTORICO ============
+else:
 
-# ============ VISTA HISTORICO ============
-elif st.session_state.vista == "historico":
-
-    st.markdown('<div class="top-gradient"></div>', unsafe_allow_html=True)
-    st.markdown(f'<div class="hist-title">HISTORICO {current_year}</div>', unsafe_allow_html=True)
-
-    meses_nombres = {
-        1: 'ENE', 2: 'FEB', 3: 'MAR', 4: 'ABR',
-        5: 'MAY', 6: 'JUN', 7: 'JUL', 8: 'AGO',
-        9: 'SEP', 10: 'OCT', 11: 'NOV', 12: 'DIC'
-    }
+    st.markdown('<div class="top-bar"></div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="historical-title">HISTORICO {current_year}</div>', unsafe_allow_html=True)
+    st.markdown('<div class="date-badge">MESES CERRADOS</div>', unsafe_allow_html=True)
 
     meses_cerrados = list(range(1, current_month))
 
     if not meses_cerrados:
-        st.markdown('<div class="no-data-msg">// NO HAY MESES CERRADOS AUN</div>', unsafe_allow_html=True)
+        st.markdown("""
+        <div style='font-family: Space Mono, monospace; font-size: 0.7rem; color: #888; margin-top: 40px; text-align: center; letter-spacing: 2px;'>
+        // NO HAY MESES CERRADOS AUN
+        </div>
+        """, unsafe_allow_html=True)
     else:
         all_data = []
 
         with st.spinner('Cargando historico...'):
             for mes in meses_cerrados:
-                d = get_monthly_data(user_id, current_year, mes)
+                d = get_monthly_data(current_year, mes)
                 all_data.append(d)
 
-        # ---- PROMEDIO ANUAL ----
+        # ---- SECTION 1: OVERALL AVERAGE ----
+        avg_data = calculate_averages(all_data)
         n = len(all_data)
-        avg_data = {
-            'steps_avg': round(sum(d['steps_avg'] for d in all_data) / n),
-            'activities': round(sum(d['activities'] for d in all_data) / n, 1),
-            'strength': round(sum(d['strength'] for d in all_data) / n, 1),
-            'sleep_hours_avg': round(sum(d['sleep_hours_avg'] for d in all_data) / n, 1),
-            'hr_zone_1_3': round(sum(d['hr_zone_1_3'] for d in all_data) / n, 1),
-            'hr_zone_4_5': round(sum(d['hr_zone_4_5'] for d in all_data) / n, 1),
-        }
+        avg_score = sum(
+            is_metric_met(key, avg_data[key], metas[key])
+            for key in ALL_METRIC_KEYS
+        )
 
-        def hist_color(valor, meta):
-            pct = (valor / meta * 100) if meta > 0 else 0
-            if pct >= 100: return "#22c55e"
-            elif pct >= 70: return "#f59e0b"
-            else: return "#ef4444"
+        avg_score_class = score_css_class(avg_score)
+        total_metrics = len(ALL_METRIC_KEYS)
 
-        metricas_avg = [
-            ("STEPS AVG", avg_data['steps_avg'], metas['steps_avg'], ""),
-            ("ACTIVITIES", avg_data['activities'], metas['activities'], ""),
-            ("STRENGTH", avg_data['strength'], metas['strength'], ""),
-            ("SLEEP", avg_data['sleep_hours_avg'], metas['sleep_hours_avg'], "h"),
-            ("HR Z1-3", avg_data['hr_zone_1_3'], metas['hr_zone_1_3'], "h"),
-            ("HR Z4-5", avg_data['hr_zone_4_5'], metas['hr_zone_4_5'], "h"),
-        ]
-
+        # Build avg rows - Fitness first, then Sleep
         rows_html = ""
-        for nombre, valor, meta, unidad in metricas_avg:
-            color = hist_color(valor, meta)
-            val_display = f"{valor:,}" if (not unidad and isinstance(valor, int) and valor >= 1000) else f"{valor}{unidad}"
-            pct_raw = (valor / meta * 100) if meta > 0 else 0
-            bar_w = min(int(pct_raw), 100)
-            rows_html += f'<div style="display:flex;align-items:center;padding:12px 0;border-bottom:1px solid rgba(255,255,255,0.06);">'
-            rows_html += f'<span style="font-family:Space Mono,monospace;font-size:0.6rem;color:#cbd5e1;text-transform:uppercase;letter-spacing:1px;width:28%;">{nombre}</span>'
-            rows_html += f'<span style="font-family:Inter,sans-serif;font-size:0.9rem;font-weight:700;color:{color};width:18%;text-align:right;">{val_display}</span>'
-            rows_html += f'<div style="width:34%;margin:0 14px;"><div style="height:4px;background:rgba(255,255,255,0.06);border-radius:4px;overflow:hidden;"><div style="height:4px;background:{color};border-radius:4px;width:{bar_w}%;"></div></div></div>'
-            rows_html += f'<span style="font-family:Space Mono,monospace;font-size:0.55rem;color:{color};width:10%;text-align:right;">{pct_raw:.0f}%</span>'
-            rows_html += '</div>'
+        for section_metrics, section_label in [(FITNESS_METRICS, "FITNESS"), (SLEEP_METRICS, "SLEEP")]:
+            rows_html += f"""
+            <div style="font-family: Space Mono, monospace; font-size: 0.5rem; color: #00d4ff;
+                        letter-spacing: 2px; padding: 12px 0 4px; text-transform: uppercase;">// {section_label}</div>
+            """
+            for key, label, unit, _ in section_metrics:
+                valor = avg_data[key]
+                meta = metas[key]
+                css_class, pct_label = avg_vs_meta(key, valor, meta)
+                val_display = format_val(valor, unit)
+                meta_display = format_val(meta, unit)
 
-        avg_html = f'<div class="glass-card" style="border-color:rgba(124,58,237,0.3);">'
-        avg_html += f'<div style="font-family:Inter,sans-serif;font-size:1.1rem;font-weight:700;letter-spacing:3px;background:linear-gradient(135deg,#c4b5fd,#7c3aed);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-bottom:16px;">// PROMEDIO ANUAL ({n} MESES)</div>'
-        avg_html += rows_html
-        avg_html += '</div>'
-        st.markdown(avg_html, unsafe_allow_html=True)
+                rows_html += f"""
+                <div class="avg-metric-row">
+                    <span class="avg-metric-name">{label}</span>
+                    <span class="avg-metric-val" style="color:#fff">{val_display}</span>
+                    <span style="font-family: Space Mono, monospace; font-size: 0.55rem; color: #555;">{meta_display}</span>
+                    <span class="avg-metric-vs {css_class}">{pct_label}</span>
+                </div>
+                """
+
+        st.markdown(f"""
+        <div class="avg-section">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                <div class="avg-title">// PROMEDIO GENERAL ({n} {'MES' if n == 1 else 'MESES'})</div>
+                <span class="month-score {avg_score_class}">{avg_score}/{total_metrics}</span>
+            </div>
+            {rows_html}
+        </div>
+        """, unsafe_allow_html=True)
 
         st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
 
-        # ---- METAS AJUSTADAS ----
-        remaining = 12 - n
-        if remaining > 0:
-            adjusted_metrics = [
-                ("STEPS AVG", avg_data['steps_avg'], metas['steps_avg'], "", True),
-                ("ACTIVITIES", avg_data['activities'], metas['activities'], "", False),
-                ("STRENGTH", avg_data['strength'], metas['strength'], "", False),
-                ("SLEEP", avg_data['sleep_hours_avg'], metas['sleep_hours_avg'], "h", True),
-                ("HR Z1-3", avg_data['hr_zone_1_3'], metas['hr_zone_1_3'], "h", False),
-                ("HR Z4-5", avg_data['hr_zone_4_5'], metas['hr_zone_4_5'], "h", False),
-            ]
+        # ---- SECTION 2: PER-MONTH DETAILS ----
+        st.markdown('<div class="section-label">// DETALLE POR MES</div>', unsafe_allow_html=True)
 
-            adj_rows = ""
-            any_behind = False
-            for nombre, avg_val, goal, unidad, is_avg in adjusted_metrics:
-                # Calcular meta ajustada para los meses restantes
-                adjusted = (goal * 12 - avg_val * n) / remaining
-                adjusted = max(adjusted, 0)  # No puede ser negativa
+        for i, (mes, data) in enumerate(zip(meses_cerrados, all_data)):
+            score = calculate_score(data)
+            s_class = score_css_class(score)
 
-                if is_avg:
-                    adjusted_r = round(adjusted, 1)
-                else:
-                    adjusted_r = round(adjusted, 1)
+            st.markdown(f"""
+            <div class="month-header-row">
+                <span class="historical-month">// {MESES_NOMBRES[mes]} {current_year}</span>
+                <span class="month-score {s_class}">{score}/{total_metrics} METAS</span>
+            </div>
+            """, unsafe_allow_html=True)
 
-                # Diferencia vs meta original
-                diff_pct = ((adjusted - goal) / goal * 100) if goal > 0 else 0
+            # Fitness Habits
+            st.markdown('<div class="section-label" style="margin-top:4px;">// FITNESS</div>', unsafe_allow_html=True)
+            col1, col2 = st.columns(2)
+            with col1:
+                render_metric_hist("STEPS DAILY AVG", data['steps_avg'], metas['steps_avg'])
+                render_metric_hist("STRENGTH TRAINING", data['strength'], metas['strength'])
+                render_metric_hist("HR ZONES 1-3", data['hr_zones_1_3'], metas['hr_zones_1_3'], "h")
+            with col2:
+                render_metric_hist("ACTIVITIES / MES", data['activities'], metas['activities'])
+                render_metric_hist("HR ZONES 4-5", data['hr_zones_4_5'], metas['hr_zones_4_5'], "h")
 
-                if diff_pct <= 0:
-                    color = "#22c55e"
-                    arrow = "&#9660;"  # down arrow (easier)
-                    status = "ON TRACK"
-                elif diff_pct <= 30:
-                    color = "#f59e0b"
-                    arrow = "&#9650;"  # up arrow
-                    status = f"+{diff_pct:.0f}%"
-                    any_behind = True
-                else:
-                    color = "#ef4444"
-                    arrow = "&#9650;"
-                    status = f"+{diff_pct:.0f}%"
-                    any_behind = True
+            # Sleep Habits
+            st.markdown('<div class="section-label" style="margin-top:4px;">// SLEEP</div>', unsafe_allow_html=True)
+            col3, col4 = st.columns(2)
+            with col3:
+                render_metric_hist("AVE SLEEP DURATION", data['sleep_hours_avg'], metas['sleep_hours_avg'], "h")
+                render_metric_hist("RESTING HR", data['resting_hr'], metas['resting_hr'], " bpm", inverted=True)
+            with col4:
+                render_metric_hist("RECOVERY SCORE", data['recovery_score'], metas['recovery_score'], "%")
+                render_metric_hist("SLEEP CONSISTENCY", data['sleep_consistency'], metas['sleep_consistency'], "%")
 
-                adj_display = f"{adjusted_r:,}" if (not unidad and isinstance(adjusted_r, (int, float)) and adjusted_r >= 1000) else f"{adjusted_r}{unidad}"
-                goal_display = f"{goal:,}" if (not unidad and isinstance(goal, (int, float)) and goal >= 1000) else f"{goal}{unidad}"
+            # Trend vs previous month
+            if i > 0:
+                prev = all_data[i - 1]
+                trends = []
+                for key, label, unit, tipo in FITNESS_METRICS + SLEEP_METRICS:
+                    curr_val = data[key]
+                    prev_val = prev[key]
+                    if prev_val > 0:
+                        change_pct = ((curr_val - prev_val) / prev_val) * 100
+                    elif curr_val > 0:
+                        change_pct = 100
+                    else:
+                        change_pct = 0
 
-                adj_rows += f'<div style="display:flex;align-items:center;padding:12px 0;border-bottom:1px solid rgba(255,255,255,0.06);">'
-                adj_rows += f'<span style="font-family:Space Mono,monospace;font-size:0.55rem;color:#cbd5e1;text-transform:uppercase;letter-spacing:1px;width:24%;">{nombre}</span>'
-                adj_rows += f'<span style="font-family:Space Mono,monospace;font-size:0.55rem;color:#94a3b8;width:18%;text-align:center;">META: {goal_display}</span>'
-                adj_rows += f'<span style="font-family:Space Mono,monospace;font-size:0.55rem;color:#94a3b8;width:6%;text-align:center;">&#8594;</span>'
-                adj_rows += f'<span style="font-family:Inter,sans-serif;font-size:0.9rem;font-weight:700;color:{color};width:22%;text-align:center;">{adj_display}</span>'
-                adj_rows += f'<span style="font-family:Space Mono,monospace;font-size:0.55rem;color:{color};width:18%;text-align:right;">{arrow} {status}</span>'
-                adj_rows += '</div>'
+                    # For inverted metrics, flip the arrow meaning
+                    is_inverted = tipo == 'promedio_inverted'
 
-            border_color = "rgba(245,158,11,0.3)" if any_behind else "rgba(34,197,94,0.3)"
-            title_color = "#f59e0b" if any_behind else "#22c55e"
+                    if change_pct > 2:
+                        arrow = "&#9650;"
+                        css = "trend-down" if is_inverted else "trend-up"
+                    elif change_pct < -2:
+                        arrow = "&#9660;"
+                        css = "trend-up" if is_inverted else "trend-down"
+                    else:
+                        arrow = "&#9644;"
+                        css = "trend-flat"
 
-            adj_html = f'<div class="glass-card" style="border-color:{border_color};">'
-            adj_html += f'<div style="font-family:Inter,sans-serif;font-size:1.1rem;font-weight:700;letter-spacing:3px;color:{title_color};margin-bottom:6px;">// METAS AJUSTADAS</div>'
-            adj_html += f'<div style="font-family:Space Mono,monospace;font-size:0.5rem;color:#94a3b8;letter-spacing:1px;margin-bottom:16px;line-height:1.6;">PARA CUMPLIR TUS METAS ANUALES, ESTOS SON LOS OBJETIVOS<br>MENSUALES QUE NECESITAS EN LOS {remaining} MESES RESTANTES</div>'
-            adj_html += adj_rows
-            adj_html += '</div>'
-            st.markdown(adj_html, unsafe_allow_html=True)
+                    short_label = label.split('/')[0].strip()[:12]
+                    trends.append(
+                        f'<span style="margin-right:16px;">'
+                        f'<span class="{css}" style="font-family:Space Mono,monospace;font-size:0.55rem;">'
+                        f'{arrow} {short_label} {change_pct:+.0f}%</span></span>'
+                    )
+
+                st.markdown(
+                    f'<div style="margin: 8px 0 4px; overflow-x: auto; white-space: nowrap;">{"".join(trends)}</div>',
+                    unsafe_allow_html=True
+                )
 
             st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
 
-        # ---- TABLA COMPACTA POR MES ----
-        st.markdown('<div class="section-label">// DETALLE POR MES</div>', unsafe_allow_html=True)
+        # ---- SECTION 3: COMPARISON TABLE ----
+        if len(all_data) >= 1:
+            st.markdown('<div class="section-label">// COMPARATIVA MENSUAL</div>', unsafe_allow_html=True)
 
-        metric_keys = [
-            ("STEPS AVG", 'steps_avg', metas['steps_avg'], ""),
-            ("ACTIVITIES", 'activities', metas['activities'], ""),
-            ("STRENGTH", 'strength', metas['strength'], ""),
-            ("SLEEP", 'sleep_hours_avg', metas['sleep_hours_avg'], "h"),
-            ("HR Z1-3", 'hr_zone_1_3', metas['hr_zone_1_3'], "h"),
-            ("HR Z4-5", 'hr_zone_4_5', metas['hr_zone_4_5'], "h"),
-        ]
+            month_headers = "".join(
+                f'<th>{MESES_CORTOS[m]}</th>' for m in meses_cerrados
+            )
+            header_html = f"<tr><th>METRICA</th>{month_headers}<th>PROMEDIO</th><th>META</th></tr>"
 
-        header = '<div style="display:flex;gap:0;padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.1);">'
-        header += '<div style="font-family:Space Mono,monospace;font-size:0.55rem;color:#94a3b8;letter-spacing:1px;width:25%;text-transform:uppercase;">METRICA</div>'
-        for mes in meses_cerrados:
-            header += f'<div style="font-family:Space Mono,monospace;font-size:0.55rem;color:#64748b;letter-spacing:1px;flex:1;text-align:center;">{meses_nombres[mes]}</div>'
-        header += '</div>'
+            body_html = ""
+            for key, label, unit, tipo in FITNESS_METRICS + SLEEP_METRICS:
+                meta = metas[key]
 
-        table_rows = ""
-        for label, key, meta, unidad in metric_keys:
-            table_rows += '<div style="display:flex;gap:0;padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.04);">'
-            table_rows += f'<div style="font-family:Space Mono,monospace;font-size:0.55rem;color:#94a3b8;letter-spacing:1px;width:25%;text-transform:uppercase;display:flex;align-items:center;">{label}</div>'
+                cells = ""
+                for d in all_data:
+                    val = d[key]
+                    color_class = value_color_class(key, val, meta)
+                    val_str = format_val(val, unit)
+                    cells += f'<td class="{color_class}">{val_str}</td>'
+
+                avg_val = avg_data[key]
+                avg_color = value_color_class(key, avg_val, meta)
+                avg_str = format_val(avg_val, unit)
+                meta_str = format_val(meta, unit)
+
+                body_html += f"<tr><td>{label}</td>{cells}<td class='{avg_color}' style='font-weight:700;'>{avg_str}</td><td>{meta_str}</td></tr>"
+
+            # Score row
+            score_cells = ""
             for d in all_data:
-                valor = d[key]
-                pct = (valor / meta * 100) if meta > 0 else 0
-                color = hist_color(valor, meta)
-                val_display = f"{valor:,}" if (not unidad and isinstance(valor, int) and valor >= 1000) else f"{valor}{unidad}"
-                table_rows += f'<div style="font-family:Inter,sans-serif;font-size:0.75rem;font-weight:700;color:{color};flex:1;text-align:center;">{val_display}</div>'
-            table_rows += '</div>'
+                s = calculate_score(d)
+                s_color = "td-good" if s >= total_metrics - 2 else "td-warn" if s >= total_metrics // 2 else "td-bad"
+                score_cells += f'<td class="{s_color}" style="font-weight:700;">{s}/{total_metrics}</td>'
 
-        table_html = f'<div class="glass-card">{header}{table_rows}</div>'
-        st.markdown(table_html, unsafe_allow_html=True)
+            avg_s_color = "td-good" if avg_score >= total_metrics - 2 else "td-warn" if avg_score >= total_metrics // 2 else "td-bad"
+            body_html += f'<tr><td style="color:#00d4ff;">SCORE</td>{score_cells}<td class="{avg_s_color}" style="font-weight:700;">{avg_score}/{total_metrics}</td><td>{total_metrics}/{total_metrics}</td></tr>'
 
-        st.markdown(f'<div class="timestamp">LAST UPDATE: {datetime.now().strftime("%d/%m/%Y %H:%M")}</div>', unsafe_allow_html=True)
+            st.markdown(f"""
+            <div style="background: #0d0d0d; border: 1px solid #1a1a1a; border-radius: 10px; padding: 16px; overflow-x: auto;">
+                <table class="comparison-table">
+                    {header_html}
+                    {body_html}
+                </table>
+            </div>
+            """, unsafe_allow_html=True)
+
+        st.markdown(f"""
+        <div style='font-family: Space Mono, monospace; font-size: 0.55rem; color: #444; text-align: right; margin-top: 20px; letter-spacing: 2px;'>
+        LAST UPDATE: {datetime.now().strftime('%d/%m/%Y %H:%M')}
+        </div>
+        """, unsafe_allow_html=True)

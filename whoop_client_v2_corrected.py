@@ -93,8 +93,11 @@ class WhoopClientV2:
             'avg_hrv': 0,
             'avg_recovery_score': 0,
             'days_sleep_before_930pm': 0,
+            'avg_resting_hr': 0,
             'avg_time_hr_zone_1_3': 0,
-            'avg_time_hr_zone_4_5': 0
+            'avg_time_hr_zone_4_5': 0,
+            'hr_zones_1_3_hours': 0,
+            'hr_zones_4_5_hours': 0
         }
         
         # Sleep
@@ -162,15 +165,22 @@ class WhoopClientV2:
             if summary['recovery']:
                 total_hrv = 0
                 total_recovery = 0
-                
+                total_resting_hr = 0
+                rhr_count = 0
+
                 for rec in summary['recovery']:
                     if rec.get('score'):
                         total_hrv += rec['score'].get('hrv_rmssd_milli', 0)
                         total_recovery += rec['score'].get('recovery_score', 0)
-                
+                        rhr = rec['score'].get('resting_heart_rate', 0)
+                        if rhr > 0:
+                            total_resting_hr += rhr
+                            rhr_count += 1
+
                 num_recovery = len(summary['recovery'])
                 summary['avg_hrv'] = total_hrv / num_recovery
                 summary['avg_recovery_score'] = total_recovery / num_recovery
+                summary['avg_resting_hr'] = round(total_resting_hr / rhr_count, 1) if rhr_count > 0 else 0
                 
             print(f"         ✅ {len(summary['recovery'])} registros")
         except Exception as e:
@@ -184,26 +194,31 @@ class WhoopClientV2:
             if summary['workouts']:
                 total_zone_1_3 = 0
                 total_zone_4_5 = 0
-                
+
                 for workout in summary['workouts']:
                     if workout.get('score') and workout['score'].get('zone_durations'):
                         zones = workout['score']['zone_durations']
-                        
+
                         # Zones 1-3 (low-moderate intensity)
+                        # WHOOP zone_one/two/three = HR zones 1-3
                         total_zone_1_3 += (
                             zones.get('zone_one_milli', 0) +
                             zones.get('zone_two_milli', 0) +
                             zones.get('zone_three_milli', 0)
                         )
-                        
+
                         # Zones 4-5 (high intensity)
+                        # WHOOP zone_four/five = HR zones 4-5
                         total_zone_4_5 += (
                             zones.get('zone_four_milli', 0) +
                             zones.get('zone_five_milli', 0)
                         )
-                
+
                 num_workouts = len(summary['workouts'])
-                # Convertir a minutos
+                # Total hours for the month (for dashboard)
+                summary['hr_zones_1_3_hours'] = total_zone_1_3 / 3600000
+                summary['hr_zones_4_5_hours'] = total_zone_4_5 / 3600000
+                # Average per workout in minutes (legacy)
                 summary['avg_time_hr_zone_1_3'] = (total_zone_1_3 / num_workouts) / 60000
                 summary['avg_time_hr_zone_4_5'] = (total_zone_4_5 / num_workouts) / 60000
                 

@@ -1,88 +1,60 @@
 """
-Cliente de Garmin Connect - Multi-usuario
-Lee credenciales y tokens de Supabase por usuario.
+Cliente de Garmin Connect
+- Uses garth token persistence to avoid repeated login failures
+- Auto-refreshes and re-saves tokens to keep the session alive
+- Falls back to email/password only when tokens are missing or expired
 """
 from garminconnect import Garmin
 from datetime import datetime, timedelta
-from calendar import monthrange
-from crypto import decrypt
-from auth import get_supabase
+import os
+import config
+
+TOKENSTORE = os.path.expanduser("~/.garmin_tokens")
 
 
 class GarminClient:
-    def __init__(self, user_id: str):
-        self.user_id = user_id
+    def __init__(self):
         self.client = None
 
     def login(self):
-        """Login usando tokens cacheados (rapido) o password (lento)."""
-        supabase = get_supabase()
-        result = supabase.table("garmin_connections").select("*").eq(
-            "user_id", self.user_id
-        ).execute()
-
-        if not result.data:
-            raise Exception("No hay cuenta de Garmin conectada")
-
-        conn = result.data[0]
-        garmin_email = conn["garmin_email"]
-        garmin_password = decrypt(conn["garmin_password_encrypted"])
-        stored_tokens = conn.get("garmin_tokens")
-
-        self.client = Garmin(garmin_email, garmin_password)
-
-        # Intentar tokens cacheados primero (rapido)
-        if stored_tokens:
+        # Try saved tokens first (avoids Garmin rate-limiting/blocking)
+        if os.path.isdir(TOKENSTORE):
             try:
-                self.client.garth.loads(stored_tokens)
-                # Verificar que los tokens funcionan
-                self.client.display_name = self.client.garth.profile["displayName"]
-                self.client.full_name = self.client.garth.profile["fullName"]
-                return  # Exito con tokens
+                self.client = Garmin()
+                self.client.login(TOKENSTORE)
+                # Re-save tokens so refreshed tokens are persisted
+                self.client.garth.dump(TOKENSTORE)
+                return
             except Exception:
-                pass  # Tokens expiraron, hacer login con password
+                pass
 
-        # Login con password (lento) - usar garth directamente para evitar
-        # que prompt_mfa=input() falle en el servidor
-        self.client.garth.login(
-            garmin_email,
-            garmin_password,
-            prompt_mfa=lambda: (_ for _ in ()).throw(
-                Exception("MFA requerido - reconecta Garmin desde la app")
-            ),
-        )
-        self.client.display_name = self.client.garth.profile["displayName"]
-        self.client.full_name = self.client.garth.profile["fullName"]
+        # Fall back to email/password login
+        self.client = Garmin(config.GARMIN_EMAIL, config.GARMIN_PASSWORD)
+        self.client.login()
 
-        # Guardar tokens nuevos en Supabase
-        new_tokens = self.client.garth.dumps()
-        supabase.table("garmin_connections").update({
-            "garmin_tokens": new_tokens,
-            "tokens_updated_at": datetime.utcnow().isoformat()
-        }).eq("user_id", self.user_id).execute()
+        # Save tokens for future use
+        self.client.garth.dump(TOKENSTORE)
+
+    def _call_with_retry(self, func, *args, **kwargs):
+        """Call a Garmin API function, retry with re-login if token expired."""
+        try:
+            return func(*args, **kwargs)
+        except Exception:
+            # Token likely expired, re-login and retry once
+            self.login()
+            return func(*args, **kwargs)
 
     def get_stats_for_date(self, date=None):
         if date is None:
             date = datetime.now()
         date_str = date.strftime('%Y-%m-%d')
-        return self.client.get_stats(date_str)
+        return self._call_with_retry(self.client.get_stats, date_str)
 
     def get_sleep_data(self, date=None):
         if date is None:
             date = datetime.now()
         date_str = date.strftime('%Y-%m-%d')
-        return self.client.get_sleep_data(date_str)
-
-    def get_sleep_duration_hours(self, date=None):
-        """Obtiene las horas de sueno para una fecha"""
-        try:
-            sleep = self.get_sleep_data(date)
-            if sleep and 'dailySleepDTO' in sleep:
-                secs = sleep['dailySleepDTO'].get('sleepTimeSeconds', 0)
-                return round(secs / 3600, 1)
-        except Exception:
-            pass
-        return 0.0
+        return self._call_with_retry(self.client.get_sleep_data, date_str)
 
     def get_activities(self, start_date=None, end_date=None, limit=10):
         if start_date is None:
@@ -90,53 +62,8 @@ class GarminClient:
         if end_date is None:
             end_date = datetime.now()
 
-        start = 0
-        activities = self.client.get_activities(start, limit)
-        return activities
-
-    def get_monthly_summary(self, year, month):
-        """Calcula resumen mensual de metricas Garmin"""
-        first_day = datetime(year, month, 1)
-        last_day_num = monthrange(year, month)[1]
-        last_day = datetime(year, month, last_day_num)
-
-        total_steps = 0
-        total_sleep_secs = 0
-        days_with_data = 0
-        strength_count = 0
-
-        current_date = first_day
-        while current_date <= min(last_day, datetime.now()):
-            try:
-                stats = self.get_stats_for_date(current_date)
-                if stats and stats.get('totalSteps'):
-                    total_steps += stats['totalSteps']
-                    days_with_data += 1
-            except Exception:
-                pass
-
-            try:
-                sleep = self.client.get_sleep_data(current_date.strftime('%Y-%m-%d'))
-                if sleep and 'dailySleepDTO' in sleep:
-                    total_sleep_secs += sleep['dailySleepDTO'].get('sleepTimeSeconds', 0)
-            except Exception:
-                pass
-
-            current_date += timedelta(days=1)
-
-        activities = self.client.get_activities_by_date(
-            first_day.strftime('%Y-%m-%d'),
-            last_day.strftime('%Y-%m-%d')
+        start_str = start_date.strftime('%Y-%m-%d')
+        end_str = end_date.strftime('%Y-%m-%d')
+        return self._call_with_retry(
+            self.client.get_activities_by_date, start_str, end_str
         )
-
-        for activity in activities:
-            activity_type = activity.get('activityType', {}).get('typeKey', '').lower()
-            if 'strength' in activity_type or 'training' in activity_type:
-                strength_count += 1
-
-        return {
-            'avg_daily_steps': round(total_steps / days_with_data) if days_with_data > 0 else 0,
-            'total_active_calories': 0,
-            'avg_sleep_hours': round(total_sleep_secs / days_with_data / 3600, 1) if days_with_data > 0 else 0,
-            'strength_training_sessions': strength_count,
-        }
