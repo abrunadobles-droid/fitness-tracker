@@ -45,6 +45,18 @@ class WhoopAuth:
         self.tokens = self._load_tokens()
     
     def _load_tokens(self):
+        # En CI (GitHub Actions), cargar tokens desde env var
+        tokens_json = os.environ.get('WHOOP_TOKENS_JSON')
+        if tokens_json:
+            try:
+                tokens = json.loads(tokens_json)
+                # Guardar en archivo para que el resto del código funcione normal
+                with open(WHOOP_TOKENS_FILE, 'w') as f:
+                    json.dump(tokens, f)
+                return tokens
+            except json.JSONDecodeError:
+                print("[WHOOP] Error parseando WHOOP_TOKENS_JSON")
+
         if os.path.exists(WHOOP_TOKENS_FILE):
             with open(WHOOP_TOKENS_FILE, 'r') as f:
                 return json.load(f)
