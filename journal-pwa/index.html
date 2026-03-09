@@ -435,6 +435,28 @@ html, body {
 </div>
 
 <script>
+// Global error handler - shows errors on screen for mobile debugging
+window.onerror = function(msg, src, line, col, err) {
+  var el = document.getElementById('authLoading');
+  if (el) {
+    el.innerHTML = '<div style="padding:20px;color:#c47a6a;font-family:monospace;font-size:12px;text-align:left;max-width:90vw;word-break:break-all;">'
+      + '<p style="color:#e8e0d4;margin-bottom:10px;">Error de JavaScript:</p>'
+      + '<p>' + msg + '</p>'
+      + '<p>Linea: ' + line + '</p>'
+      + '</div>';
+  }
+};
+
+// Safety timeout - if spinner shows for 8+ seconds, something is wrong
+setTimeout(function() {
+  var loader = document.getElementById('authLoading');
+  if (loader && loader.classList.contains('show')) {
+    loader.innerHTML = '<div style="padding:20px;color:#c47a6a;font-family:monospace;font-size:13px;text-align:center;">'
+      + '<p style="color:#e8e0d4;margin-bottom:8px;">Tiempo de espera agotado</p>'
+      + '<p>Recarga la pagina</p></div>';
+  }
+}, 8000);
+
 (function() {
 // =============================================================================
 // SUPABASE CONFIG
