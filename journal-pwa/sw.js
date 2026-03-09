@@ -1,4 +1,4 @@
-var CACHE_NAME = 'diario-v7';
+var CACHE_NAME = 'diario-v8';
 var ASSETS = [
   '/',
   '/index.html',

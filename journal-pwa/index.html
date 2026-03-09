@@ -490,6 +490,7 @@ function copyRescue(text, container) {
         </div>
       </div>
       <div style="text-align:center;padding-top:24px">
+        <button class="btn-text" id="btnExportData" style="color:var(--accent);margin-bottom:16px;display:block;width:100%;font-size:13px;cursor:pointer;background:none;border:none;font-family:var(--font-sans);">Exportar mis datos</button>
         <button class="btn-text" id="btnReset">Borrar todos los datos</button>
       </div>
     </div>
@@ -509,15 +510,17 @@ window.onerror = function(msg, src, line, col, err) {
   }
 };
 
-// Safety timeout - if spinner shows for 8+ seconds, something is wrong
+// Safety timeout - if spinner shows for 5+ seconds, show auth screen as fallback
 setTimeout(function() {
   var loader = document.getElementById('authLoading');
   if (loader && loader.classList.contains('show')) {
-    loader.innerHTML = '<div style="padding:20px;color:#c47a6a;font-family:monospace;font-size:13px;text-align:center;">'
-      + '<p style="color:#e8e0d4;margin-bottom:8px;">Tiempo de espera agotado</p>'
-      + '<p>Recarga la pagina</p></div>';
+    loader.classList.remove('show');
+    document.getElementById('authScreen').style.display = 'flex';
+    var err = document.getElementById('authError');
+    err.textContent = 'La conexion tardo demasiado. Intenta iniciar sesion.';
+    err.classList.add('show');
   }
-}, 8000);
+}, 5000);
 
 (function() {
 // =============================================================================
@@ -1076,6 +1079,32 @@ document.getElementById('btnAnalyze').addEventListener('click', runAnalysis);
 document.getElementById('btnReset').addEventListener('click', async () => {
   if (!confirm('Borrar todas las entradas? Esta accion no se puede deshacer.')) return;
   await deleteAllEntries();
+});
+
+// Export data
+document.getElementById('btnExportData').addEventListener('click', async function() {
+  if (!currentUser) return;
+  try {
+    var sorted = Object.keys(entries).sort();
+    if (!sorted.length) { alert('No hay entradas para exportar.'); return; }
+    var exportObj = {
+      source: 'supabase',
+      exported_at: new Date().toISOString(),
+      total_entries: sorted.length,
+      entries: sorted.map(function(d) { return { date: d, text: entries[d] }; })
+    };
+    var blob = new Blob([JSON.stringify(exportObj, null, 2)], { type: 'application/json' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = 'diario-backup-' + new Date().toISOString().slice(0,10) + '.json';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  } catch(e) {
+    alert('Error exportando: ' + e.message);
+  }
 });
 
 // ===== SERVICE WORKER =====
