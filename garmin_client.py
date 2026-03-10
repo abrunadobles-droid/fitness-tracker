@@ -10,7 +10,16 @@ from datetime import datetime, timedelta
 import os
 import config
 
-TOKENSTORE = os.path.expanduser("~/.garmin_tokens")
+TOKENSTORE_PROJECT = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.garmin_tokens')
+TOKENSTORE_HOME = os.path.expanduser("~/.garmin_tokens")
+
+def _get_tokenstore():
+    """Return the first available token directory (project dir preferred)."""
+    if os.path.isdir(TOKENSTORE_PROJECT):
+        return TOKENSTORE_PROJECT
+    if os.path.isdir(TOKENSTORE_HOME):
+        return TOKENSTORE_HOME
+    return TOKENSTORE_PROJECT  # default for saving new tokens
 
 
 class GarminClient:
@@ -18,13 +27,15 @@ class GarminClient:
         self.client = None
 
     def login(self):
+        tokenstore = _get_tokenstore()
+
         # Try saved tokens first (avoids Garmin rate-limiting/blocking)
-        if os.path.isdir(TOKENSTORE):
+        if os.path.isdir(tokenstore):
             try:
                 self.client = Garmin()
-                self.client.login(TOKENSTORE)
+                self.client.login(tokenstore)
                 # Re-save tokens so refreshed tokens are persisted
-                self.client.garth.dump(TOKENSTORE)
+                self.client.garth.dump(tokenstore)
                 return
             except Exception:
                 pass
@@ -33,7 +44,7 @@ class GarminClient:
         try:
             self.client = Garmin(config.GARMIN_EMAIL, config.GARMIN_PASSWORD)
             self.client.login()
-            self.client.garth.dump(TOKENSTORE)
+            self.client.garth.dump(tokenstore)
             return
         except Exception:
             pass
@@ -44,14 +55,14 @@ class GarminClient:
 
         if result.get('mfa_required'):
             raise Exception(
-                "Garmin requiere MFA. Usa la pagina de setup para conectar tu cuenta."
+                "Garmin requiere MFA. Corre: python3 garmin_token_setup.py"
             )
 
         ticket = result['ticket']
         self.client = garmin_connect_with_ticket(
             config.GARMIN_EMAIL, config.GARMIN_PASSWORD, ticket
         )
-        self.client.garth.dump(TOKENSTORE)
+        self.client.garth.dump(tokenstore)
 
     def _call_with_retry(self, func, *args, **kwargs):
         """Call a Garmin API function, retry with re-login if token expired."""
