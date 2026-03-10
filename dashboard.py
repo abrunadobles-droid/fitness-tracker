@@ -344,7 +344,7 @@ MESES_CORTOS = {
 metas = {
     'steps_avg': 10000, 'activities': 28, 'strength': 10,
     'sleep_hours_avg': 7.5,
-    'hr_zones_1_3': 19.3, 'hr_zones_4_5': 2.9,
+    'hr_zone_1_3': 19.3, 'hr_zone_4_5': 2.9,
     'recovery_score': 50.0, 'resting_hr': 55.0, 'sleep_consistency': 80.0,
 }
 
@@ -354,8 +354,8 @@ FITNESS_METRICS = [
     ('steps_avg', 'STEPS DAILY AVG', '', 'promedio'),
     ('activities', 'ACTIVITIES / MES', '', 'total'),
     ('strength', 'STRENGTH TRAINING', '', 'total'),
-    ('hr_zones_1_3', 'HR ZONES 1-3', 'h', 'total'),
-    ('hr_zones_4_5', 'HR ZONES 4-5', 'h', 'total'),
+    ('hr_zone_1_3', 'HR ZONES 1-3', 'h', 'total'),
+    ('hr_zone_4_5', 'HR ZONES 4-5', 'h', 'total'),
 ]
 
 # Sleep Habits metrics (all WHOOP)
@@ -408,7 +408,7 @@ def get_monthly_data(year, month):
         'month': month, 'year': year,
         'steps_avg': 0, 'activities': 0, 'strength': 0,
         'sleep_hours_avg': 0,
-        'hr_zones_1_3': 0, 'hr_zones_4_5': 0,
+        'hr_zone_1_3': 0, 'hr_zone_4_5': 0,
         'recovery_score': 0, 'resting_hr': 0, 'sleep_consistency': 0,
     }
 
@@ -472,8 +472,16 @@ def get_monthly_data(year, month):
             wc = whoop_cache[cache_key]
 
             # HR Zones (total hours for the month)
-            data['hr_zones_1_3'] = round(wc.get('hr_zones_1_3_hours', 0), 1)
-            data['hr_zones_4_5'] = round(wc.get('hr_zones_4_5_hours', 0), 1)
+            try:
+                raw_1_3 = wc.get('hr_zone_1_3_hours', 0)
+                data['hr_zone_1_3'] = round(float(raw_1_3), 1) if raw_1_3 is not None else 0
+            except (TypeError, ValueError):
+                data['hr_zone_1_3'] = 0
+            try:
+                raw_4_5 = wc.get('hr_zone_4_5_hours', 0)
+                data['hr_zone_4_5'] = round(float(raw_4_5), 1) if raw_4_5 is not None else 0
+            except (TypeError, ValueError):
+                data['hr_zone_4_5'] = 0
 
             # Sleep
             data['sleep_hours_avg'] = round(wc.get('sleep_hours_avg', 0), 1)
@@ -682,11 +690,11 @@ if st.session_state.vista == "mes":
     with col1:
         render_metric("STEPS DAILY AVG", data['steps_avg'], metas['steps_avg'], tipo='promedio')
         render_metric("STRENGTH TRAINING", data['strength'], metas['strength'])
-        render_metric("HR ZONES 1-3", data['hr_zones_1_3'], metas['hr_zones_1_3'], "h")
+        render_metric("HR ZONES 1-3", data['hr_zone_1_3'], metas['hr_zone_1_3'], "h")
 
     with col2:
         render_metric("ACTIVITIES / MES", data['activities'], metas['activities'])
-        render_metric("HR ZONES 4-5", data['hr_zones_4_5'], metas['hr_zones_4_5'], "h")
+        render_metric("HR ZONES 4-5", data['hr_zone_4_5'], metas['hr_zone_4_5'], "h")
 
     # ---- SLEEP HABITS ----
     st.markdown('<div class="section-divider"></div>', unsafe_allow_html=True)
@@ -836,10 +844,10 @@ else:
             with col1:
                 render_metric_hist("STEPS DAILY AVG", data['steps_avg'], metas['steps_avg'])
                 render_metric_hist("STRENGTH TRAINING", data['strength'], metas['strength'])
-                render_metric_hist("HR ZONES 1-3", data['hr_zones_1_3'], metas['hr_zones_1_3'], "h")
+                render_metric_hist("HR ZONES 1-3", data['hr_zone_1_3'], metas['hr_zone_1_3'], "h")
             with col2:
                 render_metric_hist("ACTIVITIES / MES", data['activities'], metas['activities'])
-                render_metric_hist("HR ZONES 4-5", data['hr_zones_4_5'], metas['hr_zones_4_5'], "h")
+                render_metric_hist("HR ZONES 4-5", data['hr_zone_4_5'], metas['hr_zone_4_5'], "h")
 
             # Sleep Habits
             st.markdown('<div class="section-label" style="margin-top:4px;">// SLEEP</div>', unsafe_allow_html=True)
