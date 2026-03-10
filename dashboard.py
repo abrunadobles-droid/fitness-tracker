@@ -727,6 +727,136 @@ if st.session_state.vista == "mes":
     </div>
     """, unsafe_allow_html=True)
 
+    # ---- MONTHLY STATS: PROJECTIONS ----
+    st.markdown('<div class="section-divider"></div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-label">// PROYECCION FIN DE MES</div>', unsafe_allow_html=True)
+
+    projection_rows = ""
+    for key, label, unit, tipo in FITNESS_METRICS + SLEEP_METRICS:
+        valor = data[key]
+        meta = metas[key]
+
+        if tipo in ('promedio', 'promedio_inverted'):
+            # Averages don't project — current value is the projection
+            projected = valor
+        else:
+            # Accumulative metrics: project based on daily rate
+            daily_rate = valor / days_elapsed if days_elapsed > 0 else 0
+            projected = round(daily_rate * days_in_month, 1)
+
+        # Determine if projection meets goal
+        if tipo == 'promedio_inverted':
+            meets_goal = projected <= meta
+            pct = (meta / projected * 100) if projected > 0 else 100
+        else:
+            meets_goal = projected >= meta
+            pct = (projected / meta * 100) if meta > 0 else 0
+
+        if pct >= 100:
+            status_css = "vs-good"
+            status_icon = "&#10003;"
+        elif pct >= 70:
+            status_css = "vs-warn"
+            status_icon = "~"
+        else:
+            status_css = "vs-bad"
+            status_icon = "&#10007;"
+
+        proj_display = format_val(projected if isinstance(projected, float) else int(projected), unit)
+        meta_display = format_val(meta, unit)
+
+        projection_rows += f"""
+        <div class="avg-metric-row">
+            <span class="avg-metric-name">{label}</span>
+            <span class="avg-metric-val" style="color:#fff">{proj_display}</span>
+            <span style="font-family: Space Mono, monospace; font-size: 0.55rem; color: #555;">META {meta_display}</span>
+            <span class="avg-metric-vs {status_css}">{status_icon} {pct:.0f}%</span>
+        </div>
+        """
+
+    # Count projected goals met
+    proj_met = 0
+    for key, _, _, tipo in FITNESS_METRICS + SLEEP_METRICS:
+        valor = data[key]
+        meta = metas[key]
+        if tipo in ('promedio', 'promedio_inverted'):
+            projected = valor
+        else:
+            daily_rate = valor / days_elapsed if days_elapsed > 0 else 0
+            projected = daily_rate * days_in_month
+        if tipo == 'promedio_inverted':
+            if projected <= meta:
+                proj_met += 1
+        else:
+            if projected >= meta:
+                proj_met += 1
+
+    proj_score_class = score_css_class(proj_met)
+
+    st.markdown(f"""
+    <div class="avg-section">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+            <div class="avg-title">// PROYECCION AL {days_in_month} DE {MESES_NOMBRES[current_month]}</div>
+            <span class="month-score {proj_score_class}">{proj_met}/{total_metrics} METAS</span>
+        </div>
+        {projection_rows}
+    </div>
+    """, unsafe_allow_html=True)
+
+    # ---- MONTH-OVER-MONTH COMPARISON ----
+    if current_month > 1:
+        prev_month = current_month - 1
+        prev_year = current_year
+        prev_data = get_monthly_data(prev_year, prev_month)
+
+        st.markdown('<div class="section-divider"></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="section-label">// VS {MESES_NOMBRES[prev_month]} {prev_year}</div>', unsafe_allow_html=True)
+
+        comparison_items = ""
+        for key, label, unit, tipo in FITNESS_METRICS + SLEEP_METRICS:
+            curr_val = data[key]
+            prev_val = prev_data[key]
+
+            if prev_val > 0:
+                change_pct = ((curr_val - prev_val) / prev_val) * 100
+            elif curr_val > 0:
+                change_pct = 100
+            else:
+                change_pct = 0
+
+            is_inverted = tipo == 'promedio_inverted'
+
+            if change_pct > 2:
+                arrow = "&#9650;"
+                trend_css = "trend-down" if is_inverted else "trend-up"
+            elif change_pct < -2:
+                arrow = "&#9660;"
+                trend_css = "trend-up" if is_inverted else "trend-down"
+            else:
+                arrow = "&#9644;"
+                trend_css = "trend-flat"
+
+            curr_display = format_val(curr_val, unit)
+            prev_display = format_val(prev_val, unit)
+
+            comparison_items += f"""
+            <div class="avg-metric-row">
+                <span class="avg-metric-name">{label}</span>
+                <span class="avg-metric-val" style="color:#fff">{curr_display}</span>
+                <span style="font-family: Space Mono, monospace; font-size: 0.55rem; color: #555;">{prev_display}</span>
+                <span class="{trend_css}" style="font-family: Space Mono, monospace; font-size: 0.65rem;">{arrow} {change_pct:+.0f}%</span>
+            </div>
+            """
+
+        st.markdown(f"""
+        <div style="background: #0d0d0d; border: 1px solid #1a1a1a; border-radius: 10px; padding: 20px; margin-top: 8px;">
+            <div style="font-family: Bebas Neue, sans-serif; font-size: 1.2rem; letter-spacing: 3px; color: #00d4ff; margin-bottom: 16px;">
+                // {MESES_CORTOS[current_month]} VS {MESES_CORTOS[prev_month]}
+            </div>
+            {comparison_items}
+        </div>
+        """, unsafe_allow_html=True)
+
     # WHOOP data source indicator
     whoop_src = data.get('whoop_source', '?')
     src_color = '#00ff87' if whoop_src == 'LIVE' else '#ffd700' if 'CACHE' in whoop_src else '#ff4444'
