@@ -2,6 +2,7 @@
 Cliente de Garmin Connect
 - Uses garth token persistence to avoid repeated login failures
 - Auto-refreshes and re-saves tokens to keep the session alive
+- Falls back to custom SSO flow (garmin_auth.py) when library login fails
 - Falls back to email/password only when tokens are missing or expired
 """
 from garminconnect import Garmin
@@ -28,11 +29,28 @@ class GarminClient:
             except Exception:
                 pass
 
-        # Fall back to email/password login
-        self.client = Garmin(config.GARMIN_EMAIL, config.GARMIN_PASSWORD)
-        self.client.login()
+        # Try library's built-in email/password login
+        try:
+            self.client = Garmin(config.GARMIN_EMAIL, config.GARMIN_PASSWORD)
+            self.client.login()
+            self.client.garth.dump(TOKENSTORE)
+            return
+        except Exception:
+            pass
 
-        # Save tokens for future use
+        # Fall back to custom SSO flow (handles Garmin SSO page changes)
+        from garmin_auth import garmin_login, garmin_connect_with_ticket
+        result = garmin_login(config.GARMIN_EMAIL, config.GARMIN_PASSWORD)
+
+        if result.get('mfa_required'):
+            raise Exception(
+                "Garmin requiere MFA. Usa la pagina de setup para conectar tu cuenta."
+            )
+
+        ticket = result['ticket']
+        self.client = garmin_connect_with_ticket(
+            config.GARMIN_EMAIL, config.GARMIN_PASSWORD, ticket
+        )
         self.client.garth.dump(TOKENSTORE)
 
     def _call_with_retry(self, func, *args, **kwargs):
