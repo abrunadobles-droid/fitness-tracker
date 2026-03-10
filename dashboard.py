@@ -473,12 +473,12 @@ def get_monthly_data(year, month):
 
             # HR Zones (total hours for the month)
             try:
-                raw_1_3 = wc.get('hr_zone_1_3_hours', 0)
+                raw_1_3 = wc.get('hr_zones_1_3_hours', 0)
                 data['hr_zone_1_3'] = round(float(raw_1_3), 1) if raw_1_3 is not None else 0
             except (TypeError, ValueError):
                 data['hr_zone_1_3'] = 0
             try:
-                raw_4_5 = wc.get('hr_zone_4_5_hours', 0)
+                raw_4_5 = wc.get('hr_zones_4_5_hours', 0)
                 data['hr_zone_4_5'] = round(float(raw_4_5), 1) if raw_4_5 is not None else 0
             except (TypeError, ValueError):
                 data['hr_zone_4_5'] = 0
