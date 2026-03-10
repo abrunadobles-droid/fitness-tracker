@@ -329,6 +329,50 @@ header {visibility: hidden;}
 </style>
 """, unsafe_allow_html=True)
 
+# ============ RICH HTML HELPER ============
+# st.markdown() with unsafe_allow_html can choke on large nested HTML blocks
+# (the markdown parser prematurely ends the HTML context).
+# st.html() bypasses markdown entirely but uses Shadow DOM, so we include
+# the needed CSS inline.
+
+_RICH_CSS = """<style>
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap');
+* { font-family: 'DM Sans', sans-serif; box-sizing: border-box; margin: 0; padding: 0; }
+body { background: transparent; color: #e1e8ed; }
+.avg-section { background: #0d0d0d; border: 1px solid #00ff87; border-radius: 10px; padding: 20px; margin-top: 8px; }
+.avg-title { font-family: 'Bebas Neue', sans-serif; font-size: 1.4rem; letter-spacing: 3px; color: #00ff87; margin-bottom: 16px; }
+.avg-metric-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #1a1a1a; }
+.avg-metric-row:last-child { border-bottom: none; }
+.avg-metric-name { font-family: 'Space Mono', monospace; font-size: 0.6rem; color: #888; text-transform: uppercase; letter-spacing: 1px; }
+.avg-metric-val { font-family: 'Space Mono', monospace; font-size: 0.85rem; font-weight: 700; }
+.avg-metric-vs { font-family: 'Space Mono', monospace; font-size: 0.6rem; padding: 2px 8px; border-radius: 4px; }
+.vs-good { background: #052e16; color: #00ff87; }
+.vs-warn { background: #1c1008; color: #ffd700; }
+.vs-bad { background: #1c0808; color: #ff4444; }
+.month-score { font-family: 'Space Mono', monospace; font-size: 0.7rem; padding: 4px 12px; border-radius: 6px; letter-spacing: 1px; }
+.score-good { background: #052e16; color: #00ff87; border: 1px solid #00ff87; }
+.score-mid { background: #1c1008; color: #ffd700; border: 1px solid #ffd700; }
+.score-bad { background: #1c0808; color: #ff4444; border: 1px solid #ff4444; }
+.trend-up { color: #00ff87; }
+.trend-down { color: #ff4444; }
+.trend-flat { color: #888; }
+.comparison-table { width: 100%; border-collapse: collapse; font-family: 'Space Mono', monospace; font-size: 0.6rem; margin-top: 12px; }
+.comparison-table th { color: #00d4ff; text-transform: uppercase; letter-spacing: 2px; padding: 10px 8px; border-bottom: 2px solid #1a1a1a; text-align: center; font-size: 0.55rem; }
+.comparison-table th:first-child { text-align: left; }
+.comparison-table td { padding: 8px; border-bottom: 1px solid #111; text-align: center; color: #ccc; }
+.comparison-table td:first-child { text-align: left; color: #888; text-transform: uppercase; letter-spacing: 1px; }
+.comparison-table tr:last-child td { border-bottom: none; }
+.td-good { color: #00ff87 !important; font-weight: 700; }
+.td-warn { color: #ffd700 !important; }
+.td-bad { color: #ff4444 !important; }
+</style>"""
+
+
+def rich_html(body: str):
+    """Render complex HTML via st.html() to bypass markdown parser limitations."""
+    st.html(_RICH_CSS + body)
+
+
 # ============ GLOBAL STATE ============
 today = datetime.now()
 current_month = today.month
@@ -802,15 +846,14 @@ if st.session_state.vista == "mes":
 
     proj_score_class = score_css_class(proj_met)
 
-    st.markdown(
+    rich_html(
         f'<div class="avg-section">'
         f'<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">'
         f'<div class="avg-title">// PROYECCION AL {days_in_month} DE {MESES_NOMBRES[current_month]}</div>'
         f'<span class="month-score {proj_score_class}">{proj_met}/{total_metrics} METAS</span>'
         f'</div>'
         f'{projection_rows}'
-        f'</div>',
-        unsafe_allow_html=True
+        f'</div>'
     )
 
     # ---- MONTH-OVER-MONTH COMPARISON ----
@@ -858,14 +901,13 @@ if st.session_state.vista == "mes":
                 f'</div>'
             )
 
-        st.markdown(
+        rich_html(
             f'<div style="background: #0d0d0d; border: 1px solid #1a1a1a; border-radius: 10px; padding: 20px; margin-top: 8px;">'
             f'<div style="font-family: Bebas Neue, sans-serif; font-size: 1.2rem; letter-spacing: 3px; color: #00d4ff; margin-bottom: 16px;">'
             f'// {MESES_CORTOS[current_month]} VS {MESES_CORTOS[prev_month]}'
             f'</div>'
             f'{comparison_items}'
-            f'</div>',
-            unsafe_allow_html=True
+            f'</div>'
         )
 
     # WHOOP data source indicator
@@ -931,15 +973,14 @@ else:
                     f'</div>'
                 )
 
-        st.markdown(
+        rich_html(
             f'<div class="avg-section">'
             f'<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">'
             f'<div class="avg-title">// PROMEDIO GENERAL ({n} {"MES" if n == 1 else "MESES"})</div>'
             f'<span class="month-score {avg_score_class}">{avg_score}/{total_metrics}</span>'
             f'</div>'
             f'{rows_html}'
-            f'</div>',
-            unsafe_allow_html=True
+            f'</div>'
         )
 
         st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
@@ -1058,14 +1099,13 @@ else:
             avg_s_color = "td-good" if avg_score >= total_metrics - 2 else "td-warn" if avg_score >= total_metrics // 2 else "td-bad"
             body_html += f'<tr><td style="color:#00d4ff;">SCORE</td>{score_cells}<td class="{avg_s_color}" style="font-weight:700;">{avg_score}/{total_metrics}</td><td>{total_metrics}/{total_metrics}</td></tr>'
 
-            st.markdown(
+            rich_html(
                 f'<div style="background: #0d0d0d; border: 1px solid #1a1a1a; border-radius: 10px; padding: 16px; overflow-x: auto;">'
                 f'<table class="comparison-table">'
                 f'{header_html}'
                 f'{body_html}'
                 f'</table>'
-                f'</div>',
-                unsafe_allow_html=True
+                f'</div>'
             )
 
         st.markdown(f"""
