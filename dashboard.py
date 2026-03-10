@@ -67,6 +67,15 @@ header {visibility: hidden;}
     margin-top: 8px;
 }
 
+.section-title {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 1.6rem;
+    color: #fff;
+    letter-spacing: 4px;
+    margin-bottom: 20px;
+    margin-top: 8px;
+}
+
 .section-divider {
     height: 1px;
     background: linear-gradient(90deg, transparent, #1a1a1a, #333, #1a1a1a, transparent);
@@ -661,7 +670,7 @@ if st.session_state.vista == "mes":
         data = get_monthly_data(current_year, current_month)
 
     # ---- FITNESS HABITS ----
-    st.markdown('<div class="section-label">// FITNESS HABITS</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-title">// FITNESS HABITS</div>', unsafe_allow_html=True)
 
     col1, col2 = st.columns(2)
 
@@ -676,7 +685,7 @@ if st.session_state.vista == "mes":
 
     # ---- SLEEP HABITS ----
     st.markdown('<div class="section-divider"></div>', unsafe_allow_html=True)
-    st.markdown('<div class="section-label">// SLEEP HABITS</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-title">// SLEEP HABITS</div>', unsafe_allow_html=True)
 
     col3, col4 = st.columns(2)
 
@@ -765,14 +774,14 @@ if st.session_state.vista == "mes":
         proj_display = format_val(projected if isinstance(projected, float) else int(projected), unit)
         meta_display = format_val(meta, unit)
 
-        projection_rows += f"""
-        <div class="avg-metric-row">
-            <span class="avg-metric-name">{label}</span>
-            <span class="avg-metric-val" style="color:#fff">{proj_display}</span>
-            <span style="font-family: Space Mono, monospace; font-size: 0.55rem; color: #555;">META {meta_display}</span>
-            <span class="avg-metric-vs {status_css}">{status_icon} {pct:.0f}%</span>
-        </div>
-        """
+        projection_rows += (
+            f'<div class="avg-metric-row">'
+            f'<span class="avg-metric-name">{label}</span>'
+            f'<span class="avg-metric-val" style="color:#fff">{proj_display}</span>'
+            f'<span style="font-family: Space Mono, monospace; font-size: 0.55rem; color: #555;">META {meta_display}</span>'
+            f'<span class="avg-metric-vs {status_css}">{status_icon} {pct:.0f}%</span>'
+            f'</div>'
+        )
 
     # Count projected goals met
     proj_met = 0
@@ -793,15 +802,16 @@ if st.session_state.vista == "mes":
 
     proj_score_class = score_css_class(proj_met)
 
-    st.markdown(f"""
-    <div class="avg-section">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-            <div class="avg-title">// PROYECCION AL {days_in_month} DE {MESES_NOMBRES[current_month]}</div>
-            <span class="month-score {proj_score_class}">{proj_met}/{total_metrics} METAS</span>
-        </div>
-        {projection_rows}
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown(
+        f'<div class="avg-section">'
+        f'<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">'
+        f'<div class="avg-title">// PROYECCION AL {days_in_month} DE {MESES_NOMBRES[current_month]}</div>'
+        f'<span class="month-score {proj_score_class}">{proj_met}/{total_metrics} METAS</span>'
+        f'</div>'
+        f'{projection_rows}'
+        f'</div>',
+        unsafe_allow_html=True
+    )
 
     # ---- MONTH-OVER-MONTH COMPARISON ----
     if current_month > 1:
@@ -839,23 +849,24 @@ if st.session_state.vista == "mes":
             curr_display = format_val(curr_val, unit)
             prev_display = format_val(prev_val, unit)
 
-            comparison_items += f"""
-            <div class="avg-metric-row">
-                <span class="avg-metric-name">{label}</span>
-                <span class="avg-metric-val" style="color:#fff">{curr_display}</span>
-                <span style="font-family: Space Mono, monospace; font-size: 0.55rem; color: #555;">{prev_display}</span>
-                <span class="{trend_css}" style="font-family: Space Mono, monospace; font-size: 0.65rem;">{arrow} {change_pct:+.0f}%</span>
-            </div>
-            """
+            comparison_items += (
+                f'<div class="avg-metric-row">'
+                f'<span class="avg-metric-name">{label}</span>'
+                f'<span class="avg-metric-val" style="color:#fff">{curr_display}</span>'
+                f'<span style="font-family: Space Mono, monospace; font-size: 0.55rem; color: #555;">{prev_display}</span>'
+                f'<span class="{trend_css}" style="font-family: Space Mono, monospace; font-size: 0.65rem;">{arrow} {change_pct:+.0f}%</span>'
+                f'</div>'
+            )
 
-        st.markdown(f"""
-        <div style="background: #0d0d0d; border: 1px solid #1a1a1a; border-radius: 10px; padding: 20px; margin-top: 8px;">
-            <div style="font-family: Bebas Neue, sans-serif; font-size: 1.2rem; letter-spacing: 3px; color: #00d4ff; margin-bottom: 16px;">
-                // {MESES_CORTOS[current_month]} VS {MESES_CORTOS[prev_month]}
-            </div>
-            {comparison_items}
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown(
+            f'<div style="background: #0d0d0d; border: 1px solid #1a1a1a; border-radius: 10px; padding: 20px; margin-top: 8px;">'
+            f'<div style="font-family: Bebas Neue, sans-serif; font-size: 1.2rem; letter-spacing: 3px; color: #00d4ff; margin-bottom: 16px;">'
+            f'// {MESES_CORTOS[current_month]} VS {MESES_CORTOS[prev_month]}'
+            f'</div>'
+            f'{comparison_items}'
+            f'</div>',
+            unsafe_allow_html=True
+        )
 
     # WHOOP data source indicator
     whoop_src = data.get('whoop_source', '?')
@@ -903,10 +914,7 @@ else:
         # Build avg rows - Fitness first, then Sleep
         rows_html = ""
         for section_metrics, section_label in [(FITNESS_METRICS, "FITNESS"), (SLEEP_METRICS, "SLEEP")]:
-            rows_html += f"""
-            <div style="font-family: Space Mono, monospace; font-size: 0.5rem; color: #00d4ff;
-                        letter-spacing: 2px; padding: 12px 0 4px; text-transform: uppercase;">// {section_label}</div>
-            """
+            rows_html += f'<div style="font-family: Space Mono, monospace; font-size: 0.5rem; color: #00d4ff; letter-spacing: 2px; padding: 12px 0 4px; text-transform: uppercase;">// {section_label}</div>'
             for key, label, unit, _ in section_metrics:
                 valor = avg_data[key]
                 meta = metas[key]
@@ -914,24 +922,25 @@ else:
                 val_display = format_val(valor, unit)
                 meta_display = format_val(meta, unit)
 
-                rows_html += f"""
-                <div class="avg-metric-row">
-                    <span class="avg-metric-name">{label}</span>
-                    <span class="avg-metric-val" style="color:#fff">{val_display}</span>
-                    <span style="font-family: Space Mono, monospace; font-size: 0.55rem; color: #555;">{meta_display}</span>
-                    <span class="avg-metric-vs {css_class}">{pct_label}</span>
-                </div>
-                """
+                rows_html += (
+                    f'<div class="avg-metric-row">'
+                    f'<span class="avg-metric-name">{label}</span>'
+                    f'<span class="avg-metric-val" style="color:#fff">{val_display}</span>'
+                    f'<span style="font-family: Space Mono, monospace; font-size: 0.55rem; color: #555;">{meta_display}</span>'
+                    f'<span class="avg-metric-vs {css_class}">{pct_label}</span>'
+                    f'</div>'
+                )
 
-        st.markdown(f"""
-        <div class="avg-section">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-                <div class="avg-title">// PROMEDIO GENERAL ({n} {'MES' if n == 1 else 'MESES'})</div>
-                <span class="month-score {avg_score_class}">{avg_score}/{total_metrics}</span>
-            </div>
-            {rows_html}
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown(
+            f'<div class="avg-section">'
+            f'<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">'
+            f'<div class="avg-title">// PROMEDIO GENERAL ({n} {"MES" if n == 1 else "MESES"})</div>'
+            f'<span class="month-score {avg_score_class}">{avg_score}/{total_metrics}</span>'
+            f'</div>'
+            f'{rows_html}'
+            f'</div>',
+            unsafe_allow_html=True
+        )
 
         st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
 
@@ -942,15 +951,16 @@ else:
             score = calculate_score(data)
             s_class = score_css_class(score)
 
-            st.markdown(f"""
-            <div class="month-header-row">
-                <span class="historical-month">// {MESES_NOMBRES[mes]} {current_year}</span>
-                <span class="month-score {s_class}">{score}/{total_metrics} METAS</span>
-            </div>
-            """, unsafe_allow_html=True)
+            st.markdown(
+                f'<div class="month-header-row">'
+                f'<span class="historical-month">// {MESES_NOMBRES[mes]} {current_year}</span>'
+                f'<span class="month-score {s_class}">{score}/{total_metrics} METAS</span>'
+                f'</div>',
+                unsafe_allow_html=True
+            )
 
             # Fitness Habits
-            st.markdown('<div class="section-label" style="margin-top:4px;">// FITNESS</div>', unsafe_allow_html=True)
+            st.markdown('<div class="section-title" style="margin-top:4px; font-size:1.2rem;">// FITNESS HABITS</div>', unsafe_allow_html=True)
             col1, col2 = st.columns(2)
             with col1:
                 render_metric_hist("STEPS DAILY AVG", data['steps_avg'], metas['steps_avg'])
@@ -961,7 +971,7 @@ else:
                 render_metric_hist("HR ZONES 4-5", data['hr_zone_4_5'], metas['hr_zone_4_5'], "h")
 
             # Sleep Habits
-            st.markdown('<div class="section-label" style="margin-top:4px;">// SLEEP</div>', unsafe_allow_html=True)
+            st.markdown('<div class="section-title" style="margin-top:4px; font-size:1.2rem;">// SLEEP HABITS</div>', unsafe_allow_html=True)
             col3, col4 = st.columns(2)
             with col3:
                 render_metric_hist("AVE SLEEP DURATION", data['sleep_hours_avg'], metas['sleep_hours_avg'], "h")
@@ -1048,14 +1058,15 @@ else:
             avg_s_color = "td-good" if avg_score >= total_metrics - 2 else "td-warn" if avg_score >= total_metrics // 2 else "td-bad"
             body_html += f'<tr><td style="color:#00d4ff;">SCORE</td>{score_cells}<td class="{avg_s_color}" style="font-weight:700;">{avg_score}/{total_metrics}</td><td>{total_metrics}/{total_metrics}</td></tr>'
 
-            st.markdown(f"""
-            <div style="background: #0d0d0d; border: 1px solid #1a1a1a; border-radius: 10px; padding: 16px; overflow-x: auto;">
-                <table class="comparison-table">
-                    {header_html}
-                    {body_html}
-                </table>
-            </div>
-            """, unsafe_allow_html=True)
+            st.markdown(
+                f'<div style="background: #0d0d0d; border: 1px solid #1a1a1a; border-radius: 10px; padding: 16px; overflow-x: auto;">'
+                f'<table class="comparison-table">'
+                f'{header_html}'
+                f'{body_html}'
+                f'</table>'
+                f'</div>',
+                unsafe_allow_html=True
+            )
 
         st.markdown(f"""
         <div style='font-family: Space Mono, monospace; font-size: 0.55rem; color: #444; text-align: right; margin-top: 20px; letter-spacing: 2px;'>
