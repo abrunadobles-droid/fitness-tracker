@@ -9,12 +9,20 @@ Fitness Tracker - Sport HUD Dashboard v4
 import streamlit as st
 from datetime import datetime, timedelta
 from calendar import monthrange
+from auth import show_auth_page, show_logout_button, get_user_email
+from goals_setup import get_user_goals, has_goals, show_goals_setup
 
 st.set_page_config(
     page_title="Fitness Tracker",
     page_icon="🏃‍♂️",
     layout="wide"
 )
+
+# ============ AUTH GATE ============
+if not show_auth_page():
+    st.stop()
+
+user_email = get_user_email()
 
 st.markdown("""
 <style>
@@ -349,13 +357,13 @@ MESES_CORTOS = {
     9: 'SEP', 10: 'OCT', 11: 'NOV', 12: 'DIC'
 }
 
-# Default goals (used if no DB goals available)
-metas = {
-    'steps_avg': 10000, 'activities': 28, 'strength': 10,
-    'sleep_hours_avg': 7.5,
-    'hr_zone_1_3': 19.3, 'hr_zone_4_5': 2.9,
-    'recovery_score': 50.0, 'resting_hr': 55.0, 'sleep_consistency': 80.0,
-}
+# Goals gate: first-time users must set goals
+if not has_goals():
+    show_goals_setup(first_time=True)
+    st.stop()
+
+# Load user goals from Supabase
+metas = get_user_goals()
 
 # Fitness Habits metrics (Garmin + WHOOP HR zones)
 FITNESS_METRICS = [
@@ -381,7 +389,7 @@ if 'vista' not in st.session_state:
     st.session_state.vista = "mes"
 
 # ============ NAVIGATION ============
-col_nav1, col_nav2, col_nav3 = st.columns([1, 1, 1])
+col_nav1, col_nav2, col_nav3, col_nav4, col_nav5 = st.columns([1, 1, 1, 1, 1])
 
 with col_nav1:
     if st.button("MES ACTUAL", use_container_width=True):
@@ -394,9 +402,17 @@ with col_nav2:
         st.rerun()
 
 with col_nav3:
+    if st.button("METAS", use_container_width=True):
+        st.session_state.vista = "metas"
+        st.rerun()
+
+with col_nav4:
     if st.button("ACTUALIZAR", use_container_width=True):
         st.cache_data.clear()
         st.rerun()
+
+with col_nav5:
+    show_logout_button()
 
 st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
 
@@ -654,8 +670,13 @@ def format_val(valor, unidad):
     return f"{valor}{unidad}"
 
 
+# ============ VIEW: METAS ============
+if st.session_state.vista == "metas":
+    st.markdown('<div class="top-bar"></div>', unsafe_allow_html=True)
+    show_goals_setup(first_time=False)
+
 # ============ VIEW: MES ACTUAL ============
-if st.session_state.vista == "mes":
+elif st.session_state.vista == "mes":
 
     month_name = MESES_CORTOS[current_month]
 
@@ -876,7 +897,7 @@ if st.session_state.vista == "mes":
     """, unsafe_allow_html=True)
 
 # ============ VIEW: HISTORICO ============
-else:
+elif st.session_state.vista == "historico":
 
     st.markdown('<div class="top-bar"></div>', unsafe_allow_html=True)
     st.markdown(f'<div class="historical-title">HISTORICO {current_year}</div>', unsafe_allow_html=True)
@@ -943,6 +964,75 @@ else:
         """, unsafe_allow_html=True)
 
         st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
+
+        # ---- METAS AJUSTADAS ----
+        remaining = 12 - n
+        if remaining > 0:
+            adjusted_metrics = [
+                ("STEPS AVG", avg_data['steps_avg'], metas['steps_avg'], "", False),
+                ("ACTIVITIES", avg_data['activities'], metas['activities'], "", False),
+                ("STRENGTH", avg_data['strength'], metas['strength'], "", False),
+                ("HR Z1-3", avg_data['hr_zone_1_3'], metas['hr_zone_1_3'], "h", False),
+                ("HR Z4-5", avg_data['hr_zone_4_5'], metas['hr_zone_4_5'], "h", False),
+                ("SLEEP", avg_data['sleep_hours_avg'], metas['sleep_hours_avg'], "h", False),
+                ("RECOVERY", avg_data['recovery_score'], metas['recovery_score'], "%", False),
+                ("RESTING HR", avg_data['resting_hr'], metas['resting_hr'], " bpm", True),
+                ("CONSISTENCY", avg_data['sleep_consistency'], metas['sleep_consistency'], "%", False),
+            ]
+
+            adj_rows = ""
+            any_behind = False
+            for nombre, avg_val, goal, unidad, is_inverted in adjusted_metrics:
+                if is_inverted:
+                    # For inverted metrics (lower is better): adjusted = (goal*12 - avg*n) / remaining
+                    adjusted = (goal * 12 - avg_val * n) / remaining
+                    adjusted = max(adjusted, 0)
+                    diff_pct = ((goal - adjusted) / goal * 100) if goal > 0 else 0
+                    # If adjusted < goal, you need to do BETTER (lower) => behind
+                    diff_pct = -diff_pct
+                else:
+                    adjusted = (goal * 12 - avg_val * n) / remaining
+                    adjusted = max(adjusted, 0)
+                    diff_pct = ((adjusted - goal) / goal * 100) if goal > 0 else 0
+
+                adjusted_r = round(adjusted, 1)
+
+                if diff_pct <= 0:
+                    color = "#00ff87"
+                    status = "ON TRACK"
+                elif diff_pct <= 30:
+                    color = "#ffd700"
+                    status = f"+{diff_pct:.0f}%"
+                    any_behind = True
+                else:
+                    color = "#ff4444"
+                    status = f"+{diff_pct:.0f}%"
+                    any_behind = True
+
+                adj_display = f"{adjusted_r:,}" if (not unidad and isinstance(adjusted_r, (int, float)) and adjusted_r >= 1000) else f"{adjusted_r}{unidad}"
+                goal_display = f"{goal:,}" if (not unidad and isinstance(goal, (int, float)) and goal >= 1000) else f"{goal}{unidad}"
+
+                adj_rows += f'<div class="avg-metric-row">'
+                adj_rows += f'<span class="avg-metric-name">{nombre}</span>'
+                adj_rows += f'<span style="font-family: Space Mono, monospace; font-size: 0.55rem; color: #555;">META: {goal_display}</span>'
+                adj_rows += f'<span style="font-family: Space Mono, monospace; font-size: 0.55rem; color: #555;">&#8594;</span>'
+                adj_rows += f'<span class="avg-metric-val" style="color:{color}">{adj_display}</span>'
+                adj_rows += f'<span class="avg-metric-vs" style="background:transparent;color:{color}">{status}</span>'
+                adj_rows += '</div>'
+
+            border_color = "#ffd700" if any_behind else "#00ff87"
+
+            st.markdown(f"""
+            <div class="avg-section" style="border-color: {border_color};">
+                <div class="avg-title" style="color: {border_color};">// METAS AJUSTADAS</div>
+                <div style="font-family: Space Mono, monospace; font-size: 0.5rem; color: #888; letter-spacing: 1px; margin-bottom: 16px; line-height: 1.6;">
+                    PARA CUMPLIR TUS METAS ANUALES, NECESITAS ESTOS OBJETIVOS<br>MENSUALES EN LOS {remaining} MESES RESTANTES
+                </div>
+                {adj_rows}
+            </div>
+            """, unsafe_allow_html=True)
+
+            st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
 
         # ---- SECTION 2: PER-MONTH DETAILS ----
         st.markdown('<div class="section-label">// DETALLE POR MES</div>', unsafe_allow_html=True)
