@@ -34,4 +34,3 @@ else:
         GARMIN_PASSWORD = ""
 
 WHOOP_REDIRECT_URI = 'http://localhost:8000/callback'
-EXCEL_PATH = '/Users/AntonioXBruna/Desktop/Data_Fitness___Wellness_Tracker.xlsx'
