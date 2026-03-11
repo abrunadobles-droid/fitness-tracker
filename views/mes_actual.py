@@ -4,7 +4,7 @@ Vista: Mes Actual
 import streamlit as st
 from datetime import datetime
 from constants import MESES_NOMBRES, MESES_CORTOS, FITNESS_METRICS, SLEEP_METRICS, ALL_METRIC_KEYS
-from helpers import fmt, get_pct, get_status, render_metric_row, is_metric_met
+from helpers import fmt, get_pct, get_status, render_metric_row
 from data_loader import get_monthly_data
 
 
@@ -41,47 +41,6 @@ def show(data, metas, days_elapsed, days_in_month, progress_pct, current_month, 
     st.subheader("// SLEEP HABITS")
     for key, label, unit, tipo in SLEEP_METRICS:
         render_metric_row(label, data[key], metas[key], unit, tipo, days_elapsed, days_in_month, for_current_month=True)
-
-    st.divider()
-
-    # ---- PROYECCION FIN DE MES ----
-    st.subheader("// PROYECCION FIN DE MES")
-
-    proj_met = 0
-    proj_rows = []
-    for key, label, unit, tipo in FITNESS_METRICS + SLEEP_METRICS:
-        valor = data[key]
-        meta = metas[key]
-
-        if tipo in ('promedio', 'promedio_inverted'):
-            projected = valor
-        else:
-            daily_rate = valor / days_elapsed if days_elapsed > 0 else 0
-            projected = round(daily_rate * days_in_month, 1)
-
-        if tipo == 'promedio_inverted':
-            meets = projected <= meta
-            pct = (meta / projected * 100) if projected > 0 else 100
-        else:
-            meets = projected >= meta
-            pct = (projected / meta * 100) if meta > 0 else 0
-
-        if meets:
-            proj_met += 1
-
-        status = get_status(min(pct, 100))
-        proj_rows.append({
-            'Metrica': f"{status} {label}",
-            'Proyeccion': fmt(projected if isinstance(projected, float) else int(projected), unit),
-            'Meta': fmt(meta, unit),
-            '%': f"{min(pct, 999):.0f}%",
-        })
-
-    st.caption(
-        f"Proyeccion: {proj_met}/{total_metrics} metas cumplidas "
-        f"al {days_in_month} de {MESES_NOMBRES[current_month]}"
-    )
-    st.dataframe(proj_rows, use_container_width=True, hide_index=True)
 
     # ---- VS MES ANTERIOR ----
     if current_month > 1:
