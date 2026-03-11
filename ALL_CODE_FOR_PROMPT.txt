@@ -1,0 +1,2447 @@
+
+========================================
+FILE: garmin_client.py
+========================================
+"""
+Cliente de Garmin Connect
+- Uses garth token persistence to avoid repeated login failures
+- Auto-refreshes and re-saves tokens to keep the session alive
+- Falls back to custom SSO flow (garmin_auth.py) when library login fails
+- Falls back to email/password only when tokens are missing or expired
+"""
+from garminconnect import Garmin
+from datetime import datetime, timedelta
+import os
+import config
+
+TOKENSTORE_PROJECT = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.garmin_tokens')
+TOKENSTORE_HOME = os.path.expanduser("~/.garmin_tokens")
+
+def _get_tokenstore():
+    """Return the first available token directory (project dir preferred)."""
+    if os.path.isdir(TOKENSTORE_PROJECT):
+        return TOKENSTORE_PROJECT
+    if os.path.isdir(TOKENSTORE_HOME):
+        return TOKENSTORE_HOME
+    return TOKENSTORE_PROJECT  # default for saving new tokens
+
+
+class GarminClient:
+    def __init__(self):
+        self.client = None
+
+    def login(self):
+        tokenstore = _get_tokenstore()
+
+        # Try saved tokens first (avoids Garmin rate-limiting/blocking)
+        if os.path.isdir(tokenstore):
+            try:
+                self.client = Garmin()
+                self.client.login(tokenstore)
+                # Re-save tokens so refreshed tokens are persisted
+                self.client.garth.dump(tokenstore)
+                return
+            except Exception:
+                pass
+
+        # Try library's built-in email/password login
+        try:
+            self.client = Garmin(config.GARMIN_EMAIL, config.GARMIN_PASSWORD)
+            self.client.login()
+            self.client.garth.dump(tokenstore)
+            return
+        except Exception:
+            pass
+
+        # Fall back to custom SSO flow (handles Garmin SSO page changes)
+        from garmin_auth import garmin_login, garmin_connect_with_ticket
+        result = garmin_login(config.GARMIN_EMAIL, config.GARMIN_PASSWORD)
+
+        if result.get('mfa_required'):
+            raise Exception(
+                "Garmin requiere MFA. Corre: python3 garmin_token_setup.py"
+            )
+
+        ticket = result['ticket']
+        self.client = garmin_connect_with_ticket(
+            config.GARMIN_EMAIL, config.GARMIN_PASSWORD, ticket
+        )
+        self.client.garth.dump(tokenstore)
+
+    def _call_with_retry(self, func, *args, **kwargs):
+        """Call a Garmin API function, retry with re-login if token expired."""
+        try:
+            return func(*args, **kwargs)
+        except Exception:
+            # Token likely expired, re-login and retry once
+            self.login()
+            return func(*args, **kwargs)
+
+    def get_stats_for_date(self, date=None):
+        if date is None:
+            date = datetime.now()
+        date_str = date.strftime('%Y-%m-%d')
+        return self._call_with_retry(self.client.get_stats, date_str)
+
+    def get_sleep_data(self, date=None):
+        if date is None:
+            date = datetime.now()
+        date_str = date.strftime('%Y-%m-%d')
+        return self._call_with_retry(self.client.get_sleep_data, date_str)
+
+    def get_activities(self, start_date=None, end_date=None, limit=10):
+        if start_date is None:
+            start_date = datetime.now() - timedelta(days=7)
+        if end_date is None:
+            end_date = datetime.now()
+
+        start_str = start_date.strftime('%Y-%m-%d')
+        end_str = end_date.strftime('%Y-%m-%d')
+        return self._call_with_retry(
+            self.client.get_activities_by_date, start_str, end_str
+        )
+
+
+========================================
+FILE: garmin_auth.py
+========================================
+"""
+Garmin SSO Authentication - Two-phase flow with MFA support.
+
+Phase 1: Email/password login via SSO → returns ticket or MFA session
+Phase 2: MFA code submission (if needed) → returns ticket
+Phase 3: OAuth token exchange via garth → returns authenticated client
+
+Based on Garmin Connect SSO flow documentation.
+"""
+import re
+import requests
+from urllib.parse import urlencode
+from garminconnect import Garmin
+from garth.sso import get_oauth1_token, exchange
+
+
+# ---- Constants ----
+SSO = "https://sso.garmin.com/sso"
+SSO_EMBED = f"{SSO}/embed"
+
+EMBED_PARAMS = {
+    "clientId": "GarminConnect",
+    "locale": "en",
+    "service": "https://connect.garmin.com/modern",
+}
+
+SIGNIN_PARAMS = {
+    "id": "gauth-widget",
+    "embedWidget": "true",
+    "clientId": "GarminConnect",
+    "locale": "en",
+    "gauthHost": SSO_EMBED,
+    "service": SSO_EMBED,
+    "source": SSO_EMBED,
+    "redirectAfterAccountLoginUrl": SSO_EMBED,
+    "redirectAfterAccountCreationUrl": SSO_EMBED,
+}
+
+USER_AGENT = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+    "AppleWebKit/537.36 (KHTML, like Gecko) "
+    "Chrome/131.0.0.0 Safari/537.36"
+)
+
+
+# ---- Helpers ----
+
+def _get_csrf(html):
+    """Extract CSRF token from HTML."""
+    m = re.search(r'name="_csrf"\s+value="(.+?)"', html)
+    return m.group(1) if m else None
+
+
+def _find_ticket(text):
+    """Find SSO ticket in HTML or URL string."""
+    m = re.search(r'ticket=([^"&\s]+)', text)
+    return m.group(1) if m else None
+
+
+# ---- Phase 1: Login ----
+
+def garmin_login(email, password):
+    """
+    Phase 1: SSO login with email/password.
+
+    Returns dict with either:
+    - {"ticket": "ST-xxx"} → login succeeded, no MFA
+    - {"mfa_required": True, "session": {...}} → MFA needed
+
+    Raises Exception for invalid credentials, locked account, etc.
+    """
+    session = requests.Session()
+    session.headers.update({"User-Agent": USER_AGENT})
+
+    # Step 1: GET embed page (establish cookies)
+    session.get(f"{SSO}/embed", params=EMBED_PARAMS)
+
+    # Step 2: GET signin page (get CSRF token)
+    resp = session.get(f"{SSO}/signin", params=SIGNIN_PARAMS)
+    csrf = _get_csrf(resp.text)
+    if not csrf:
+        raise Exception("No se pudo conectar con Garmin (CSRF)")
+
+    # Step 3: POST credentials
+    resp = session.post(
+        f"{SSO}/signin",
+        params=SIGNIN_PARAMS,
+        data={
+            "username": email,
+            "password": password,
+            "embed": "true",
+            "_csrf": csrf,
+        },
+        headers={
+            "Origin": "https://sso.garmin.com",
+            "Content-Type": "application/x-www-form-urlencoded",
+            "Referer": f"{SSO}/signin?" + urlencode(SIGNIN_PARAMS),
+        },
+        allow_redirects=True,
+    )
+
+    html = resp.text
+
+    # Step 4: Check response
+    if "AccountLocked" in html or "account has been locked" in html.lower():
+        raise Exception("Tu cuenta de Garmin esta bloqueada. Contacta soporte de Garmin.")
+
+    if "incorrectCredentials" in html or "Invalid credentials" in html or "invalidCredentials" in html:
+        raise Exception("Email o password de Garmin incorrecto.")
+
+    # Check for ticket in response body
+    ticket = _find_ticket(html)
+    if ticket:
+        return {"ticket": ticket}
+
+    # Check in redirect chain
+    for r in resp.history:
+        loc = r.headers.get("Location", "")
+        ticket = _find_ticket(loc)
+        if ticket:
+            return {"ticket": ticket}
+        ticket = _find_ticket(r.text or "")
+        if ticket:
+            return {"ticket": ticket}
+
+    # No ticket → MFA required
+    new_csrf = _get_csrf(html) or csrf
+
+    # Try to find MFA form action
+    form_action = None
+    fa_match = re.search(r'action="([^"]*(?:verifyMFA|mfa)[^"]*)"', html, re.IGNORECASE)
+    if fa_match:
+        form_action = fa_match.group(1)
+
+    return {
+        "mfa_required": True,
+        "session": {
+            "cookies": dict(session.cookies),
+            "csrf": new_csrf,
+            "form_action": form_action,
+        },
+    }
+
+
+# ---- Phase 2: MFA Verification ----
+
+def garmin_verify_mfa(mfa_session, mfa_code):
+    """
+    Phase 2: Submit MFA code using saved session.
+
+    Args:
+        mfa_session: dict from Phase 1 with cookies, csrf, form_action
+        mfa_code: 6-digit code from authenticator app
+
+    Returns:
+        SSO ticket string
+
+    Raises Exception if code is invalid.
+    """
+    session = requests.Session()
+    session.headers.update({"User-Agent": USER_AGENT})
+
+    # Restore cookies from Phase 1
+    for name, value in mfa_session["cookies"].items():
+        session.cookies.set(name, value)
+
+    # Determine verify URL
+    form_action = mfa_session.get("form_action")
+    if form_action:
+        if form_action.startswith("/"):
+            verify_url = f"https://sso.garmin.com{form_action}"
+        else:
+            verify_url = form_action
+    else:
+        verify_url = f"{SSO}/verifyMFA/loginEnterMfaCode"
+
+    # Submit MFA code (send both field names to cover Garmin variants)
+    resp = session.post(
+        verify_url,
+        params=SIGNIN_PARAMS,
+        data={
+            "verificationCode": mfa_code,
+            "mfa-code": mfa_code,
+            "embed": "true",
+            "_csrf": mfa_session["csrf"],
+            "fromPage": "setupEnterMfaCode",
+        },
+        headers={
+            "Origin": "https://sso.garmin.com",
+            "Content-Type": "application/x-www-form-urlencoded",
+        },
+        allow_redirects=False,
+    )
+
+    # Follow redirects looking for ticket (up to 10)
+    for _ in range(10):
+        # Check response body
+        html = resp.text or ""
+        ticket = _find_ticket(html)
+        if ticket:
+            return ticket
+
+        # Check Location header
+        location = resp.headers.get("Location", "")
+        ticket = _find_ticket(location)
+        if ticket:
+            return ticket
+
+        # Follow redirect
+        if location and resp.status_code in (301, 302, 303, 307):
+            if location.startswith("/"):
+                location = f"https://sso.garmin.com{location}"
+            resp = session.get(location, allow_redirects=False)
+        else:
+            break
+
+    raise Exception("Codigo MFA invalido o expirado. Intenta de nuevo.")
+
+
+# ---- Phase 3: OAuth Exchange ----
+
+def garmin_connect_with_ticket(email, password, ticket):
+    """
+    Phase 3: Exchange SSO ticket for OAuth tokens and create
+    an authenticated garminconnect client.
+
+    Uses garth's get_oauth1_token + exchange for the OAuth flow.
+    """
+    client = Garmin(email, password)
+
+    # Exchange ticket → OAuth1 → OAuth2 via garth
+    oauth1 = get_oauth1_token(ticket, client.garth)
+    oauth2 = exchange(oauth1, client.garth)
+
+    # Set tokens on the garth client
+    client.garth.oauth1_token = oauth1
+    client.garth.oauth2_token = oauth2
+
+    # Get profile info
+    client.display_name = client.garth.profile["displayName"]
+    client.full_name = client.garth.profile["fullName"]
+
+    return client
+
+
+========================================
+FILE: garmin_metrics.py
+========================================
+"""
+Garmin Metrics Calculator
+Calcula todas las métricas del dashboard usando solo datos de Garmin
+"""
+from garminconnect import Garmin
+from datetime import datetime, timedelta
+import calendar
+
+class GarminMetrics:
+    def __init__(self, email, password):
+        self.garmin = Garmin(email, password)
+        self.garmin.login()
+        print("✅ [GARMIN] Login exitoso")
+    
+    def get_monthly_summary(self, year, month):
+        """Calcular resumen mensual completo"""
+        print(f"📊 [GARMIN] Calculando métricas para {year}-{month:02d}")
+        
+        # Fechas del mes
+        first_day = datetime(year, month, 1)
+        last_day_num = calendar.monthrange(year, month)[1]
+        
+        total_steps = 0
+        total_sleep_seconds = 0
+        days_before_930 = 0
+        days_with_data = 0
+        
+        # Iterar por cada día del mes
+        for day in range(1, last_day_num + 1):
+            date = datetime(year, month, day)
+            date_str = date.strftime("%Y-%m-%d")
+            
+            # Si es fecha futura, saltar
+            if date > datetime.now():
+                continue
+            
+            try:
+                # 1. USER SUMMARY (steps)
+                summary = self.garmin.get_user_summary(date_str)
+                if summary:
+                    total_steps += summary.get('totalSteps', 0)
+                    days_with_data += 1
+                
+                # 2. SLEEP DATA
+                sleep = self.garmin.get_sleep_data(date_str)
+                if sleep and 'dailySleepDTO' in sleep:
+                    sleep_dto = sleep['dailySleepDTO']
+                    
+                    # Sleep duration
+                    sleep_seconds = sleep_dto.get('sleepTimeSeconds', 0)
+                    total_sleep_seconds += sleep_seconds
+                    
+                    # Days with 7.5+ hours of sleep
+                    if sleep_seconds >= 7.5 * 3600:
+                        days_before_930 += 1
+                
+            except Exception as e:
+                print(f"⚠️ [GARMIN] Error día {date_str}: {e}")
+                continue
+        
+        # 3. ACTIVITIES del mes
+        activities = self.garmin.get_activities_by_date(
+            first_day.strftime("%Y-%m-%d"),
+            datetime(year, month, last_day_num).strftime("%Y-%m-%d")
+        )
+        
+        total_activities = len(activities)
+        strength_count = 0
+        
+        # HR Zones calculation
+        total_zone_1_3_seconds = 0
+        total_zone_4_5_seconds = 0
+        
+        for activity in activities:
+            # Contar strength training
+            activity_type = activity.get('activityType', {}).get('typeKey', '')
+            if 'strength' in activity_type.lower() or 'training' in activity_type.lower():
+                strength_count += 1
+            
+            # Obtener HR zones detallados de Garmin
+            activity_id = activity.get('activityId')
+            if activity_id:
+                try:
+                    hr_zones = self.garmin.get_activity_hr_in_timezones(activity_id)
+                    
+                    print(f"  Activity {activity_id}: {len(hr_zones) if hr_zones else 0} zones")
+                    if hr_zones and isinstance(hr_zones, list):
+                        for zone in hr_zones:
+                            zone_num = zone.get('zoneNumber', 0)
+                            secs_in_zone = zone.get('secsInZone', 0)
+                            
+                            # Zonas 1-3 → total_zone_1_3
+                            # Zonas 4-5 → total_zone_4_5
+                            if zone_num in [1, 2, 3]:
+                                total_zone_1_3_seconds += secs_in_zone
+                            elif zone_num in [4, 5]:
+                                total_zone_4_5_seconds += secs_in_zone
+                except Exception as e:
+                    print(f"⚠️ [GARMIN] Error obteniendo HR zones para actividad {activity_id}: {e}")
+                    continue
+        
+        # Calcular promedios
+        steps_avg = round(total_steps / days_with_data) if days_with_data > 0 else 0
+        sleep_hours_avg = round(total_sleep_seconds / days_with_data / 3600, 1) if days_with_data > 0 else 0
+        hr_zones_1_3_hours = round(total_zone_1_3_seconds / 3600, 1)
+        hr_zones_4_5_hours = round(total_zone_4_5_seconds / 3600, 1)
+        
+        summary = {
+            'steps_avg': steps_avg,
+            'activities': total_activities,
+            'strength': strength_count,
+            'sleep_hours_avg': sleep_hours_avg,
+            'days_before_930': days_before_930,
+            'hr_zones_1_3_hours': hr_zones_1_3_hours,
+            'hr_zones_4_5_hours': hr_zones_4_5_hours
+        }
+        
+        print(f"✅ [GARMIN] Resumen calculado: {summary}")
+        print(f"   Zone 1-3: {total_zone_1_3_seconds}s = {hr_zones_1_3_hours}h")
+        print(f"   Zone 4-5: {total_zone_4_5_seconds}s = {hr_zones_4_5_hours}h")
+        return summary
+
+
+========================================
+FILE: garmin_setup.py
+========================================
+"""
+Formulario para conectar cuenta de Garmin
+"""
+import streamlit as st
+from datetime import datetime
+from garminconnect import Garmin
+from crypto import encrypt, decrypt
+from auth import get_supabase, get_user_id
+
+
+def check_garmin_connection():
+    """Verifica si el usuario tiene Garmin conectado. Retorna True si si."""
+    supabase = get_supabase()
+    user_id = get_user_id()
+
+    result = supabase.table("garmin_connections").select("id").eq(
+        "user_id", user_id
+    ).execute()
+
+    return bool(result.data)
+
+
+def show_garmin_connect_form():
+    """Muestra formulario para conectar Garmin. Retorna True si ya esta conectado."""
+    if check_garmin_connection():
+        return True
+
+    st.markdown("""
+    <style>
+    .garmin-title {
+        font-family: 'Inter', sans-serif !important;
+        font-size: 1.8rem !important;
+        font-weight: 800 !important;
+        letter-spacing: 4px !important;
+        background: linear-gradient(135deg, #c4b5fd, #7c3aed, #06b6d4) !important;
+        -webkit-background-clip: text !important;
+        -webkit-text-fill-color: transparent !important;
+        background-clip: text !important;
+        text-align: center;
+        margin-bottom: 8px;
+    }
+    .garmin-info {
+        font-family: 'Space Mono', monospace;
+        font-size: 0.6rem;
+        color: #cbd5e1;
+        text-align: center;
+        letter-spacing: 1px;
+        margin-bottom: 24px;
+        line-height: 1.6;
+    }
+    .privacy-note {
+        font-family: 'Space Mono', monospace;
+        font-size: 0.55rem;
+        color: #cbd5e1;
+        background: rgba(255,255,255,0.04);
+        border: 1px solid rgba(255,255,255,0.08);
+        border-radius: 12px;
+        padding: 14px 18px;
+        margin-top: 16px;
+        line-height: 1.6;
+        backdrop-filter: blur(10px);
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+    st.markdown('<div class="top-gradient"></div>', unsafe_allow_html=True)
+    st.markdown('<div class="garmin-title">CONECTA TU GARMIN</div>', unsafe_allow_html=True)
+    st.markdown('<div class="garmin-info">Ingresa tus credenciales de Garmin Connect<br>para sincronizar tus datos de fitness</div>', unsafe_allow_html=True)
+
+    garmin_email = st.text_input("Email de Garmin", placeholder="tu@email.com")
+    garmin_password = st.text_input("Password de Garmin", type="password")
+
+    if st.button("Conectar Garmin", use_container_width=True):
+        if not garmin_email or not garmin_password:
+            st.error("Ingresa email y password de Garmin")
+        else:
+            with st.spinner("Verificando credenciales de Garmin..."):
+                try:
+                    # Verificar que las credenciales funcionan
+                    client = Garmin(garmin_email, garmin_password)
+                    client.login()
+
+                    # Serializar tokens de sesion
+                    token_string = client.garth.dumps()
+
+                    # Guardar en Supabase (password encriptado)
+                    supabase = get_supabase()
+                    user_id = get_user_id()
+
+                    supabase.table("garmin_connections").insert({
+                        "user_id": user_id,
+                        "garmin_email": garmin_email,
+                        "garmin_password_encrypted": encrypt(garmin_password),
+                        "garmin_tokens": token_string,
+                        "tokens_updated_at": datetime.utcnow().isoformat()
+                    }).execute()
+
+                    st.success("Garmin conectado exitosamente!")
+                    st.rerun()
+                except Exception as e:
+                    error_msg = str(e)
+                    if "401" in error_msg or "Unauthorized" in error_msg:
+                        st.error("Credenciales de Garmin incorrectas. Verifica tu email y password.")
+                    else:
+                        st.error(f"Error al conectar: {error_msg}")
+
+    st.markdown("""
+    <div class="privacy-note">
+    🔒 TUS CREDENCIALES SE ALMACENAN ENCRIPTADAS (AES-128).<br>
+    SOLO SE USAN PARA SINCRONIZAR TUS DATOS DE FITNESS.<br>
+    PUEDES DESCONECTAR TU CUENTA EN CUALQUIER MOMENTO.
+    </div>
+    """, unsafe_allow_html=True)
+
+    return False
+
+
+def disconnect_garmin():
+    """Desconecta la cuenta de Garmin del usuario."""
+    supabase = get_supabase()
+    user_id = get_user_id()
+
+    supabase.table("garmin_connections").delete().eq(
+        "user_id", user_id
+    ).execute()
+
+
+========================================
+FILE: garmin_token_setup.py
+========================================
+"""
+Garmin Token Setup - Run this locally to generate auth tokens.
+
+Usage:
+    python3 garmin_token_setup.py
+
+This will:
+1. Log into Garmin SSO with your credentials
+2. Ask for MFA code if needed
+3. Save garth tokens to .garmin_tokens/
+4. Commit and push so Streamlit Cloud can use them
+
+After running this, the dashboard will use saved tokens
+instead of logging in each time.
+"""
+import os
+import sys
+import json
+
+# Add project dir to path
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+
+def main():
+    # Load credentials from .streamlit/secrets.toml or ask user
+    email = None
+    password = None
+
+    try:
+        import tomllib
+    except ImportError:
+        try:
+            import tomli as tomllib
+        except ImportError:
+            tomllib = None
+
+    secrets_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.streamlit', 'secrets.toml')
+    if tomllib and os.path.exists(secrets_path):
+        with open(secrets_path, 'rb') as f:
+            secrets = tomllib.load(f)
+            email = secrets.get('garmin', {}).get('email', '')
+            password = secrets.get('garmin', {}).get('password', '')
+
+    if not email:
+        email = input("Email de Garmin: ").strip()
+    if not password:
+        import getpass
+        password = getpass.getpass("Password de Garmin: ").strip()
+
+    print(f"\nLogueando como {email}...")
+
+    from garmin_auth import garmin_login, garmin_verify_mfa, garmin_connect_with_ticket
+
+    # Phase 1: Login
+    result = garmin_login(email, password)
+
+    if result.get('mfa_required'):
+        print("\nGarmin requiere codigo MFA.")
+        mfa_code = input("Ingresa el codigo de 6 digitos: ").strip()
+
+        # Phase 2: Verify MFA
+        ticket = garmin_verify_mfa(result['session'], mfa_code)
+        print("MFA verificado!")
+    else:
+        ticket = result['ticket']
+        print("Login exitoso (sin MFA)!")
+
+    # Phase 3: Get authenticated client with tokens
+    print("Obteniendo tokens OAuth...")
+    client = garmin_connect_with_ticket(email, password, ticket)
+
+    # Save tokens in project directory
+    project_dir = os.path.dirname(os.path.abspath(__file__))
+    token_dir = os.path.join(project_dir, '.garmin_tokens')
+    client.garth.dump(token_dir)
+    print(f"\nTokens guardados en: {token_dir}/")
+
+    # Also save to home directory as backup
+    home_token_dir = os.path.expanduser("~/.garmin_tokens")
+    client.garth.dump(home_token_dir)
+
+    # Verify tokens work
+    try:
+        display_name = client.garth.profile.get("displayName", "?")
+        print(f"Conectado como: {display_name}")
+    except Exception:
+        print("Tokens guardados (no se pudo verificar perfil)")
+
+    print("\nAhora commitea y pushea los tokens:")
+    print("  git add .garmin_tokens/")
+    print('  git commit -m "Add Garmin auth tokens"')
+    print("  git push origin main")
+    print("\nDespues de eso, la app usa los tokens sin necesitar login.")
+
+
+if __name__ == '__main__':
+    main()
+
+
+========================================
+FILE: whoop_streamlit.py
+========================================
+"""
+WHOOP Live Client for Streamlit Cloud.
+
+Loads tokens from Streamlit secrets, refreshes them in-session via st.session_state,
+and calls the WHOOP API directly. Falls back to whoop_cache.json if API fails.
+"""
+
+import requests
+import time
+import json
+import os
+import streamlit as st
+from datetime import datetime, timedelta
+from calendar import monthrange
+
+
+WHOOP_API = 'https://api.prod.whoop.com/developer/v2'
+WHOOP_TOKEN_URL = 'https://api.prod.whoop.com/oauth/oauth2/token'
+
+
+def _get_tokens():
+    """Get current tokens from session_state or initialize from secrets."""
+    if 'whoop_tokens' not in st.session_state:
+        try:
+            tokens = {
+                'access_token': st.secrets["whoop"]["access_token"],
+                'refresh_token': st.secrets["whoop"]["refresh_token"],
+                'expires_at': st.secrets["whoop"].get("expires_at", 0),
+            }
+            st.session_state.whoop_tokens = tokens
+        except Exception:
+            # Try loading from WHOOP_TOKENS_JSON env var (CI/local)
+            tokens_json = os.environ.get('WHOOP_TOKENS_JSON')
+            if tokens_json:
+                st.session_state.whoop_tokens = json.loads(tokens_json)
+            else:
+                # Try local file
+                token_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'whoop_tokens.json')
+                if os.path.exists(token_file):
+                    with open(token_file, 'r') as f:
+                        st.session_state.whoop_tokens = json.load(f)
+                else:
+                    return None
+    return st.session_state.whoop_tokens
+
+
+def _save_tokens(tokens):
+    """Save refreshed tokens to session_state."""
+    if 'expires_in' in tokens and 'expires_at' not in tokens:
+        tokens['expires_at'] = time.time() + tokens['expires_in']
+    st.session_state.whoop_tokens = tokens
+
+
+def _get_client_credentials():
+    """Get client_id and client_secret from secrets or env."""
+    try:
+        return st.secrets["whoop"]["client_id"], st.secrets["whoop"]["client_secret"]
+    except Exception:
+        client_id = os.environ.get('WHOOP_CLIENT_ID', '')
+        client_secret = os.environ.get('WHOOP_CLIENT_SECRET', '')
+        return client_id, client_secret
+
+
+def _refresh_tokens(tokens):
+    """Refresh the access token using the refresh token."""
+    client_id, client_secret = _get_client_credentials()
+
+    response = requests.post(WHOOP_TOKEN_URL, data={
+        'grant_type': 'refresh_token',
+        'refresh_token': tokens['refresh_token'],
+        'client_id': client_id,
+        'client_secret': client_secret,
+    }, headers={"Content-Type": "application/x-www-form-urlencoded"}, timeout=15)
+    response.raise_for_status()
+
+    new_tokens = response.json()
+    _save_tokens(new_tokens)
+    return new_tokens
+
+
+def _get_headers():
+    """Get authorization headers, refreshing token if needed."""
+    tokens = _get_tokens()
+    if not tokens:
+        raise Exception("No WHOOP tokens available")
+
+    # Preventive refresh: if token expires in < 5 minutes
+    expires_at = tokens.get('expires_at', 0)
+    if expires_at and time.time() > (expires_at - 300):
+        try:
+            tokens = _refresh_tokens(tokens)
+        except Exception as e:
+            print(f"[WHOOP] Token refresh failed: {e}")
+
+    return {'Authorization': f'Bearer {tokens["access_token"]}'}
+
+
+def _api_request(endpoint, params=None):
+    """Make an API request with automatic retry on 401."""
+    url = f"{WHOOP_API}/{endpoint}"
+    headers = _get_headers()
+
+    response = requests.get(url, headers=headers, params=params, timeout=15)
+
+    if response.status_code == 401:
+        # Token expired, try refresh
+        tokens = _get_tokens()
+        if tokens:
+            tokens = _refresh_tokens(tokens)
+            headers = {'Authorization': f'Bearer {tokens["access_token"]}'}
+            response = requests.get(url, headers=headers, params=params, timeout=15)
+
+    response.raise_for_status()
+    return response.json()
+
+
+def _get_all_records(endpoint, start_date, end_date):
+    """Paginate through all records for a date range."""
+    all_records = []
+    next_token = None
+
+    params = {
+        'start': start_date.strftime('%Y-%m-%dT%H:%M:%S.000Z'),
+        'end': end_date.strftime('%Y-%m-%dT%H:%M:%S.000Z'),
+        'limit': 25
+    }
+
+    while True:
+        if next_token:
+            params['nextToken'] = next_token
+
+        data = _api_request(endpoint, params=params)
+
+        if 'records' in data and data['records']:
+            all_records.extend(data['records'])
+
+        if data.get('next_token'):
+            next_token = data['next_token']
+        else:
+            break
+
+    return all_records
+
+
+def get_whoop_monthly_live(year, month):
+    """
+    Fetch WHOOP monthly data live from API.
+    Returns dict with same keys as whoop_cache.json entries.
+    Raises exception if API call fails.
+    """
+    start_date = datetime(year, month, 1)
+    last_day = monthrange(year, month)[1]
+    end_date = datetime(year, month, last_day, 23, 59, 59)
+
+    result = {
+        'sleep_hours_avg': 0,
+        'hr_zones_1_3_hours': 0,
+        'hr_zones_4_5_hours': 0,
+        'avg_recovery_score': 0,
+        'avg_resting_hr': 0,
+        'avg_sleep_consistency': 0,
+        'synced_at': datetime.now().isoformat(),
+        'live': True,
+    }
+
+    # --- Sleep ---
+    sleeps = _get_all_records('activity/sleep', start_date, end_date)
+    if sleeps:
+        total_sleep_ms = 0
+        total_consistency = 0
+
+        for sleep in sleeps:
+            if sleep.get('score') and sleep['score'].get('stage_summary'):
+                stages = sleep['score']['stage_summary']
+                actual_sleep_ms = (
+                    stages.get('total_light_sleep_time_milli', 0) +
+                    stages.get('total_slow_wave_sleep_time_milli', 0) +
+                    stages.get('total_rem_sleep_time_milli', 0)
+                )
+                total_sleep_ms += actual_sleep_ms
+                total_consistency += sleep['score'].get('sleep_consistency_percentage', 0)
+
+        num_sleeps = len(sleeps)
+        result['sleep_hours_avg'] = round((total_sleep_ms / num_sleeps) / 3600000, 2)
+        result['avg_sleep_consistency'] = round(total_consistency / num_sleeps, 1)
+
+    # --- Recovery ---
+    recoveries = _get_all_records('recovery', start_date, end_date)
+    if recoveries:
+        total_recovery = 0
+        total_resting_hr = 0
+        rhr_count = 0
+
+        for rec in recoveries:
+            if rec.get('score'):
+                total_recovery += rec['score'].get('recovery_score', 0)
+                rhr = rec['score'].get('resting_heart_rate', 0)
+                if rhr > 0:
+                    total_resting_hr += rhr
+                    rhr_count += 1
+
+        result['avg_recovery_score'] = round(total_recovery / len(recoveries), 1)
+        result['avg_resting_hr'] = round(total_resting_hr / rhr_count, 1) if rhr_count > 0 else 0
+
+    # --- Workouts (HR Zones) ---
+    workouts = _get_all_records('activity/workout', start_date, end_date)
+    if workouts:
+        total_zone_1_3 = 0
+        total_zone_4_5 = 0
+
+        for workout in workouts:
+            if workout.get('score') and workout['score'].get('zone_durations'):
+                zones = workout['score']['zone_durations']
+                total_zone_1_3 += (
+                    zones.get('zone_one_milli', 0) +
+                    zones.get('zone_two_milli', 0) +
+                    zones.get('zone_three_milli', 0)
+                )
+                total_zone_4_5 += (
+                    zones.get('zone_four_milli', 0) +
+                    zones.get('zone_five_milli', 0)
+                )
+
+        result['hr_zones_1_3_hours'] = round(total_zone_1_3 / 3600000, 2)
+        result['hr_zones_4_5_hours'] = round(total_zone_4_5 / 3600000, 2)
+
+    return result
+
+
+def load_whoop_cache():
+    """Load WHOOP data from local cache file (fallback)."""
+    cache_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'whoop_cache.json')
+    if os.path.exists(cache_path):
+        with open(cache_path, 'r') as f:
+            return json.load(f)
+    return {}
+
+
+def get_whoop_data(year, month):
+    """
+    Get WHOOP data: try live API first, fall back to cache.
+    Returns (data_dict, source_string).
+    """
+    cache_key = f"{year}-{month:02d}"
+
+    # Try live API first
+    try:
+        data = get_whoop_monthly_live(year, month)
+        print(f"[WHOOP] {cache_key} fetched LIVE")
+        return data, "LIVE"
+    except Exception as e:
+        print(f"[WHOOP] Live fetch failed for {cache_key}: {e}")
+
+    # Fall back to cache
+    try:
+        cache = load_whoop_cache()
+        if cache_key in cache:
+            print(f"[WHOOP] {cache_key} loaded from CACHE")
+            return cache[cache_key], f"CACHE ({cache[cache_key].get('synced_at', '?')})"
+    except Exception as e:
+        print(f"[WHOOP] Cache load failed: {e}")
+
+    print(f"[WHOOP] No data available for {cache_key}")
+    return None, "NO DATA"
+
+
+========================================
+FILE: whoop_auth.py
+========================================
+"""
+Autenticación WHOOP con OAuth2 - Con refresh preventivo
+"""
+
+import requests
+import secrets
+import webbrowser
+from http.server import HTTPServer, BaseHTTPRequestHandler
+import json
+import os
+import time
+from urllib.parse import urlencode, parse_qs
+import config
+
+WHOOP_TOKENS_FILE = 'whoop_tokens.json'
+
+class CallbackHandler(BaseHTTPRequestHandler):
+    auth_code = None
+    
+    def do_GET(self):
+        query = parse_qs(self.path.split('?')[1] if '?' in self.path else '')
+        
+        if 'code' in query:
+            CallbackHandler.auth_code = query['code'][0]
+            self.send_response(200)
+            self.send_header('Content-type', 'text/html')
+            self.end_headers()
+            self.wfile.write(b'<html><body><h1>Autorizacion exitosa!</h1><p>Puedes cerrar esta ventana.</p></body></html>')
+        elif 'error' in query:
+            self.send_response(400)
+            self.send_header('Content-type', 'text/html')
+            self.end_headers()
+            error_msg = query.get('error', ['unknown'])[0]
+            self.wfile.write(f'<html><body><h1>Error: {error_msg}</h1></body></html>'.encode())
+        
+    def log_message(self, format, *args):
+        pass
+
+class WhoopAuth:
+    def __init__(self):
+        self.client_id = config.WHOOP_CLIENT_ID
+        self.client_secret = config.WHOOP_CLIENT_SECRET
+        self.redirect_uri = config.WHOOP_REDIRECT_URI
+        self.scopes = 'offline read:recovery read:sleep read:workout read:cycles read:profile'
+        self.tokens = self._load_tokens()
+    
+    def _load_tokens(self):
+        # En CI (GitHub Actions), cargar tokens desde env var
+        tokens_json = os.environ.get('WHOOP_TOKENS_JSON')
+        if tokens_json:
+            try:
+                tokens = json.loads(tokens_json)
+                # Guardar en archivo para que el resto del código funcione normal
+                with open(WHOOP_TOKENS_FILE, 'w') as f:
+                    json.dump(tokens, f)
+                return tokens
+            except json.JSONDecodeError:
+                print("[WHOOP] Error parseando WHOOP_TOKENS_JSON")
+
+        if os.path.exists(WHOOP_TOKENS_FILE):
+            with open(WHOOP_TOKENS_FILE, 'r') as f:
+                return json.load(f)
+        return None
+    
+    def _save_tokens(self, tokens):
+        # Save expires_at timestamp for preventive refresh
+        if 'expires_in' in tokens and 'expires_at' not in tokens:
+            tokens['expires_at'] = time.time() + tokens['expires_in']
+        with open(WHOOP_TOKENS_FILE, 'w') as f:
+            json.dump(tokens, f)
+        self.tokens = tokens
+    
+    def get_authorization_url(self):
+        state = secrets.token_urlsafe(16)
+        params = {
+            'response_type': 'code',
+            'client_id': self.client_id,
+            'redirect_uri': self.redirect_uri,
+            'scope': self.scopes,
+            'state': state
+        }
+        return f"https://api.prod.whoop.com/oauth/oauth2/auth?{urlencode(params)}"
+    
+    def authorize(self):
+        auth_url = self.get_authorization_url()
+        
+        print("\n" + "="*60)
+        print("AUTENTICACIÓN WHOOP")
+        print("="*60)
+        print("\n1. Se abrirá tu navegador automáticamente")
+        print("2. Inicia sesión en WHOOP si es necesario")
+        print("3. Autoriza la aplicación")
+        print(f"\nSi no se abre automáticamente, usa esta URL:\n{auth_url}\n")
+        
+        webbrowser.open(auth_url)
+        
+        print("Esperando autorización...")
+        
+        server = HTTPServer(('localhost', 8000), CallbackHandler)
+        server.handle_request()
+        
+        if CallbackHandler.auth_code:
+            print("\n✅ Autenticación exitosa!")
+            print(f"Access token guardado en: {WHOOP_TOKENS_FILE}\n")
+            tokens = self._exchange_code_for_tokens(CallbackHandler.auth_code)
+            self._save_tokens(tokens)
+            return tokens
+        else:
+            raise Exception("No se recibió código de autorización")
+    
+    def _exchange_code_for_tokens(self, code):
+        url = "https://api.prod.whoop.com/oauth/oauth2/token"
+        headers = {"Content-Type": "application/x-www-form-urlencoded"}
+        data = {
+            "grant_type": "authorization_code",
+            "code": code,
+            "client_id": self.client_id,
+            "client_secret": self.client_secret,
+            "redirect_uri": self.redirect_uri
+        }
+        
+        response = requests.post(url, headers=headers, data=data)
+        response.raise_for_status()
+        return response.json()
+    
+    def refresh_access_token(self):
+        if not self.tokens or 'refresh_token' not in self.tokens:
+            raise Exception("No hay refresh token disponible. Ejecuta authorize() primero.")
+        
+        url = 'https://api.prod.whoop.com/oauth/oauth2/token'
+        headers = {"Content-Type": "application/x-www-form-urlencoded"}
+        data = {
+            'grant_type': 'refresh_token',
+            'refresh_token': self.tokens['refresh_token'],
+            'client_id': self.client_id,
+            'client_secret': self.client_secret
+        }
+        
+        response = requests.post(url, headers=headers, data=data)
+        response.raise_for_status()
+        
+        new_tokens = response.json()
+        self._save_tokens(new_tokens)
+        return new_tokens
+    
+    def get_access_token(self):
+        if not self.tokens:
+            raise Exception("No hay tokens. Ejecuta authorize() primero.")
+
+        # Preventive refresh: if token expires in < 10 minutes, refresh now
+        expires_at = self.tokens.get('expires_at', 0)
+        if expires_at and time.time() > (expires_at - 600):
+            print("   [WHOOP] Token a punto de expirar, renovando preventivamente...")
+            try:
+                self.refresh_access_token()
+            except Exception as e:
+                print(f"   [WHOOP] Error en refresh preventivo: {e}")
+
+        return self.tokens['access_token']
+    
+    def is_authenticated(self):
+        return self.tokens is not None and 'access_token' in self.tokens
+
+
+========================================
+FILE: whoop_sync.py
+========================================
+"""
+WHOOP Local Sync - Corre este script en tu computadora local para bajar datos de WHOOP.
+
+Uso:
+    python whoop_sync.py              # Sincroniza mes actual
+    python whoop_sync.py --all        # Sincroniza todos los meses del año
+    python whoop_sync.py --month 1    # Sincroniza enero
+    python whoop_sync.py --auth       # Re-autorizar (obtener nuevos tokens)
+
+Los datos se guardan en whoop_cache.json y el dashboard los lee de ahi.
+Esto resuelve el problema de que Streamlit Cloud no puede conectarse a WHOOP.
+"""
+
+import json
+import sys
+import os
+from datetime import datetime
+from calendar import monthrange
+
+CACHE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'whoop_cache.json')
+
+
+def load_cache():
+    if os.path.exists(CACHE_FILE):
+        with open(CACHE_FILE, 'r') as f:
+            return json.load(f)
+    return {}
+
+
+def save_cache(cache):
+    with open(CACHE_FILE, 'w') as f:
+        json.dump(cache, f, indent=2)
+    print(f"\n>> Cache guardado en: {CACHE_FILE}")
+
+
+def sync_month(whoop, year, month, cache):
+    key = f"{year}-{month:02d}"
+    print(f"\n{'='*50}")
+    print(f"   Sincronizando {key}...")
+    print(f"{'='*50}")
+
+    try:
+        summary = whoop.get_monthly_summary(year, month)
+
+        cache[key] = {
+            'year': year,
+            'month': month,
+            'synced_at': datetime.now().isoformat(),
+            'sleep_hours_avg': round(summary.get('avg_sleep_hours', 0), 2),
+            'days_before_930': summary.get('days_sleep_before_930pm', 0),
+            'hr_zones_1_3_hours': round(summary.get('hr_zones_1_3_hours', 0), 2),
+            'hr_zones_4_5_hours': round(summary.get('hr_zones_4_5_hours', 0), 2),
+            'avg_hrv': round(summary.get('avg_hrv', 0), 1),
+            'avg_recovery_score': round(summary.get('avg_recovery_score', 0), 1),
+            'avg_resting_hr': round(summary.get('avg_resting_hr', 0), 1),
+            'avg_sleep_consistency': round(summary.get('avg_sleep_consistency', 0), 1),
+            'num_sleeps': len(summary.get('sleep', [])),
+            'num_workouts': len(summary.get('workouts', [])),
+        }
+
+        d = cache[key]
+        print(f"   Sleep avg:     {d['sleep_hours_avg']}h ({d['num_sleeps']} noches)")
+        print(f"   Before 9:30:   {d['days_before_930']} dias")
+        print(f"   HR Zones 1-3:  {d['hr_zones_1_3_hours']}h")
+        print(f"   HR Zones 4-5:  {d['hr_zones_4_5_hours']}h")
+        print(f"   HRV avg:       {d['avg_hrv']}ms")
+        print(f"   Recovery avg:  {d['avg_recovery_score']}%")
+        print(f"   Resting HR:    {d['avg_resting_hr']} bpm")
+        print(f"   Sleep Consist: {d['avg_sleep_consistency']}%")
+
+    except Exception as e:
+        print(f"   ERROR sincronizando {key}: {e}")
+
+    return cache
+
+
+def main():
+    args = sys.argv[1:]
+    now = datetime.now()
+
+    # Handle --auth flag
+    if '--auth' in args:
+        from whoop_auth import WhoopAuth
+        auth = WhoopAuth()
+        auth.authorize()
+        print("\nTokens guardados. Ahora puedes sincronizar con: python whoop_sync.py")
+        return
+
+    # Initialize WHOOP client
+    try:
+        from whoop_client_v2_corrected import WhoopClientV2
+        whoop = WhoopClientV2()
+
+        if not whoop.auth.is_authenticated():
+            print("No hay tokens de WHOOP. Ejecuta primero:")
+            print("  python whoop_sync.py --auth")
+            return
+    except Exception as e:
+        print(f"Error inicializando WHOOP: {e}")
+        print("Ejecuta primero: python whoop_sync.py --auth")
+        return
+
+    cache = load_cache()
+
+    if '--all' in args:
+        # Sync all months of current year up to current month
+        for month in range(1, now.month + 1):
+            cache = sync_month(whoop, now.year, month, cache)
+    elif '--month' in args:
+        idx = args.index('--month')
+        if idx + 1 < len(args):
+            month = int(args[idx + 1])
+            year = now.year
+            if '--year' in args:
+                y_idx = args.index('--year')
+                if y_idx + 1 < len(args):
+                    year = int(args[y_idx + 1])
+            cache = sync_month(whoop, year, month, cache)
+        else:
+            print("Uso: python whoop_sync.py --month 3")
+            return
+    else:
+        # Default: sync current month
+        cache = sync_month(whoop, now.year, now.month, cache)
+
+    save_cache(cache)
+    print("\nListo! El dashboard usara estos datos automaticamente.")
+
+
+if __name__ == '__main__':
+    main()
+
+
+========================================
+FILE: whoop_client_v2_corrected.py
+========================================
+"""
+Cliente WHOOP API v2 - CORREGIDO con zona horaria y sleep real
+"""
+
+import requests
+from datetime import datetime, timedelta
+from whoop_auth import WhoopAuth
+
+
+class WhoopClientV2:
+    def __init__(self):
+        self.auth = WhoopAuth()
+        self.base_url = 'https://api.prod.whoop.com/developer/v2'
+    
+    def _get_headers(self):
+        token = self.auth.get_access_token()
+        return {'Authorization': f'Bearer {token}'}
+    
+    def _make_request(self, endpoint, params=None):
+        url = f"{self.base_url}/{endpoint}"
+        headers = self._get_headers()
+        
+        try:
+            response = requests.get(url, headers=headers, params=params)
+            
+            if response.status_code == 401:
+                self.auth.refresh_access_token()
+                headers = self._get_headers()
+                response = requests.get(url, headers=headers, params=params)
+            
+            response.raise_for_status()
+            return response.json()
+        
+        except requests.exceptions.HTTPError as e:
+            print(f"      Error HTTP {response.status_code} en {endpoint}")
+            print(f"      Response: {response.text}")
+            raise
+    
+    def get_profile(self):
+        return self._make_request('user/profile/basic')
+    
+    def get_body_measurements(self):
+        return self._make_request('user/measurement/body')
+    
+    def get_all_records(self, endpoint, start_date, end_date):
+        all_records = []
+        next_token = None
+        page = 1
+        
+        params = {
+            'start': start_date.strftime('%Y-%m-%dT%H:%M:%S.000Z'),
+            'end': end_date.strftime('%Y-%m-%dT%H:%M:%S.000Z'),
+            'limit': 25
+        }
+        
+        while True:
+            if next_token:
+                params['nextToken'] = next_token
+            
+            try:
+                data = self._make_request(endpoint, params=params)
+                
+                if 'records' in data and data['records']:
+                    all_records.extend(data['records'])
+                    print(f"         Página {page}: {len(data['records'])} registros")
+                    page += 1
+                
+                if 'next_token' in data and data['next_token']:
+                    next_token = data['next_token']
+                else:
+                    break
+                    
+            except Exception as e:
+                print(f"         Error en paginación: {e}")
+                break
+        
+        return all_records
+    
+    def get_monthly_summary(self, year, month):
+        from calendar import monthrange
+        
+        start_date = datetime(year, month, 1)
+        last_day = monthrange(year, month)[1]
+        end_date = datetime(year, month, last_day, 23, 59, 59)
+        
+        summary = {
+            'sleep': [],
+            'recovery': [],
+            'workouts': [],
+            'avg_sleep_hours': 0,
+            'avg_sleep_performance': 0,
+            'avg_sleep_consistency': 0,
+            'avg_hrv': 0,
+            'avg_recovery_score': 0,
+            'days_sleep_before_930pm': 0,
+            'avg_resting_hr': 0,
+            'avg_time_hr_zone_1_3': 0,
+            'avg_time_hr_zone_4_5': 0,
+            'hr_zones_1_3_hours': 0,
+            'hr_zones_4_5_hours': 0
+        }
+        
+        # Sleep
+        print("      🛌 Obteniendo datos de sueño...")
+        try:
+            summary['sleep'] = self.get_all_records('activity/sleep', start_date, end_date)
+            
+            if summary['sleep']:
+                total_sleep_ms = 0
+                total_performance = 0
+                total_consistency = 0
+                days_before_930 = 0
+                
+                for sleep in summary['sleep']:
+                    if sleep.get('score') and sleep['score'].get('stage_summary'):
+                        stages = sleep['score']['stage_summary']
+                        
+                        # CORRECCIÓN 1: Usar tiempo REAL dormido (no in bed)
+                        actual_sleep_ms = (
+                            stages.get('total_light_sleep_time_milli', 0) +
+                            stages.get('total_slow_wave_sleep_time_milli', 0) +
+                            stages.get('total_rem_sleep_time_milli', 0)
+                        )
+                        total_sleep_ms += actual_sleep_ms
+                        
+                        # Sleep performance y consistency
+                        total_performance += sleep['score'].get('sleep_performance_percentage', 0)
+                        total_consistency += sleep['score'].get('sleep_consistency_percentage', 0)
+                        
+                        # CORRECCIÓN 2: Convertir a hora local correctamente
+                        start_time_str = sleep.get('start', '')
+                        timezone_offset = sleep.get('timezone_offset', '-06:00')
+                        
+                        if start_time_str:
+                            # Parse UTC time
+                            utc_time = datetime.fromisoformat(start_time_str.replace('Z', '+00:00'))
+                            
+                            # Aplicar offset (ej: -06:00)
+                            offset_hours = int(timezone_offset.split(':')[0])
+                            offset_minutes = int(timezone_offset.split(':')[1]) if ':' in timezone_offset else 0
+                            offset = timedelta(hours=offset_hours, minutes=offset_minutes)
+                            
+                            local_time = utc_time + offset
+                            
+                            # Verificar si es antes de 9:30 PM (21:30)
+                            if local_time.hour < 21 or (local_time.hour == 21 and local_time.minute < 30):
+                                days_before_930 += 1
+                
+                num_sleeps = len(summary['sleep'])
+                summary['avg_sleep_hours'] = (total_sleep_ms / num_sleeps) / 3600000
+                summary['avg_sleep_performance'] = total_performance / num_sleeps
+                summary['avg_sleep_consistency'] = total_consistency / num_sleeps
+                summary['days_sleep_before_930pm'] = days_before_930
+                
+                print(f"         ✅ {num_sleeps} noches procesadas")
+        
+        except Exception as e:
+            print(f"         ⚠️  Error: {e}")
+        
+        # Recovery
+        print("      💪 Obteniendo datos de recovery...")
+        try:
+            summary['recovery'] = self.get_all_records('recovery', start_date, end_date)
+            
+            if summary['recovery']:
+                total_hrv = 0
+                total_recovery = 0
+                total_resting_hr = 0
+                rhr_count = 0
+
+                for rec in summary['recovery']:
+                    if rec.get('score'):
+                        total_hrv += rec['score'].get('hrv_rmssd_milli', 0)
+                        total_recovery += rec['score'].get('recovery_score', 0)
+                        rhr = rec['score'].get('resting_heart_rate', 0)
+                        if rhr > 0:
+                            total_resting_hr += rhr
+                            rhr_count += 1
+
+                num_recovery = len(summary['recovery'])
+                summary['avg_hrv'] = total_hrv / num_recovery
+                summary['avg_recovery_score'] = total_recovery / num_recovery
+                summary['avg_resting_hr'] = round(total_resting_hr / rhr_count, 1) if rhr_count > 0 else 0
+                
+            print(f"         ✅ {len(summary['recovery'])} registros")
+        except Exception as e:
+            print(f"         ⚠️  Error: {e}")
+        
+        # Workouts (con HR zones)
+        print("      🏃 Obteniendo workouts...")
+        try:
+            summary['workouts'] = self.get_all_records('activity/workout', start_date, end_date)
+            
+            if summary['workouts']:
+                total_zone_1_3 = 0
+                total_zone_4_5 = 0
+
+                for workout in summary['workouts']:
+                    if workout.get('score') and workout['score'].get('zone_durations'):
+                        zones = workout['score']['zone_durations']
+
+                        # Zones 1-3 (low-moderate intensity)
+                        # WHOOP zone_one/two/three = HR zones 1-3
+                        total_zone_1_3 += (
+                            zones.get('zone_one_milli', 0) +
+                            zones.get('zone_two_milli', 0) +
+                            zones.get('zone_three_milli', 0)
+                        )
+
+                        # Zones 4-5 (high intensity)
+                        # WHOOP zone_four/five = HR zones 4-5
+                        total_zone_4_5 += (
+                            zones.get('zone_four_milli', 0) +
+                            zones.get('zone_five_milli', 0)
+                        )
+
+                num_workouts = len(summary['workouts'])
+                # Total hours for the month (for dashboard)
+                summary['hr_zones_1_3_hours'] = total_zone_1_3 / 3600000
+                summary['hr_zones_4_5_hours'] = total_zone_4_5 / 3600000
+                # Average per workout in minutes (legacy)
+                summary['avg_time_hr_zone_1_3'] = (total_zone_1_3 / num_workouts) / 60000
+                summary['avg_time_hr_zone_4_5'] = (total_zone_4_5 / num_workouts) / 60000
+                
+            print(f"         ✅ {len(summary['workouts'])} workouts")
+        except Exception as e:
+            print(f"         ⚠️  Error: {e}")
+        
+        return summary
+
+
+========================================
+FILE: whoop_cache.json
+========================================
+{
+  "2026-01": {
+    "year": 2026,
+    "month": 1,
+    "synced_at": "2026-03-10T12:49:37.672435",
+    "sleep_hours_avg": 6.96,
+    "days_before_930": 4,
+    "hr_zones_1_3_hours": 19.32,
+    "hr_zones_4_5_hours": 3.31,
+    "avg_hrv": 76.6,
+    "avg_recovery_score": 58.0,
+    "avg_resting_hr": 52.1,
+    "avg_sleep_consistency": 74.1,
+    "num_sleeps": 31,
+    "num_workouts": 66
+  },
+  "2026-02": {
+    "year": 2026,
+    "month": 2,
+    "synced_at": "2026-03-10T12:49:40.576965",
+    "sleep_hours_avg": 6.93,
+    "days_before_930": 8,
+    "hr_zones_1_3_hours": 17.93,
+    "hr_zones_4_5_hours": 2.66,
+    "avg_hrv": 68.1,
+    "avg_recovery_score": 54.4,
+    "avg_resting_hr": 53.4,
+    "avg_sleep_consistency": 72.1,
+    "num_sleeps": 29,
+    "num_workouts": 66
+  },
+  "2026-03": {
+    "year": 2026,
+    "month": 3,
+    "synced_at": "2026-03-10T12:49:41.832928",
+    "sleep_hours_avg": 6.64,
+    "days_before_930": 1,
+    "hr_zones_1_3_hours": 5.5,
+    "hr_zones_4_5_hours": 0.47,
+    "avg_hrv": 74.6,
+    "avg_recovery_score": 59.9,
+    "avg_resting_hr": 52.0,
+    "avg_sleep_consistency": 74.4,
+    "num_sleeps": 10,
+    "num_workouts": 17
+  }
+}
+
+
+========================================
+FILE: auth.py
+========================================
+"""
+Autenticacion con Supabase - Login, Registro, Logout
+"""
+import streamlit as st
+from supabase import create_client
+
+
+def get_supabase():
+    """Inicializa cliente de Supabase con token del usuario para RLS."""
+    url = st.secrets["supabase"]["url"]
+    key = st.secrets["supabase"]["key"]
+    supabase = create_client(url, key)
+
+    if "access_token" in st.session_state and st.session_state.access_token:
+        supabase.postgrest.auth(st.session_state.access_token)
+
+    return supabase
+
+
+def show_auth_page():
+    """Muestra pagina de login/registro. Retorna True si el usuario esta autenticado."""
+    if "user" in st.session_state and st.session_state.user:
+        return True
+
+    st.title("HABIT TRACKER")
+    st.caption("TRACK YOUR HABITS")
+
+    tab1, tab2 = st.tabs(["LOGIN", "REGISTRO"])
+
+    with tab1:
+        email = st.text_input("Email", key="login_email", placeholder="tu@email.com")
+        password = st.text_input("Password", type="password", key="login_pwd")
+
+        if st.button("Iniciar Sesion", use_container_width=True):
+            if not email or not password:
+                st.error("Ingresa email y password")
+            else:
+                with st.spinner("Verificando..."):
+                    try:
+                        supabase = get_supabase()
+                        res = supabase.auth.sign_in_with_password({
+                            "email": email,
+                            "password": password
+                        })
+                        st.session_state.user = res.user
+                        st.session_state.access_token = res.session.access_token
+                        st.rerun()
+                    except Exception as e:
+                        error_msg = str(e)
+                        if "Invalid login" in error_msg:
+                            st.error("Email o password incorrecto")
+                        else:
+                            st.error(f"Error: {error_msg}")
+
+    with tab2:
+        reg_email = st.text_input("Email", key="reg_email", placeholder="tu@email.com")
+        reg_password = st.text_input("Password", type="password", key="reg_pwd")
+        reg_password2 = st.text_input("Confirmar Password", type="password", key="reg_pwd2")
+
+        if st.button("Crear Cuenta", use_container_width=True):
+            if not reg_email or not reg_password:
+                st.error("Ingresa email y password")
+            elif reg_password != reg_password2:
+                st.error("Los passwords no coinciden")
+            elif len(reg_password) < 6:
+                st.error("El password debe tener al menos 6 caracteres")
+            else:
+                with st.spinner("Creando cuenta..."):
+                    try:
+                        supabase = get_supabase()
+                        res = supabase.auth.sign_up({
+                            "email": reg_email,
+                            "password": reg_password
+                        })
+                        if res.session:
+                            st.session_state.user = res.user
+                            st.session_state.access_token = res.session.access_token
+                            st.success("Cuenta creada!")
+                            st.rerun()
+                        else:
+                            st.success("Cuenta creada. Ya puedes iniciar sesion.")
+                    except Exception as e:
+                        error_msg = str(e)
+                        if "already registered" in error_msg:
+                            st.error("Este email ya esta registrado")
+                        else:
+                            st.error(f"Error: {error_msg}")
+
+    return False
+
+
+def show_logout_button():
+    """Muestra boton de logout."""
+    if st.button("LOGOUT", use_container_width=True):
+        st.session_state.user = None
+        st.session_state.access_token = None
+        st.rerun()
+
+
+def get_user_id():
+    """Retorna el user_id del usuario loggeado."""
+    if "user" in st.session_state and st.session_state.user:
+        return st.session_state.user.id
+    return None
+
+
+def get_user_email():
+    """Retorna el email del usuario loggeado."""
+    if "user" in st.session_state and st.session_state.user:
+        return st.session_state.user.email
+    return None
+
+
+========================================
+FILE: goals_setup.py
+========================================
+"""
+Configuracion de metas personalizadas por usuario
+"""
+import streamlit as st
+from auth import get_supabase, get_user_id
+
+# Metas por defecto
+DEFAULT_GOALS = {
+    'steps_avg': 10000,
+    'activities': 28,
+    'strength': 10,
+    'sleep_hours_avg': 7.5,
+    'hr_zone_1_3': 19.3,
+    'hr_zone_4_5': 2.9,
+    'recovery_score': 50.0,
+    'resting_hr': 55.0,
+    'sleep_consistency': 80.0,
+}
+
+
+def get_user_goals():
+    """Obtiene las metas del usuario. Si no tiene, retorna las default."""
+    supabase = get_supabase()
+    user_id = get_user_id()
+
+    result = supabase.table("user_goals").select("*").eq(
+        "user_id", user_id
+    ).execute()
+
+    if result.data:
+        row = result.data[0]
+        return {
+            'steps_avg': row.get('steps_avg', DEFAULT_GOALS['steps_avg']),
+            'activities': row.get('activities', DEFAULT_GOALS['activities']),
+            'strength': row.get('strength', DEFAULT_GOALS['strength']),
+            'sleep_hours_avg': float(row.get('sleep_hours_avg', DEFAULT_GOALS['sleep_hours_avg'])),
+            'hr_zone_1_3': float(row.get('hr_zone_1_3', DEFAULT_GOALS['hr_zone_1_3'])),
+            'hr_zone_4_5': float(row.get('hr_zone_4_5', DEFAULT_GOALS['hr_zone_4_5'])),
+            'recovery_score': float(row.get('recovery_score', DEFAULT_GOALS['recovery_score'])),
+            'resting_hr': float(row.get('resting_hr', DEFAULT_GOALS['resting_hr'])),
+            'sleep_consistency': float(row.get('sleep_consistency', DEFAULT_GOALS['sleep_consistency'])),
+        }
+
+    return dict(DEFAULT_GOALS)
+
+
+def has_goals():
+    """Verifica si el usuario ya configuro sus metas."""
+    supabase = get_supabase()
+    user_id = get_user_id()
+
+    result = supabase.table("user_goals").select("id").eq(
+        "user_id", user_id
+    ).execute()
+
+    return bool(result.data)
+
+
+def show_goals_setup(first_time=True):
+    """Muestra formulario para configurar metas. Retorna True si ya tiene metas."""
+    if first_time and has_goals():
+        return True
+
+    if first_time:
+        st.header("CONFIGURA TUS METAS")
+        st.caption("Define tus objetivos mensuales de fitness y sueno. Puedes cambiarlos en cualquier momento.")
+    else:
+        st.header("EDITAR METAS")
+
+    current = get_user_goals()
+
+    # ---- FITNESS HABITS ----
+    st.subheader("FITNESS HABITS")
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        steps = st.number_input(
+            "Steps diarios promedio",
+            min_value=1000, max_value=50000, value=current['steps_avg'], step=1000,
+            help="Promedio de pasos diarios que quieres alcanzar"
+        )
+        strength = st.number_input(
+            "Sesiones de fuerza / mes",
+            min_value=0, max_value=31, value=current['strength'], step=1,
+            help="Dias de entrenamiento de fuerza al mes"
+        )
+        hr_13 = st.number_input(
+            "Horas en HR Zones 1-3 / mes",
+            min_value=0.0, max_value=100.0, value=current['hr_zone_1_3'], step=0.5,
+            help="Horas totales en zonas de baja-media intensidad (WHOOP)"
+        )
+
+    with col2:
+        activities = st.number_input(
+            "Dias de ejercicio / mes",
+            min_value=0, max_value=31, value=current['activities'], step=1,
+            help="Total de actividades fisicas al mes"
+        )
+        hr_45 = st.number_input(
+            "Horas en HR Zones 4-5 / mes",
+            min_value=0.0, max_value=50.0, value=current['hr_zone_4_5'], step=0.5,
+            help="Horas totales en zonas de alta intensidad (WHOOP)"
+        )
+
+    # ---- SLEEP HABITS ----
+    st.subheader("SLEEP HABITS")
+
+    col3, col4 = st.columns(2)
+
+    with col3:
+        sleep_hours = st.number_input(
+            "Horas de sueno promedio",
+            min_value=4.0, max_value=12.0, value=current['sleep_hours_avg'], step=0.5,
+            help="Promedio de horas de sueno por noche (WHOOP)"
+        )
+        resting_hr = st.number_input(
+            "Resting HR maximo (bpm)",
+            min_value=30.0, max_value=100.0, value=current['resting_hr'], step=1.0,
+            help="Frecuencia cardiaca en reposo objetivo (menor es mejor)"
+        )
+
+    with col4:
+        recovery = st.number_input(
+            "Recovery Score promedio (%)",
+            min_value=10.0, max_value=100.0, value=current['recovery_score'], step=5.0,
+            help="Score de recuperacion promedio mensual (WHOOP)"
+        )
+        sleep_consistency = st.number_input(
+            "Sleep Consistency promedio (%)",
+            min_value=10.0, max_value=100.0, value=current['sleep_consistency'], step=5.0,
+            help="Consistencia de sueno promedio mensual (WHOOP)"
+        )
+
+    if st.button("GUARDAR METAS", use_container_width=True):
+        supabase = get_supabase()
+        user_id = get_user_id()
+
+        goals_data = {
+            "user_id": user_id,
+            "steps_avg": steps,
+            "activities": activities,
+            "strength": strength,
+            "sleep_hours_avg": sleep_hours,
+            "hr_zone_1_3": hr_13,
+            "hr_zone_4_5": hr_45,
+            "recovery_score": recovery,
+            "resting_hr": resting_hr,
+            "sleep_consistency": sleep_consistency,
+        }
+
+        try:
+            if has_goals():
+                supabase.table("user_goals").update({
+                    k: v for k, v in goals_data.items() if k != "user_id"
+                }).eq("user_id", user_id).execute()
+            else:
+                supabase.table("user_goals").insert(goals_data).execute()
+
+            st.success("Metas guardadas!")
+            st.rerun()
+        except Exception as e:
+            st.error(f"Error guardando metas: {str(e)}")
+
+    return False
+
+
+========================================
+FILE: dashboard.py
+========================================
+"""
+Fitness Tracker Dashboard - Pure Streamlit (no custom HTML)
+Data from Garmin + WHOOP
+"""
+
+import streamlit as st
+from datetime import datetime, timedelta
+from calendar import monthrange
+from auth import show_auth_page, show_logout_button, get_user_email
+from goals_setup import get_user_goals, has_goals, show_goals_setup
+
+st.set_page_config(
+    page_title="Fitness Tracker",
+    page_icon="🏃‍♂️",
+    layout="wide"
+)
+
+# ============ AUTH GATE ============
+if not show_auth_page():
+    st.stop()
+
+user_email = get_user_email()
+
+# ============ GLOBAL STATE ============
+today = datetime.now()
+current_month = today.month
+current_year = today.year
+days_in_month = monthrange(current_year, current_month)[1]
+days_elapsed = today.day
+progress_pct = (days_elapsed / days_in_month * 100)
+
+MESES_NOMBRES = {
+    1: 'ENERO', 2: 'FEBRERO', 3: 'MARZO', 4: 'ABRIL',
+    5: 'MAYO', 6: 'JUNIO', 7: 'JULIO', 8: 'AGOSTO',
+    9: 'SEPTIEMBRE', 10: 'OCTUBRE', 11: 'NOVIEMBRE', 12: 'DICIEMBRE'
+}
+
+MESES_CORTOS = {
+    1: 'ENE', 2: 'FEB', 3: 'MAR', 4: 'ABR',
+    5: 'MAY', 6: 'JUN', 7: 'JUL', 8: 'AGO',
+    9: 'SEP', 10: 'OCT', 11: 'NOV', 12: 'DIC'
+}
+
+# Goals gate
+if not has_goals():
+    show_goals_setup(first_time=True)
+    st.stop()
+
+metas = get_user_goals()
+
+# Metric definitions: (key, label, unit, type)
+FITNESS_METRICS = [
+    ('steps_avg', 'Steps Daily Avg', '', 'promedio'),
+    ('activities', 'Activities / Mes', '', 'total'),
+    ('strength', 'Strength Training', '', 'total'),
+    ('hr_zone_1_3', 'HR Zones 1-3', 'h', 'total'),
+    ('hr_zone_4_5', 'HR Zones 4-5', 'h', 'total'),
+]
+
+SLEEP_METRICS = [
+    ('sleep_hours_avg', 'Sleep Duration', 'h', 'promedio'),
+    ('recovery_score', 'Recovery Score', '%', 'promedio'),
+    ('resting_hr', 'Resting HR', 'bpm', 'promedio_inverted'),
+    ('sleep_consistency', 'Sleep Consistency', '%', 'promedio'),
+]
+
+ALL_METRIC_KEYS = [m[0] for m in FITNESS_METRICS + SLEEP_METRICS]
+
+if 'vista' not in st.session_state:
+    st.session_state.vista = "mes"
+
+# ============ NAVIGATION ============
+col_nav1, col_nav2, col_nav3, col_nav4, col_nav5 = st.columns([1, 1, 1, 1, 1])
+
+with col_nav1:
+    if st.button("MES ACTUAL", use_container_width=True):
+        st.session_state.vista = "mes"
+        st.rerun()
+
+with col_nav2:
+    if st.button("HISTORICO", use_container_width=True):
+        st.session_state.vista = "historico"
+        st.rerun()
+
+with col_nav3:
+    if st.button("METAS", use_container_width=True):
+        st.session_state.vista = "metas"
+        st.rerun()
+
+with col_nav4:
+    if st.button("ACTUALIZAR", use_container_width=True):
+        st.cache_data.clear()
+        st.rerun()
+
+with col_nav5:
+    show_logout_button()
+
+st.divider()
+
+# ============ DATA FETCHING ============
+from whoop_streamlit import get_whoop_data
+
+
+@st.cache_data(ttl=60)
+def get_monthly_data(year, month):
+    data = {
+        'month': month, 'year': year,
+        'steps_avg': 0, 'activities': 0, 'strength': 0,
+        'sleep_hours_avg': 0,
+        'hr_zone_1_3': 0, 'hr_zone_4_5': 0,
+        'recovery_score': 0, 'resting_hr': 0, 'sleep_consistency': 0,
+        'whoop_source': 'NO DATA',
+    }
+
+    # --- GARMIN ---
+    try:
+        from garmin_client import GarminClient
+
+        garmin = GarminClient()
+        garmin.login()
+
+        start_date = datetime(year, month, 1)
+        last_day = monthrange(year, month)[1]
+        is_current = (year == current_year and month == current_month)
+        end_date = today if is_current else datetime(year, month, last_day)
+
+        total_steps = 0
+        days_with_steps = 0
+        current_date = start_date
+        while current_date <= end_date:
+            try:
+                stats = garmin.get_stats_for_date(current_date)
+                if stats and stats.get('totalSteps'):
+                    total_steps += stats['totalSteps']
+                    days_with_steps += 1
+            except:
+                pass
+            current_date += timedelta(days=1)
+
+        data['steps_avg'] = round(total_steps / days_with_steps) if days_with_steps > 0 else 0
+
+        all_activities = garmin.get_activities(start_date, end_date, limit=100)
+        filtered_activities = []
+        strength_count = 0
+
+        for activity in all_activities:
+            activity_date_str = activity.get('startTimeLocal', '')
+            if activity_date_str:
+                activity_date = datetime.strptime(activity_date_str[:10], '%Y-%m-%d')
+                if activity_date.year == year and activity_date.month == month:
+                    activity_type = activity.get('activityType', {}).get('typeKey', '').lower()
+                    if 'breath' not in activity_type and 'meditation' not in activity_type:
+                        filtered_activities.append(activity)
+                        if any(kw in activity_type for kw in ['strength', 'training', 'gym', 'weight']):
+                            strength_count += 1
+
+        data['activities'] = len(filtered_activities)
+        data['strength'] = strength_count
+
+    except Exception as e:
+        st.error(f"Error cargando Garmin: {str(e)}")
+
+    # --- WHOOP ---
+    whoop, source = get_whoop_data(year, month)
+    data['whoop_source'] = source
+
+    if whoop:
+        try:
+            raw_1_3 = whoop.get('hr_zones_1_3_hours', 0)
+            data['hr_zone_1_3'] = round(float(raw_1_3), 1) if raw_1_3 is not None else 0
+        except (TypeError, ValueError):
+            data['hr_zone_1_3'] = 0
+        try:
+            raw_4_5 = whoop.get('hr_zones_4_5_hours', 0)
+            data['hr_zone_4_5'] = round(float(raw_4_5), 1) if raw_4_5 is not None else 0
+        except (TypeError, ValueError):
+            data['hr_zone_4_5'] = 0
+
+        data['sleep_hours_avg'] = round(whoop.get('sleep_hours_avg', 0), 1)
+        data['recovery_score'] = round(whoop.get('avg_recovery_score', 0), 1)
+        data['resting_hr'] = round(whoop.get('avg_resting_hr', 0), 1)
+        data['sleep_consistency'] = round(whoop.get('avg_sleep_consistency', 0), 1)
+
+    return data
+
+
+# ============ HELPERS ============
+def fmt(valor, unit):
+    if isinstance(valor, float):
+        return f"{valor} {unit}".strip()
+    elif not unit and isinstance(valor, int) and valor >= 1000:
+        return f"{valor:,}"
+    return f"{valor} {unit}".strip()
+
+
+def get_pct(key, valor, meta, tipo, for_current_month=False):
+    """Get percentage of goal achieved."""
+    if tipo == 'promedio_inverted':
+        return min((meta / valor * 100) if valor > 0 else 100, 100)
+    elif tipo == 'promedio':
+        return min((valor / meta * 100) if meta > 0 else 0, 100)
+    else:
+        if for_current_month:
+            esperado = (meta / days_in_month) * days_elapsed
+            return min((valor / esperado * 100) if esperado > 0 else 0, 100)
+        else:
+            return min((valor / meta * 100) if meta > 0 else 0, 100)
+
+
+def get_status(pct):
+    if pct >= 100:
+        return "🟢"
+    elif pct >= 70:
+        return "🟡"
+    else:
+        return "🔴"
+
+
+def is_metric_met(key, valor, meta):
+    tipo = dict((m[0], m[3]) for m in FITNESS_METRICS + SLEEP_METRICS).get(key, 'total')
+    if tipo == 'promedio_inverted':
+        return valor <= meta
+    else:
+        return valor >= meta
+
+
+def calculate_score(data):
+    return sum(is_metric_met(k, data[k], metas[k]) for k in ALL_METRIC_KEYS)
+
+
+def calculate_averages(all_data):
+    n = len(all_data)
+    if n == 0:
+        return {}
+    avg = {}
+    for key in ALL_METRIC_KEYS:
+        total = sum(d[key] for d in all_data)
+        if key == 'steps_avg':
+            avg[key] = round(total / n)
+        else:
+            avg[key] = round(total / n, 1)
+    return avg
+
+
+def render_metric_row(label, valor, meta, unit, tipo, for_current_month=False):
+    """Render a single metric as st.metric + st.progress in columns."""
+    pct = get_pct(None, valor, meta, tipo, for_current_month)
+    status = get_status(pct)
+
+    inverted = tipo == 'promedio_inverted'
+    meta_label = f"Max: {fmt(meta, unit)}" if inverted else f"Meta: {fmt(meta, unit)}"
+
+    delta_val = None
+    delta_color = "normal"
+    if inverted:
+        diff = meta - valor
+        if diff >= 0:
+            delta_val = f"{abs(diff):.1f} below max"
+            delta_color = "normal"
+        else:
+            delta_val = f"{abs(diff):.1f} over max"
+            delta_color = "inverse"
+    else:
+        if for_current_month and tipo == 'total':
+            esperado = (meta / days_in_month) * days_elapsed
+            diff = valor - esperado
+            delta_val = f"{diff:+.0f} vs expected"
+        else:
+            diff = valor - meta
+            if isinstance(diff, float):
+                delta_val = f"{diff:+.1f} vs meta"
+            else:
+                delta_val = f"{diff:+.0f} vs meta"
+
+    c1, c2 = st.columns([3, 1])
+    with c1:
+        st.metric(
+            label=f"{status} {label}",
+            value=fmt(valor, unit),
+            delta=delta_val,
+            delta_color=delta_color,
+        )
+    with c2:
+        st.caption(meta_label)
+        st.progress(min(pct / 100, 1.0))
+        st.caption(f"{pct:.0f}%")
+
+
+# ============ VIEW: METAS ============
+if st.session_state.vista == "metas":
+    show_goals_setup(first_time=False)
+
+# ============ VIEW: MES ACTUAL ============
+elif st.session_state.vista == "mes":
+
+    month_name = MESES_CORTOS[current_month]
+
+    st.title("FITNESS TRACKER")
+    st.caption(f"{month_name} {current_year}  ·  DIA {days_elapsed}/{days_in_month}  ·  {progress_pct:.0f}% DEL MES")
+
+    with st.spinner(''):
+        data = get_monthly_data(current_year, current_month)
+
+    # ---- SUMMARY ----
+    total_ok = sum(
+        1 for k, _, _, t in FITNESS_METRICS + SLEEP_METRICS
+        if get_pct(k, data[k], metas[k], t, True) >= 100
+    )
+    total_metrics = len(ALL_METRIC_KEYS)
+
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Steps Avg", f"{data['steps_avg']:,}")
+    c2.metric("Habitos en Meta", f"{total_ok}/{total_metrics}")
+    c3.metric("Recovery", f"{data['recovery_score']}%")
+    c4.metric("Progreso Mes", f"{progress_pct:.0f}%")
+
+    st.divider()
+
+    # ---- FITNESS HABITS ----
+    st.subheader("// FITNESS HABITS")
+
+    for key, label, unit, tipo in FITNESS_METRICS:
+        render_metric_row(label, data[key], metas[key], unit, tipo, for_current_month=True)
+
+    st.divider()
+
+    # ---- SLEEP HABITS ----
+    st.subheader("// SLEEP HABITS")
+
+    for key, label, unit, tipo in SLEEP_METRICS:
+        render_metric_row(label, data[key], metas[key], unit, tipo, for_current_month=True)
+
+    st.divider()
+
+    # ---- PROJECTIONS ----
+    st.subheader("// PROYECCION FIN DE MES")
+
+    proj_met = 0
+    proj_rows = []
+    for key, label, unit, tipo in FITNESS_METRICS + SLEEP_METRICS:
+        valor = data[key]
+        meta = metas[key]
+
+        if tipo in ('promedio', 'promedio_inverted'):
+            projected = valor
+        else:
+            daily_rate = valor / days_elapsed if days_elapsed > 0 else 0
+            projected = round(daily_rate * days_in_month, 1)
+
+        if tipo == 'promedio_inverted':
+            meets = projected <= meta
+            pct = (meta / projected * 100) if projected > 0 else 100
+        else:
+            meets = projected >= meta
+            pct = (projected / meta * 100) if meta > 0 else 0
+
+        if meets:
+            proj_met += 1
+
+        status = get_status(min(pct, 100))
+        proj_rows.append({
+            'Metrica': f"{status} {label}",
+            'Proyeccion': fmt(projected if isinstance(projected, float) else int(projected), unit),
+            'Meta': fmt(meta, unit),
+            '%': f"{min(pct, 999):.0f}%",
+        })
+
+    st.caption(f"Proyeccion: {proj_met}/{total_metrics} metas cumplidas al {days_in_month} de {MESES_NOMBRES[current_month]}")
+    st.dataframe(proj_rows, use_container_width=True, hide_index=True)
+
+    # ---- VS PREVIOUS MONTH ----
+    if current_month > 1:
+        prev_month = current_month - 1
+        prev_year = current_year
+        prev_data = get_monthly_data(prev_year, prev_month)
+
+        st.divider()
+        st.subheader(f"// VS {MESES_NOMBRES[prev_month]} {prev_year}")
+
+        comp_rows = []
+        for key, label, unit, tipo in FITNESS_METRICS + SLEEP_METRICS:
+            curr_val = data[key]
+            prev_val = prev_data[key]
+
+            if prev_val > 0:
+                change_pct = ((curr_val - prev_val) / prev_val) * 100
+            elif curr_val > 0:
+                change_pct = 100
+            else:
+                change_pct = 0
+
+            is_inverted = tipo == 'promedio_inverted'
+
+            if change_pct > 2:
+                trend = "⬇️" if is_inverted else "⬆️"
+            elif change_pct < -2:
+                trend = "⬆️" if is_inverted else "⬇️"
+            else:
+                trend = "➡️"
+
+            comp_rows.append({
+                'Metrica': label,
+                f'{MESES_CORTOS[current_month]}': fmt(curr_val, unit),
+                f'{MESES_CORTOS[prev_month]}': fmt(prev_val, unit),
+                'Cambio': f"{trend} {change_pct:+.0f}%",
+            })
+
+        st.dataframe(comp_rows, use_container_width=True, hide_index=True)
+
+    # WHOOP source
+    whoop_src = data.get('whoop_source', '?')
+    st.caption(f"WHOOP: {whoop_src}  ·  Last update: {datetime.now().strftime('%d/%m/%Y %H:%M')}")
+
+
+# ============ VIEW: HISTORICO ============
+elif st.session_state.vista == "historico":
+
+    st.title(f"HISTORICO {current_year}")
+    st.caption("MESES CERRADOS")
+
+    meses_cerrados = list(range(1, current_month))
+
+    if not meses_cerrados:
+        st.info("No hay meses cerrados aun.")
+    else:
+        all_data = []
+
+        with st.spinner('Cargando historico...'):
+            for mes in meses_cerrados:
+                d = get_monthly_data(current_year, mes)
+                all_data.append(d)
+
+        # ---- OVERALL AVERAGE ----
+        avg_data = calculate_averages(all_data)
+        n = len(all_data)
+        avg_score = sum(
+            is_metric_met(key, avg_data[key], metas[key])
+            for key in ALL_METRIC_KEYS
+        )
+        total_metrics = len(ALL_METRIC_KEYS)
+
+        st.subheader(f"// PROMEDIO GENERAL ({n} {'MES' if n == 1 else 'MESES'})  —  {avg_score}/{total_metrics} metas")
+
+        avg_rows = []
+        for key, label, unit, tipo in FITNESS_METRICS + SLEEP_METRICS:
+            valor = avg_data[key]
+            meta = metas[key]
+            pct = get_pct(key, valor, meta, tipo)
+            status = get_status(pct)
+            avg_rows.append({
+                'Metrica': f"{status} {label}",
+                'Promedio': fmt(valor, unit),
+                'Meta': fmt(meta, unit),
+                '%': f"{pct:.0f}%",
+            })
+
+        st.dataframe(avg_rows, use_container_width=True, hide_index=True)
+
+        st.divider()
+
+        # ---- METAS AJUSTADAS ----
+        remaining = 12 - n
+        if remaining > 0:
+            st.subheader("// METAS AJUSTADAS")
+            st.caption(f"Para cumplir tus metas anuales, necesitas estos objetivos mensuales en los {remaining} meses restantes.")
+
+            adj_rows = []
+            for key, label, unit, tipo in FITNESS_METRICS + SLEEP_METRICS:
+                avg_val = avg_data[key]
+                goal = metas[key]
+                is_inverted = tipo == 'promedio_inverted'
+
+                adjusted = (goal * 12 - avg_val * n) / remaining
+                adjusted = max(adjusted, 0)
+
+                if is_inverted:
+                    diff_pct = ((goal - adjusted) / goal * 100) if goal > 0 else 0
+                    diff_pct = -diff_pct
+                else:
+                    diff_pct = ((adjusted - goal) / goal * 100) if goal > 0 else 0
+
+                adjusted_r = round(adjusted, 1)
+
+                if diff_pct <= 0:
+                    status = "🟢 ON TRACK"
+                elif diff_pct <= 30:
+                    status = f"🟡 +{diff_pct:.0f}%"
+                else:
+                    status = f"🔴 +{diff_pct:.0f}%"
+
+                adj_rows.append({
+                    'Metrica': label,
+                    'Meta Original': fmt(goal, unit),
+                    'Meta Ajustada': fmt(adjusted_r, unit),
+                    'Estado': status,
+                })
+
+            st.dataframe(adj_rows, use_container_width=True, hide_index=True)
+            st.divider()
+
+        # ---- PER-MONTH DETAILS ----
+        st.subheader("// DETALLE POR MES")
+
+        for i, (mes, data) in enumerate(zip(meses_cerrados, all_data)):
+            score = calculate_score(data)
+
+            with st.expander(f"{MESES_NOMBRES[mes]} {current_year}  —  {score}/{total_metrics} metas"):
+
+                st.caption("FITNESS HABITS")
+                for key, label, unit, tipo in FITNESS_METRICS:
+                    pct = get_pct(key, data[key], metas[key], tipo)
+                    status = get_status(pct)
+                    st.text(f"{status} {label}: {fmt(data[key], unit)}  (meta: {fmt(metas[key], unit)}, {pct:.0f}%)")
+
+                st.caption("SLEEP HABITS")
+                for key, label, unit, tipo in SLEEP_METRICS:
+                    pct = get_pct(key, data[key], metas[key], tipo)
+                    status = get_status(pct)
+                    st.text(f"{status} {label}: {fmt(data[key], unit)}  (meta: {fmt(metas[key], unit)}, {pct:.0f}%)")
+
+                # Trend vs previous month
+                if i > 0:
+                    prev = all_data[i - 1]
+                    st.caption(f"VS {MESES_NOMBRES[meses_cerrados[i-1]]}")
+                    trends = []
+                    for key, label, unit, tipo in FITNESS_METRICS + SLEEP_METRICS:
+                        curr_val = data[key]
+                        prev_val = prev[key]
+                        if prev_val > 0:
+                            change_pct = ((curr_val - prev_val) / prev_val) * 100
+                        elif curr_val > 0:
+                            change_pct = 100
+                        else:
+                            change_pct = 0
+
+                        is_inv = tipo == 'promedio_inverted'
+                        if change_pct > 2:
+                            arrow = "⬇️" if is_inv else "⬆️"
+                        elif change_pct < -2:
+                            arrow = "⬆️" if is_inv else "⬇️"
+                        else:
+                            arrow = "➡️"
+
+                        short = label.split('/')[0].strip()[:14]
+                        trends.append(f"{arrow} {short} {change_pct:+.0f}%")
+
+                    st.text("  |  ".join(trends))
+
+        st.divider()
+
+        # ---- COMPARISON TABLE ----
+        if len(all_data) >= 1:
+            st.subheader("// COMPARATIVA MENSUAL")
+
+            comp_data = []
+            for key, label, unit, tipo in FITNESS_METRICS + SLEEP_METRICS:
+                row = {'Metrica': label}
+                for mes_idx, d in zip(meses_cerrados, all_data):
+                    row[MESES_CORTOS[mes_idx]] = fmt(d[key], unit)
+                row['Promedio'] = fmt(avg_data[key], unit)
+                row['Meta'] = fmt(metas[key], unit)
+                comp_data.append(row)
+
+            # Score row
+            score_row = {'Metrica': 'SCORE'}
+            for mes_idx, d in zip(meses_cerrados, all_data):
+                s = calculate_score(d)
+                score_row[MESES_CORTOS[mes_idx]] = f"{s}/{total_metrics}"
+            score_row['Promedio'] = f"{avg_score}/{total_metrics}"
+            score_row['Meta'] = f"{total_metrics}/{total_metrics}"
+            comp_data.append(score_row)
+
+            st.dataframe(comp_data, use_container_width=True, hide_index=True)
+
+        st.caption(f"Last update: {datetime.now().strftime('%d/%m/%Y %H:%M')}")
+
+
+========================================
+FILE: requirements.txt
+========================================
+streamlit==1.50.0
+plotly==6.5.2
+pandas==2.3.3
+requests==2.32.5
+openpyxl==3.1.2
+garminconnect==0.2.38
+supabase==2.13.0
+cryptography==44.0.0
+
+
