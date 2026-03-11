@@ -61,53 +61,16 @@ def show_goals_setup(first_time=True):
     if first_time and has_goals():
         return True
 
-    st.markdown("""
-    <style>
-    .goals-title {
-        font-family: 'Inter', sans-serif !important;
-        font-size: 1.8rem !important;
-        font-weight: 800 !important;
-        letter-spacing: 4px !important;
-        background: linear-gradient(135deg, #c4b5fd, #7c3aed, #06b6d4) !important;
-        -webkit-background-clip: text !important;
-        -webkit-text-fill-color: transparent !important;
-        background-clip: text !important;
-        text-align: center;
-        margin-bottom: 8px;
-    }
-    .goals-subtitle {
-        font-family: 'Space Mono', monospace;
-        font-size: 0.6rem;
-        color: #cbd5e1;
-        text-align: center;
-        letter-spacing: 1px;
-        margin-bottom: 24px;
-        line-height: 1.6;
-    }
-    .goal-label {
-        font-family: 'Space Mono', monospace;
-        font-size: 0.6rem;
-        color: #cbd5e1;
-        text-transform: uppercase;
-        letter-spacing: 2px;
-        margin-bottom: 4px;
-    }
-    </style>
-    """, unsafe_allow_html=True)
-
-    st.markdown('<div class="top-gradient"></div>', unsafe_allow_html=True)
-
     if first_time:
-        st.markdown('<div class="goals-title">CONFIGURA TUS METAS</div>', unsafe_allow_html=True)
-        st.markdown('<div class="goals-subtitle">Define tus objetivos mensuales de fitness y sueno.<br>Puedes cambiarlos en cualquier momento.</div>', unsafe_allow_html=True)
+        st.header("CONFIGURA TUS METAS")
+        st.caption("Define tus objetivos mensuales de fitness y sueno. Puedes cambiarlos en cualquier momento.")
     else:
-        st.markdown('<div class="goals-title">EDITAR METAS</div>', unsafe_allow_html=True)
+        st.header("EDITAR METAS")
 
-    # Cargar metas actuales (o defaults)
     current = get_user_goals()
 
     # ---- FITNESS HABITS ----
-    st.markdown('<div class="section-label">// FITNESS HABITS</div>', unsafe_allow_html=True)
+    st.subheader("FITNESS HABITS")
 
     col1, col2 = st.columns(2)
 
@@ -141,7 +104,7 @@ def show_goals_setup(first_time=True):
         )
 
     # ---- SLEEP HABITS ----
-    st.markdown('<div class="section-label">// SLEEP HABITS</div>', unsafe_allow_html=True)
+    st.subheader("SLEEP HABITS")
 
     col3, col4 = st.columns(2)
 

@@ -1,9 +1,6 @@
 """
-Fitness Tracker - Sport HUD Dashboard v4
-- Split into Fitness Habits & Sleep Habits sections
-- HR Zones from WHOOP (total monthly hours)
-- Sleep metrics from WHOOP (duration, recovery, resting HR, consistency)
-- Steps, Activities, Strength from Garmin
+Fitness Tracker Dashboard - Pure Streamlit (no custom HTML)
+Data from Garmin + WHOOP
 """
 
 import streamlit as st
@@ -23,319 +20,6 @@ if not show_auth_page():
     st.stop()
 
 user_email = get_user_email()
-
-st.markdown("""
-<style>
-@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap');
-
-* { font-family: 'DM Sans', sans-serif; }
-
-.stApp { background-color: #050505 !important; color: #e1e8ed !important; }
-
-#MainMenu {visibility: hidden;}
-footer {visibility: hidden;}
-header {visibility: hidden;}
-
-.top-bar {
-    height: 3px;
-    background: linear-gradient(90deg, #00ff87, #00d4ff, #ff0080);
-    margin-bottom: 24px;
-    border-radius: 2px;
-}
-
-.hud-title {
-    font-family: 'Bebas Neue', sans-serif !important;
-    font-size: 2.8rem !important;
-    letter-spacing: 4px !important;
-    color: #fff !important;
-    line-height: 1 !important;
-    margin: 0 !important;
-}
-
-.date-badge {
-    font-family: 'Space Mono', monospace;
-    font-size: 0.6rem;
-    color: #00ff87;
-    background: #0d0d0d;
-    border: 1px solid #1a1a1a;
-    border-radius: 6px;
-    padding: 6px 14px;
-    display: inline-block;
-    letter-spacing: 2px;
-    margin-bottom: 28px;
-}
-
-.section-label {
-    font-family: 'Space Mono', monospace;
-    font-size: 0.6rem;
-    color: #888;
-    text-transform: uppercase;
-    letter-spacing: 4px;
-    margin-bottom: 20px;
-    margin-top: 8px;
-}
-
-.section-title {
-    font-family: 'Bebas Neue', sans-serif;
-    font-size: 1.6rem;
-    color: #fff;
-    letter-spacing: 4px;
-    margin-bottom: 20px;
-    margin-top: 8px;
-}
-
-.section-divider {
-    height: 1px;
-    background: linear-gradient(90deg, transparent, #1a1a1a, #333, #1a1a1a, transparent);
-    margin: 28px 0 20px;
-}
-
-.metric-wrap { margin-bottom: 20px; }
-
-.metric-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 6px;
-}
-
-.metric-name {
-    font-family: 'Space Mono', monospace;
-    font-size: 0.6rem;
-    color: #888;
-    text-transform: uppercase;
-    letter-spacing: 2px;
-}
-
-.metric-source {
-    font-family: 'Space Mono', monospace;
-    font-size: 0.45rem;
-    color: #444;
-    letter-spacing: 1px;
-    margin-left: 6px;
-}
-
-.metric-value {
-    font-family: 'Space Mono', monospace;
-    font-size: 0.85rem;
-    font-weight: 700;
-}
-
-.val-green { color: #00ff87; }
-.val-yellow { color: #ffd700; }
-.val-red { color: #ff4444; }
-
-.metric-bar-bg {
-    height: 3px;
-    background: #1a1a1a;
-    border-radius: 2px;
-    overflow: hidden;
-}
-
-.metric-bar-fill-green {
-    height: 3px;
-    background: linear-gradient(90deg, #00ff87, #00d4ff);
-    border-radius: 2px;
-}
-
-.metric-bar-fill-yellow {
-    height: 3px;
-    background: linear-gradient(90deg, #ffd700, #ff8c00);
-    border-radius: 2px;
-}
-
-.metric-bar-fill-red {
-    height: 3px;
-    background: linear-gradient(90deg, #ff0080, #ff4444);
-    border-radius: 2px;
-}
-
-.metric-pct {
-    font-family: 'Space Mono', monospace;
-    font-size: 0.55rem;
-    color: #888;
-    margin-top: 4px;
-    text-align: right;
-}
-
-.big-stats-row {
-    display: flex;
-    gap: 12px;
-    margin-top: 8px;
-}
-
-.big-stat-box {
-    flex: 1;
-    background: #0d0d0d;
-    border: 1px solid #1a1a1a;
-    border-radius: 10px;
-    padding: 16px;
-}
-
-.big-stat-val {
-    font-family: 'Bebas Neue', sans-serif;
-    font-size: 2rem;
-    letter-spacing: 2px;
-    line-height: 1;
-}
-
-.big-stat-label {
-    font-family: 'Space Mono', monospace;
-    font-size: 0.5rem;
-    color: #888;
-    text-transform: uppercase;
-    letter-spacing: 2px;
-    margin-top: 6px;
-}
-
-.divider { height: 1px; background: #1a1a1a; margin: 24px 0; }
-
-.historical-title {
-    font-family: 'Bebas Neue', sans-serif;
-    font-size: 2rem;
-    letter-spacing: 3px;
-    color: #fff;
-}
-
-.historical-month {
-    font-family: 'Bebas Neue', sans-serif;
-    font-size: 1.2rem;
-    color: #888;
-    letter-spacing: 2px;
-    margin: 20px 0 12px;
-}
-
-.avg-section {
-    background: #0d0d0d;
-    border: 1px solid #00ff87;
-    border-radius: 10px;
-    padding: 20px;
-    margin-top: 8px;
-}
-
-.avg-title {
-    font-family: 'Bebas Neue', sans-serif;
-    font-size: 1.4rem;
-    letter-spacing: 3px;
-    color: #00ff87;
-    margin-bottom: 16px;
-}
-
-.avg-metric-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 8px 0;
-    border-bottom: 1px solid #1a1a1a;
-}
-
-.avg-metric-row:last-child { border-bottom: none; }
-
-.avg-metric-name {
-    font-family: 'Space Mono', monospace;
-    font-size: 0.6rem;
-    color: #888;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-}
-
-.avg-metric-val {
-    font-family: 'Space Mono', monospace;
-    font-size: 0.85rem;
-    font-weight: 700;
-}
-
-.avg-metric-vs {
-    font-family: 'Space Mono', monospace;
-    font-size: 0.6rem;
-    padding: 2px 8px;
-    border-radius: 4px;
-}
-
-.vs-good { background: #052e16; color: #00ff87; }
-.vs-warn { background: #1c1008; color: #ffd700; }
-.vs-bad { background: #1c0808; color: #ff4444; }
-
-.stButton button {
-    background: #0d0d0d !important;
-    color: #888 !important;
-    border: 1px solid #1a1a1a !important;
-    border-radius: 6px !important;
-    font-family: 'Space Mono', monospace !important;
-    font-size: 0.65rem !important;
-    letter-spacing: 1px !important;
-    width: 100% !important;
-}
-
-.stButton button:hover {
-    border-color: #00ff87 !important;
-    color: #00ff87 !important;
-}
-
-.month-header-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin: 20px 0 12px;
-}
-
-.month-score {
-    font-family: 'Space Mono', monospace;
-    font-size: 0.7rem;
-    padding: 4px 12px;
-    border-radius: 6px;
-    letter-spacing: 1px;
-}
-
-.score-good { background: #052e16; color: #00ff87; border: 1px solid #00ff87; }
-.score-mid { background: #1c1008; color: #ffd700; border: 1px solid #ffd700; }
-.score-bad { background: #1c0808; color: #ff4444; border: 1px solid #ff4444; }
-
-.comparison-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-family: 'Space Mono', monospace;
-    font-size: 0.6rem;
-    margin-top: 12px;
-}
-
-.comparison-table th {
-    color: #00d4ff;
-    text-transform: uppercase;
-    letter-spacing: 2px;
-    padding: 10px 8px;
-    border-bottom: 2px solid #1a1a1a;
-    text-align: center;
-    font-size: 0.55rem;
-}
-
-.comparison-table th:first-child { text-align: left; }
-
-.comparison-table td {
-    padding: 8px;
-    border-bottom: 1px solid #111;
-    text-align: center;
-    color: #ccc;
-}
-
-.comparison-table td:first-child {
-    text-align: left;
-    color: #888;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-}
-
-.comparison-table tr:last-child td { border-bottom: none; }
-
-.td-good { color: #00ff87 !important; font-weight: 700; }
-.td-warn { color: #ffd700 !important; }
-.td-bad { color: #ff4444 !important; }
-
-.trend-up { color: #00ff87; }
-.trend-down { color: #ff4444; }
-.trend-flat { color: #888; }
-</style>
-""", unsafe_allow_html=True)
 
 # ============ GLOBAL STATE ============
 today = datetime.now()
@@ -357,30 +41,27 @@ MESES_CORTOS = {
     9: 'SEP', 10: 'OCT', 11: 'NOV', 12: 'DIC'
 }
 
-# Goals gate: first-time users must set goals
+# Goals gate
 if not has_goals():
     show_goals_setup(first_time=True)
     st.stop()
 
-# Load user goals from Supabase
 metas = get_user_goals()
 
-# Fitness Habits metrics (Garmin + WHOOP HR zones)
+# Metric definitions: (key, label, unit, type)
 FITNESS_METRICS = [
-    # (key, label, unit, type)
-    ('steps_avg', 'STEPS DAILY AVG', '', 'promedio'),
-    ('activities', 'ACTIVITIES / MES', '', 'total'),
-    ('strength', 'STRENGTH TRAINING', '', 'total'),
-    ('hr_zone_1_3', 'HR ZONES 1-3', 'h', 'total'),
-    ('hr_zone_4_5', 'HR ZONES 4-5', 'h', 'total'),
+    ('steps_avg', 'Steps Daily Avg', '', 'promedio'),
+    ('activities', 'Activities / Mes', '', 'total'),
+    ('strength', 'Strength Training', '', 'total'),
+    ('hr_zone_1_3', 'HR Zones 1-3', 'h', 'total'),
+    ('hr_zone_4_5', 'HR Zones 4-5', 'h', 'total'),
 ]
 
-# Sleep Habits metrics (all WHOOP)
 SLEEP_METRICS = [
-    ('sleep_hours_avg', 'AVE SLEEP DURATION', 'h', 'promedio'),
-    ('recovery_score', 'RECOVERY SCORE', '%', 'promedio'),
-    ('resting_hr', 'RESTING HR', ' bpm', 'promedio_inverted'),
-    ('sleep_consistency', 'SLEEP CONSISTENCY', '%', 'promedio'),
+    ('sleep_hours_avg', 'Sleep Duration', 'h', 'promedio'),
+    ('recovery_score', 'Recovery Score', '%', 'promedio'),
+    ('resting_hr', 'Resting HR', 'bpm', 'promedio_inverted'),
+    ('sleep_consistency', 'Sleep Consistency', '%', 'promedio'),
 ]
 
 ALL_METRIC_KEYS = [m[0] for m in FITNESS_METRICS + SLEEP_METRICS]
@@ -414,7 +95,7 @@ with col_nav4:
 with col_nav5:
     show_logout_button()
 
-st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
+st.divider()
 
 # ============ DATA FETCHING ============
 from whoop_streamlit import get_whoop_data
@@ -431,7 +112,7 @@ def get_monthly_data(year, month):
         'whoop_source': 'NO DATA',
     }
 
-    # --- GARMIN: Steps, Activities, Strength ---
+    # --- GARMIN ---
     try:
         from garmin_client import GarminClient
 
@@ -443,10 +124,8 @@ def get_monthly_data(year, month):
         is_current = (year == current_year and month == current_month)
         end_date = today if is_current else datetime(year, month, last_day)
 
-        # Steps
         total_steps = 0
         days_with_steps = 0
-
         current_date = start_date
         while current_date <= end_date:
             try:
@@ -460,7 +139,6 @@ def get_monthly_data(year, month):
 
         data['steps_avg'] = round(total_steps / days_with_steps) if days_with_steps > 0 else 0
 
-        # Activities & Strength
         all_activities = garmin.get_activities(start_date, end_date, limit=100)
         filtered_activities = []
         strength_count = 0
@@ -482,7 +160,7 @@ def get_monthly_data(year, month):
     except Exception as e:
         st.error(f"Error cargando Garmin: {str(e)}")
 
-    # --- WHOOP: Live API with cache fallback ---
+    # --- WHOOP ---
     whoop, source = get_whoop_data(year, month)
     data['whoop_source'] = source
 
@@ -506,149 +184,51 @@ def get_monthly_data(year, month):
     return data
 
 
-# ============ HELPER FUNCTIONS ============
-def get_color(pct):
-    if pct >= 100: return "green"
-    elif pct >= 70: return "yellow"
-    else: return "red"
-
-
-def render_metric(nombre, valor, meta, unidad="", tipo='total'):
-    """Render a metric bar. tipo='promedio_inverted' means lower is better (e.g. resting HR)."""
-    inverted = tipo == 'promedio_inverted'
-
-    if inverted:
-        # For inverted metrics (lower is better): at or below goal = 100%
-        pct = min((meta / valor * 100) if valor > 0 else 100, 100)
-    elif tipo == 'promedio' or tipo == 'promedio_inverted':
-        esperado = meta
-        pct = min((valor / esperado * 100) if esperado > 0 else 0, 100)
-    else:
-        esperado = (meta / days_in_month) * days_elapsed
-        pct = min((valor / esperado * 100) if esperado > 0 else 0, 100)
-
-    color = get_color(pct)
-
+# ============ HELPERS ============
+def fmt(valor, unit):
     if isinstance(valor, float):
-        val_display = f"{valor}{unidad}"
-    elif not unidad and isinstance(valor, int) and valor >= 1000:
-        val_display = f"{valor:,}"
+        return f"{valor} {unit}".strip()
+    elif not unit and isinstance(valor, int) and valor >= 1000:
+        return f"{valor:,}"
+    return f"{valor} {unit}".strip()
+
+
+def get_pct(key, valor, meta, tipo, for_current_month=False):
+    """Get percentage of goal achieved."""
+    if tipo == 'promedio_inverted':
+        return min((meta / valor * 100) if valor > 0 else 100, 100)
+    elif tipo == 'promedio':
+        return min((valor / meta * 100) if meta > 0 else 0, 100)
     else:
-        val_display = f"{valor}{unidad}"
-
-    meta_label = f"{'MAX' if inverted else 'META'}: {meta}{unidad}"
-
-    st.markdown(f"""
-    <div class="metric-wrap">
-        <div class="metric-header">
-            <span class="metric-name">{nombre}</span>
-            <span class="metric-value val-{color}">{val_display}</span>
-        </div>
-        <div class="metric-bar-bg">
-            <div class="metric-bar-fill-{color}" style="width:{int(pct)}%"></div>
-        </div>
-        <div class="metric-pct">{pct:.0f}% — {meta_label}</div>
-    </div>
-    """, unsafe_allow_html=True)
+        if for_current_month:
+            esperado = (meta / days_in_month) * days_elapsed
+            return min((valor / esperado * 100) if esperado > 0 else 0, 100)
+        else:
+            return min((valor / meta * 100) if meta > 0 else 0, 100)
 
 
-def render_metric_hist(nombre, valor, meta, unidad="", inverted=False):
-    if inverted:
-        pct = min((meta / valor * 100) if valor > 0 else 100, 100)
+def get_status(pct):
+    if pct >= 100:
+        return "🟢"
+    elif pct >= 70:
+        return "🟡"
     else:
-        pct = min((valor / meta * 100) if meta > 0 else 0, 100)
-    color = get_color(pct)
-
-    if isinstance(valor, float):
-        val_display = f"{valor}{unidad}"
-    elif not unidad and isinstance(valor, int) and valor >= 1000:
-        val_display = f"{valor:,}"
-    else:
-        val_display = f"{valor}{unidad}"
-
-    meta_label = f"{'MAX' if inverted else 'META'}: {meta}{unidad}"
-
-    st.markdown(f"""
-    <div class="metric-wrap">
-        <div class="metric-header">
-            <span class="metric-name">{nombre}</span>
-            <span class="metric-value val-{color}">{val_display}</span>
-        </div>
-        <div class="metric-bar-bg">
-            <div class="metric-bar-fill-{color}" style="width:{int(pct)}%"></div>
-        </div>
-        <div class="metric-pct">{pct:.0f}% — {meta_label}</div>
-    </div>
-    """, unsafe_allow_html=True)
-
-
-def is_metric_on_track(key, valor, meta):
-    """Check if a metric is on track (for current month with prorated totals)."""
-    metric_type = dict((m[0], m[3]) for m in FITNESS_METRICS + SLEEP_METRICS).get(key, 'total')
-    if metric_type == 'promedio_inverted':
-        return valor <= meta
-    elif metric_type == 'promedio':
-        return valor >= meta
-    else:
-        esperado = (meta / days_in_month) * days_elapsed
-        return valor >= esperado
+        return "🔴"
 
 
 def is_metric_met(key, valor, meta):
-    """Check if a metric met its goal (for closed months)."""
-    metric_type = dict((m[0], m[3]) for m in FITNESS_METRICS + SLEEP_METRICS).get(key, 'total')
-    if metric_type == 'promedio_inverted':
+    tipo = dict((m[0], m[3]) for m in FITNESS_METRICS + SLEEP_METRICS).get(key, 'total')
+    if tipo == 'promedio_inverted':
         return valor <= meta
     else:
         return valor >= meta
 
 
 def calculate_score(data):
-    """Calculate how many goals are met."""
-    score = 0
-    for key in ALL_METRIC_KEYS:
-        if is_metric_met(key, data[key], metas[key]):
-            score += 1
-    return score
-
-
-def score_css_class(score):
-    total = len(ALL_METRIC_KEYS)
-    if score >= total - 2: return "score-good"
-    elif score >= total // 2: return "score-mid"
-    else: return "score-bad"
-
-
-def avg_vs_meta(key, valor, meta):
-    """Get CSS class and label for average vs meta comparison."""
-    metric_type = dict((m[0], m[3]) for m in FITNESS_METRICS + SLEEP_METRICS).get(key, 'total')
-    if metric_type == 'promedio_inverted':
-        # Lower is better
-        pct = (meta / valor * 100) if valor > 0 else 100
-    else:
-        pct = (valor / meta * 100) if meta > 0 else 0
-
-    if pct >= 100:
-        return "vs-good", f"{pct:.0f}%"
-    elif pct >= 70:
-        return "vs-warn", f"~ {pct:.0f}%"
-    else:
-        return "vs-bad", f"{pct:.0f}%"
-
-
-def value_color_class(key, valor, meta):
-    metric_type = dict((m[0], m[3]) for m in FITNESS_METRICS + SLEEP_METRICS).get(key, 'total')
-    if metric_type == 'promedio_inverted':
-        pct = (meta / valor * 100) if valor > 0 else 100
-    else:
-        pct = (valor / meta * 100) if meta > 0 else 0
-    if pct >= 100: return "td-good"
-    elif pct >= 70: return "td-warn"
-    else: return "td-bad"
+    return sum(is_metric_met(k, data[k], metas[k]) for k in ALL_METRIC_KEYS)
 
 
 def calculate_averages(all_data):
-    """Calculate averages across multiple months of data."""
     n = len(all_data)
     if n == 0:
         return {}
@@ -662,17 +242,52 @@ def calculate_averages(all_data):
     return avg
 
 
-def format_val(valor, unidad):
-    if isinstance(valor, float):
-        return f"{valor}{unidad}"
-    elif not unidad and isinstance(valor, int) and valor >= 1000:
-        return f"{valor:,}"
-    return f"{valor}{unidad}"
+def render_metric_row(label, valor, meta, unit, tipo, for_current_month=False):
+    """Render a single metric as st.metric + st.progress in columns."""
+    pct = get_pct(None, valor, meta, tipo, for_current_month)
+    status = get_status(pct)
+
+    inverted = tipo == 'promedio_inverted'
+    meta_label = f"Max: {fmt(meta, unit)}" if inverted else f"Meta: {fmt(meta, unit)}"
+
+    delta_val = None
+    delta_color = "normal"
+    if inverted:
+        diff = meta - valor
+        if diff >= 0:
+            delta_val = f"{abs(diff):.1f} below max"
+            delta_color = "normal"
+        else:
+            delta_val = f"{abs(diff):.1f} over max"
+            delta_color = "inverse"
+    else:
+        if for_current_month and tipo == 'total':
+            esperado = (meta / days_in_month) * days_elapsed
+            diff = valor - esperado
+            delta_val = f"{diff:+.0f} vs expected"
+        else:
+            diff = valor - meta
+            if isinstance(diff, float):
+                delta_val = f"{diff:+.1f} vs meta"
+            else:
+                delta_val = f"{diff:+.0f} vs meta"
+
+    c1, c2 = st.columns([3, 1])
+    with c1:
+        st.metric(
+            label=f"{status} {label}",
+            value=fmt(valor, unit),
+            delta=delta_val,
+            delta_color=delta_color,
+        )
+    with c2:
+        st.caption(meta_label)
+        st.progress(min(pct / 100, 1.0))
+        st.caption(f"{pct:.0f}%")
 
 
 # ============ VIEW: METAS ============
 if st.session_state.vista == "metas":
-    st.markdown('<div class="top-bar"></div>', unsafe_allow_html=True)
     show_goals_setup(first_time=False)
 
 # ============ VIEW: MES ACTUAL ============
@@ -680,169 +295,89 @@ elif st.session_state.vista == "mes":
 
     month_name = MESES_CORTOS[current_month]
 
-    st.markdown('<div class="top-bar"></div>', unsafe_allow_html=True)
-    st.markdown('<div class="hud-title">FITNESS TRACKER</div>', unsafe_allow_html=True)
-    st.markdown(
-        f'<div class="date-badge">{month_name} {current_year} · DIA {days_elapsed}/{days_in_month} · {progress_pct:.0f}% DEL MES</div>',
-        unsafe_allow_html=True
-    )
+    st.title("FITNESS TRACKER")
+    st.caption(f"{month_name} {current_year}  ·  DIA {days_elapsed}/{days_in_month}  ·  {progress_pct:.0f}% DEL MES")
 
     with st.spinner(''):
         data = get_monthly_data(current_year, current_month)
 
-    # ---- FITNESS HABITS ----
-    st.markdown('<div class="section-title">// FITNESS HABITS</div>', unsafe_allow_html=True)
-
-    col1, col2 = st.columns(2)
-
-    with col1:
-        render_metric("STEPS DAILY AVG", data['steps_avg'], metas['steps_avg'], tipo='promedio')
-        render_metric("STRENGTH TRAINING", data['strength'], metas['strength'])
-        render_metric("HR ZONES 1-3", data['hr_zone_1_3'], metas['hr_zone_1_3'], "h")
-
-    with col2:
-        render_metric("ACTIVITIES / MES", data['activities'], metas['activities'])
-        render_metric("HR ZONES 4-5", data['hr_zone_4_5'], metas['hr_zone_4_5'], "h")
-
-    # ---- SLEEP HABITS ----
-    st.markdown('<div class="section-divider"></div>', unsafe_allow_html=True)
-    st.markdown('<div class="section-title">// SLEEP HABITS</div>', unsafe_allow_html=True)
-
-    col3, col4 = st.columns(2)
-
-    with col3:
-        render_metric("AVE SLEEP DURATION", data['sleep_hours_avg'], metas['sleep_hours_avg'], "h", tipo='promedio')
-        render_metric("RESTING HR", data['resting_hr'], metas['resting_hr'], " bpm", tipo='promedio_inverted')
-
-    with col4:
-        render_metric("RECOVERY SCORE", data['recovery_score'], metas['recovery_score'], "%", tipo='promedio')
-        render_metric("SLEEP CONSISTENCY", data['sleep_consistency'], metas['sleep_consistency'], "%", tipo='promedio')
-
-    st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
-
-    # ---- SUMMARY STATS ----
-    fitness_ok = sum(
-        is_metric_on_track(k, data[k], metas[k])
-        for k, _, _, _ in FITNESS_METRICS
+    # ---- SUMMARY ----
+    total_ok = sum(
+        1 for k, _, _, t in FITNESS_METRICS + SLEEP_METRICS
+        if get_pct(k, data[k], metas[k], t, True) >= 100
     )
-    sleep_ok = sum(
-        is_metric_on_track(k, data[k], metas[k])
-        for k, _, _, _ in SLEEP_METRICS
-    )
-    total_ok = fitness_ok + sleep_ok
     total_metrics = len(ALL_METRIC_KEYS)
 
-    steps_color = "#00ff87" if data['steps_avg'] >= metas['steps_avg'] else "#ff4444"
-    habitos_color = "#00ff87" if total_ok >= total_metrics - 2 else "#ffd700" if total_ok >= total_metrics // 2 else "#ff4444"
-    recovery_color = "#00ff87" if data['recovery_score'] >= metas['recovery_score'] else "#ffd700" if data['recovery_score'] >= metas['recovery_score'] * 0.7 else "#ff4444"
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Steps Avg", f"{data['steps_avg']:,}")
+    c2.metric("Habitos en Meta", f"{total_ok}/{total_metrics}")
+    c3.metric("Recovery", f"{data['recovery_score']}%")
+    c4.metric("Progreso Mes", f"{progress_pct:.0f}%")
 
-    st.markdown(f"""
-    <div class="big-stats-row">
-        <div class="big-stat-box">
-            <div class="big-stat-val" style="color:{steps_color}">{data['steps_avg']:,}</div>
-            <div class="big-stat-label">STEPS DAILY AVG</div>
-        </div>
-        <div class="big-stat-box">
-            <div class="big-stat-val" style="color:{habitos_color}">{total_ok}/{total_metrics}</div>
-            <div class="big-stat-label">HABITOS EN META</div>
-        </div>
-        <div class="big-stat-box">
-            <div class="big-stat-val" style="color:{recovery_color}">{data['recovery_score']}%</div>
-            <div class="big-stat-label">RECOVERY</div>
-        </div>
-        <div class="big-stat-box">
-            <div class="big-stat-val" style="color:#00d4ff">{progress_pct:.0f}%</div>
-            <div class="big-stat-label">PROGRESO MES</div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+    st.divider()
 
-    # ---- MONTHLY STATS: PROJECTIONS ----
-    st.markdown('<div class="section-divider"></div>', unsafe_allow_html=True)
-    st.markdown('<div class="section-label">// PROYECCION FIN DE MES</div>', unsafe_allow_html=True)
+    # ---- FITNESS HABITS ----
+    st.subheader("// FITNESS HABITS")
 
-    projection_rows = ""
+    for key, label, unit, tipo in FITNESS_METRICS:
+        render_metric_row(label, data[key], metas[key], unit, tipo, for_current_month=True)
+
+    st.divider()
+
+    # ---- SLEEP HABITS ----
+    st.subheader("// SLEEP HABITS")
+
+    for key, label, unit, tipo in SLEEP_METRICS:
+        render_metric_row(label, data[key], metas[key], unit, tipo, for_current_month=True)
+
+    st.divider()
+
+    # ---- PROJECTIONS ----
+    st.subheader("// PROYECCION FIN DE MES")
+
+    proj_met = 0
+    proj_rows = []
     for key, label, unit, tipo in FITNESS_METRICS + SLEEP_METRICS:
         valor = data[key]
         meta = metas[key]
 
         if tipo in ('promedio', 'promedio_inverted'):
-            # Averages don't project — current value is the projection
             projected = valor
         else:
-            # Accumulative metrics: project based on daily rate
             daily_rate = valor / days_elapsed if days_elapsed > 0 else 0
             projected = round(daily_rate * days_in_month, 1)
 
-        # Determine if projection meets goal
         if tipo == 'promedio_inverted':
-            meets_goal = projected <= meta
+            meets = projected <= meta
             pct = (meta / projected * 100) if projected > 0 else 100
         else:
-            meets_goal = projected >= meta
+            meets = projected >= meta
             pct = (projected / meta * 100) if meta > 0 else 0
 
-        if pct >= 100:
-            status_css = "vs-good"
-            status_icon = "&#10003;"
-        elif pct >= 70:
-            status_css = "vs-warn"
-            status_icon = "~"
-        else:
-            status_css = "vs-bad"
-            status_icon = "&#10007;"
+        if meets:
+            proj_met += 1
 
-        proj_display = format_val(projected if isinstance(projected, float) else int(projected), unit)
-        meta_display = format_val(meta, unit)
+        status = get_status(min(pct, 100))
+        proj_rows.append({
+            'Metrica': f"{status} {label}",
+            'Proyeccion': fmt(projected if isinstance(projected, float) else int(projected), unit),
+            'Meta': fmt(meta, unit),
+            '%': f"{min(pct, 999):.0f}%",
+        })
 
-        projection_rows += f"""
-        <div class="avg-metric-row">
-            <span class="avg-metric-name">{label}</span>
-            <span class="avg-metric-val" style="color:#fff">{proj_display}</span>
-            <span style="font-family: Space Mono, monospace; font-size: 0.55rem; color: #555;">META {meta_display}</span>
-            <span class="avg-metric-vs {status_css}">{status_icon} {pct:.0f}%</span>
-        </div>
-        """
+    st.caption(f"Proyeccion: {proj_met}/{total_metrics} metas cumplidas al {days_in_month} de {MESES_NOMBRES[current_month]}")
+    st.dataframe(proj_rows, use_container_width=True, hide_index=True)
 
-    # Count projected goals met
-    proj_met = 0
-    for key, _, _, tipo in FITNESS_METRICS + SLEEP_METRICS:
-        valor = data[key]
-        meta = metas[key]
-        if tipo in ('promedio', 'promedio_inverted'):
-            projected = valor
-        else:
-            daily_rate = valor / days_elapsed if days_elapsed > 0 else 0
-            projected = daily_rate * days_in_month
-        if tipo == 'promedio_inverted':
-            if projected <= meta:
-                proj_met += 1
-        else:
-            if projected >= meta:
-                proj_met += 1
-
-    proj_score_class = score_css_class(proj_met)
-
-    st.markdown(f"""
-    <div class="avg-section">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-            <div class="avg-title">// PROYECCION AL {days_in_month} DE {MESES_NOMBRES[current_month]}</div>
-            <span class="month-score {proj_score_class}">{proj_met}/{total_metrics} METAS</span>
-        </div>
-        {projection_rows.strip()}
-    </div>
-    """, unsafe_allow_html=True)
-
-    # ---- MONTH-OVER-MONTH COMPARISON ----
+    # ---- VS PREVIOUS MONTH ----
     if current_month > 1:
         prev_month = current_month - 1
         prev_year = current_year
         prev_data = get_monthly_data(prev_year, prev_month)
 
-        st.markdown('<div class="section-divider"></div>', unsafe_allow_html=True)
-        st.markdown(f'<div class="section-label">// VS {MESES_NOMBRES[prev_month]} {prev_year}</div>', unsafe_allow_html=True)
+        st.divider()
+        st.subheader(f"// VS {MESES_NOMBRES[prev_month]} {prev_year}")
 
-        comparison_items = ""
+        comp_rows = []
         for key, label, unit, tipo in FITNESS_METRICS + SLEEP_METRICS:
             curr_val = data[key]
             prev_val = prev_data[key]
@@ -857,60 +392,36 @@ elif st.session_state.vista == "mes":
             is_inverted = tipo == 'promedio_inverted'
 
             if change_pct > 2:
-                arrow = "&#9650;"
-                trend_css = "trend-down" if is_inverted else "trend-up"
+                trend = "⬇️" if is_inverted else "⬆️"
             elif change_pct < -2:
-                arrow = "&#9660;"
-                trend_css = "trend-up" if is_inverted else "trend-down"
+                trend = "⬆️" if is_inverted else "⬇️"
             else:
-                arrow = "&#9644;"
-                trend_css = "trend-flat"
+                trend = "➡️"
 
-            curr_display = format_val(curr_val, unit)
-            prev_display = format_val(prev_val, unit)
+            comp_rows.append({
+                'Metrica': label,
+                f'{MESES_CORTOS[current_month]}': fmt(curr_val, unit),
+                f'{MESES_CORTOS[prev_month]}': fmt(prev_val, unit),
+                'Cambio': f"{trend} {change_pct:+.0f}%",
+            })
 
-            comparison_items += f"""
-            <div class="avg-metric-row">
-                <span class="avg-metric-name">{label}</span>
-                <span class="avg-metric-val" style="color:#fff">{curr_display}</span>
-                <span style="font-family: Space Mono, monospace; font-size: 0.55rem; color: #555;">{prev_display}</span>
-                <span class="{trend_css}" style="font-family: Space Mono, monospace; font-size: 0.65rem;">{arrow} {change_pct:+.0f}%</span>
-            </div>
-            """
+        st.dataframe(comp_rows, use_container_width=True, hide_index=True)
 
-        st.markdown(f"""
-        <div style="background: #0d0d0d; border: 1px solid #1a1a1a; border-radius: 10px; padding: 20px; margin-top: 8px;">
-            <div style="font-family: Bebas Neue, sans-serif; font-size: 1.2rem; letter-spacing: 3px; color: #00d4ff; margin-bottom: 16px;">
-                // {MESES_CORTOS[current_month]} VS {MESES_CORTOS[prev_month]}
-            </div>
-            {comparison_items.strip()}
-        </div>
-        """, unsafe_allow_html=True)
-
-    # WHOOP data source indicator
+    # WHOOP source
     whoop_src = data.get('whoop_source', '?')
-    src_color = '#00ff87' if whoop_src == 'LIVE' else '#ffd700' if 'CACHE' in whoop_src else '#ff4444'
-    st.markdown(f"""
-    <div style='font-family: Space Mono, monospace; font-size: 0.55rem; color: #444; text-align: right; margin-top: 20px; letter-spacing: 2px;'>
-    WHOOP: <span style="color:{src_color}">{whoop_src}</span> · LAST UPDATE: {datetime.now().strftime('%d/%m/%Y %H:%M')}
-    </div>
-    """, unsafe_allow_html=True)
+    st.caption(f"WHOOP: {whoop_src}  ·  Last update: {datetime.now().strftime('%d/%m/%Y %H:%M')}")
+
 
 # ============ VIEW: HISTORICO ============
 elif st.session_state.vista == "historico":
 
-    st.markdown('<div class="top-bar"></div>', unsafe_allow_html=True)
-    st.markdown(f'<div class="historical-title">HISTORICO {current_year}</div>', unsafe_allow_html=True)
-    st.markdown('<div class="date-badge">MESES CERRADOS</div>', unsafe_allow_html=True)
+    st.title(f"HISTORICO {current_year}")
+    st.caption("MESES CERRADOS")
 
     meses_cerrados = list(range(1, current_month))
 
     if not meses_cerrados:
-        st.markdown("""
-        <div style='font-family: Space Mono, monospace; font-size: 0.7rem; color: #888; margin-top: 40px; text-align: center; letter-spacing: 2px;'>
-        // NO HAY MESES CERRADOS AUN
-        </div>
-        """, unsafe_allow_html=True)
+        st.info("No hay meses cerrados aun.")
     else:
         all_data = []
 
@@ -919,245 +430,146 @@ elif st.session_state.vista == "historico":
                 d = get_monthly_data(current_year, mes)
                 all_data.append(d)
 
-        # ---- SECTION 1: OVERALL AVERAGE ----
+        # ---- OVERALL AVERAGE ----
         avg_data = calculate_averages(all_data)
         n = len(all_data)
         avg_score = sum(
             is_metric_met(key, avg_data[key], metas[key])
             for key in ALL_METRIC_KEYS
         )
-
-        avg_score_class = score_css_class(avg_score)
         total_metrics = len(ALL_METRIC_KEYS)
 
-        # Build avg rows - Fitness first, then Sleep
-        rows_html = ""
-        for section_metrics, section_label in [(FITNESS_METRICS, "FITNESS"), (SLEEP_METRICS, "SLEEP")]:
-            rows_html += f"""
-            <div style="font-family: Space Mono, monospace; font-size: 0.5rem; color: #00d4ff;
-                        letter-spacing: 2px; padding: 12px 0 4px; text-transform: uppercase;">// {section_label}</div>
-            """
-            for key, label, unit, _ in section_metrics:
-                valor = avg_data[key]
-                meta = metas[key]
-                css_class, pct_label = avg_vs_meta(key, valor, meta)
-                val_display = format_val(valor, unit)
-                meta_display = format_val(meta, unit)
+        st.subheader(f"// PROMEDIO GENERAL ({n} {'MES' if n == 1 else 'MESES'})  —  {avg_score}/{total_metrics} metas")
 
-                rows_html += f"""
-                <div class="avg-metric-row">
-                    <span class="avg-metric-name">{label}</span>
-                    <span class="avg-metric-val" style="color:#fff">{val_display}</span>
-                    <span style="font-family: Space Mono, monospace; font-size: 0.55rem; color: #555;">{meta_display}</span>
-                    <span class="avg-metric-vs {css_class}">{pct_label}</span>
-                </div>
-                """
+        avg_rows = []
+        for key, label, unit, tipo in FITNESS_METRICS + SLEEP_METRICS:
+            valor = avg_data[key]
+            meta = metas[key]
+            pct = get_pct(key, valor, meta, tipo)
+            status = get_status(pct)
+            avg_rows.append({
+                'Metrica': f"{status} {label}",
+                'Promedio': fmt(valor, unit),
+                'Meta': fmt(meta, unit),
+                '%': f"{pct:.0f}%",
+            })
 
-        st.markdown(f"""
-        <div class="avg-section">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-                <div class="avg-title">// PROMEDIO GENERAL ({n} {'MES' if n == 1 else 'MESES'})</div>
-                <span class="month-score {avg_score_class}">{avg_score}/{total_metrics}</span>
-            </div>
-            {rows_html.strip()}
-        </div>
-        """, unsafe_allow_html=True)
+        st.dataframe(avg_rows, use_container_width=True, hide_index=True)
 
-        st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
+        st.divider()
 
         # ---- METAS AJUSTADAS ----
         remaining = 12 - n
         if remaining > 0:
-            adjusted_metrics = [
-                ("STEPS AVG", avg_data['steps_avg'], metas['steps_avg'], "", False),
-                ("ACTIVITIES", avg_data['activities'], metas['activities'], "", False),
-                ("STRENGTH", avg_data['strength'], metas['strength'], "", False),
-                ("HR Z1-3", avg_data['hr_zone_1_3'], metas['hr_zone_1_3'], "h", False),
-                ("HR Z4-5", avg_data['hr_zone_4_5'], metas['hr_zone_4_5'], "h", False),
-                ("SLEEP", avg_data['sleep_hours_avg'], metas['sleep_hours_avg'], "h", False),
-                ("RECOVERY", avg_data['recovery_score'], metas['recovery_score'], "%", False),
-                ("RESTING HR", avg_data['resting_hr'], metas['resting_hr'], " bpm", True),
-                ("CONSISTENCY", avg_data['sleep_consistency'], metas['sleep_consistency'], "%", False),
-            ]
+            st.subheader("// METAS AJUSTADAS")
+            st.caption(f"Para cumplir tus metas anuales, necesitas estos objetivos mensuales en los {remaining} meses restantes.")
 
-            adj_rows = ""
-            any_behind = False
-            for nombre, avg_val, goal, unidad, is_inverted in adjusted_metrics:
+            adj_rows = []
+            for key, label, unit, tipo in FITNESS_METRICS + SLEEP_METRICS:
+                avg_val = avg_data[key]
+                goal = metas[key]
+                is_inverted = tipo == 'promedio_inverted'
+
+                adjusted = (goal * 12 - avg_val * n) / remaining
+                adjusted = max(adjusted, 0)
+
                 if is_inverted:
-                    # For inverted metrics (lower is better): adjusted = (goal*12 - avg*n) / remaining
-                    adjusted = (goal * 12 - avg_val * n) / remaining
-                    adjusted = max(adjusted, 0)
                     diff_pct = ((goal - adjusted) / goal * 100) if goal > 0 else 0
-                    # If adjusted < goal, you need to do BETTER (lower) => behind
                     diff_pct = -diff_pct
                 else:
-                    adjusted = (goal * 12 - avg_val * n) / remaining
-                    adjusted = max(adjusted, 0)
                     diff_pct = ((adjusted - goal) / goal * 100) if goal > 0 else 0
 
                 adjusted_r = round(adjusted, 1)
 
                 if diff_pct <= 0:
-                    color = "#00ff87"
-                    status = "ON TRACK"
+                    status = "🟢 ON TRACK"
                 elif diff_pct <= 30:
-                    color = "#ffd700"
-                    status = f"+{diff_pct:.0f}%"
-                    any_behind = True
+                    status = f"🟡 +{diff_pct:.0f}%"
                 else:
-                    color = "#ff4444"
-                    status = f"+{diff_pct:.0f}%"
-                    any_behind = True
+                    status = f"🔴 +{diff_pct:.0f}%"
 
-                adj_display = f"{adjusted_r:,}" if (not unidad and isinstance(adjusted_r, (int, float)) and adjusted_r >= 1000) else f"{adjusted_r}{unidad}"
-                goal_display = f"{goal:,}" if (not unidad and isinstance(goal, (int, float)) and goal >= 1000) else f"{goal}{unidad}"
+                adj_rows.append({
+                    'Metrica': label,
+                    'Meta Original': fmt(goal, unit),
+                    'Meta Ajustada': fmt(adjusted_r, unit),
+                    'Estado': status,
+                })
 
-                adj_rows += f'<div class="avg-metric-row">'
-                adj_rows += f'<span class="avg-metric-name">{nombre}</span>'
-                adj_rows += f'<span style="font-family: Space Mono, monospace; font-size: 0.55rem; color: #555;">META: {goal_display}</span>'
-                adj_rows += f'<span style="font-family: Space Mono, monospace; font-size: 0.55rem; color: #555;">&#8594;</span>'
-                adj_rows += f'<span class="avg-metric-val" style="color:{color}">{adj_display}</span>'
-                adj_rows += f'<span class="avg-metric-vs" style="background:transparent;color:{color}">{status}</span>'
-                adj_rows += '</div>'
+            st.dataframe(adj_rows, use_container_width=True, hide_index=True)
+            st.divider()
 
-            border_color = "#ffd700" if any_behind else "#00ff87"
-
-            st.markdown(f"""
-            <div class="avg-section" style="border-color: {border_color};">
-                <div class="avg-title" style="color: {border_color};">// METAS AJUSTADAS</div>
-                <div style="font-family: Space Mono, monospace; font-size: 0.5rem; color: #888; letter-spacing: 1px; margin-bottom: 16px; line-height: 1.6;">
-                    PARA CUMPLIR TUS METAS ANUALES, NECESITAS ESTOS OBJETIVOS<br>MENSUALES EN LOS {remaining} MESES RESTANTES
-                </div>
-                {adj_rows}
-            </div>
-            """, unsafe_allow_html=True)
-
-            st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
-
-        # ---- SECTION 2: PER-MONTH DETAILS ----
-        st.markdown('<div class="section-label">// DETALLE POR MES</div>', unsafe_allow_html=True)
+        # ---- PER-MONTH DETAILS ----
+        st.subheader("// DETALLE POR MES")
 
         for i, (mes, data) in enumerate(zip(meses_cerrados, all_data)):
             score = calculate_score(data)
-            s_class = score_css_class(score)
 
-            st.markdown(f"""
-            <div class="month-header-row">
-                <span class="historical-month">// {MESES_NOMBRES[mes]} {current_year}</span>
-                <span class="month-score {s_class}">{score}/{total_metrics} METAS</span>
-            </div>
-            """, unsafe_allow_html=True)
+            with st.expander(f"{MESES_NOMBRES[mes]} {current_year}  —  {score}/{total_metrics} metas"):
 
-            # Fitness Habits
-            st.markdown('<div class="section-title" style="margin-top:4px; font-size:1.2rem;">// FITNESS HABITS</div>', unsafe_allow_html=True)
-            col1, col2 = st.columns(2)
-            with col1:
-                render_metric_hist("STEPS DAILY AVG", data['steps_avg'], metas['steps_avg'])
-                render_metric_hist("STRENGTH TRAINING", data['strength'], metas['strength'])
-                render_metric_hist("HR ZONES 1-3", data['hr_zone_1_3'], metas['hr_zone_1_3'], "h")
-            with col2:
-                render_metric_hist("ACTIVITIES / MES", data['activities'], metas['activities'])
-                render_metric_hist("HR ZONES 4-5", data['hr_zone_4_5'], metas['hr_zone_4_5'], "h")
+                st.caption("FITNESS HABITS")
+                for key, label, unit, tipo in FITNESS_METRICS:
+                    pct = get_pct(key, data[key], metas[key], tipo)
+                    status = get_status(pct)
+                    st.text(f"{status} {label}: {fmt(data[key], unit)}  (meta: {fmt(metas[key], unit)}, {pct:.0f}%)")
 
-            # Sleep Habits
-            st.markdown('<div class="section-title" style="margin-top:4px; font-size:1.2rem;">// SLEEP HABITS</div>', unsafe_allow_html=True)
-            col3, col4 = st.columns(2)
-            with col3:
-                render_metric_hist("AVE SLEEP DURATION", data['sleep_hours_avg'], metas['sleep_hours_avg'], "h")
-                render_metric_hist("RESTING HR", data['resting_hr'], metas['resting_hr'], " bpm", inverted=True)
-            with col4:
-                render_metric_hist("RECOVERY SCORE", data['recovery_score'], metas['recovery_score'], "%")
-                render_metric_hist("SLEEP CONSISTENCY", data['sleep_consistency'], metas['sleep_consistency'], "%")
+                st.caption("SLEEP HABITS")
+                for key, label, unit, tipo in SLEEP_METRICS:
+                    pct = get_pct(key, data[key], metas[key], tipo)
+                    status = get_status(pct)
+                    st.text(f"{status} {label}: {fmt(data[key], unit)}  (meta: {fmt(metas[key], unit)}, {pct:.0f}%)")
 
-            # Trend vs previous month
-            if i > 0:
-                prev = all_data[i - 1]
-                trends = []
-                for key, label, unit, tipo in FITNESS_METRICS + SLEEP_METRICS:
-                    curr_val = data[key]
-                    prev_val = prev[key]
-                    if prev_val > 0:
-                        change_pct = ((curr_val - prev_val) / prev_val) * 100
-                    elif curr_val > 0:
-                        change_pct = 100
-                    else:
-                        change_pct = 0
+                # Trend vs previous month
+                if i > 0:
+                    prev = all_data[i - 1]
+                    st.caption(f"VS {MESES_NOMBRES[meses_cerrados[i-1]]}")
+                    trends = []
+                    for key, label, unit, tipo in FITNESS_METRICS + SLEEP_METRICS:
+                        curr_val = data[key]
+                        prev_val = prev[key]
+                        if prev_val > 0:
+                            change_pct = ((curr_val - prev_val) / prev_val) * 100
+                        elif curr_val > 0:
+                            change_pct = 100
+                        else:
+                            change_pct = 0
 
-                    # For inverted metrics, flip the arrow meaning
-                    is_inverted = tipo == 'promedio_inverted'
+                        is_inv = tipo == 'promedio_inverted'
+                        if change_pct > 2:
+                            arrow = "⬇️" if is_inv else "⬆️"
+                        elif change_pct < -2:
+                            arrow = "⬆️" if is_inv else "⬇️"
+                        else:
+                            arrow = "➡️"
 
-                    if change_pct > 2:
-                        arrow = "&#9650;"
-                        css = "trend-down" if is_inverted else "trend-up"
-                    elif change_pct < -2:
-                        arrow = "&#9660;"
-                        css = "trend-up" if is_inverted else "trend-down"
-                    else:
-                        arrow = "&#9644;"
-                        css = "trend-flat"
+                        short = label.split('/')[0].strip()[:14]
+                        trends.append(f"{arrow} {short} {change_pct:+.0f}%")
 
-                    short_label = label.split('/')[0].strip()[:12]
-                    trends.append(
-                        f'<span style="margin-right:16px;">'
-                        f'<span class="{css}" style="font-family:Space Mono,monospace;font-size:0.55rem;">'
-                        f'{arrow} {short_label} {change_pct:+.0f}%</span></span>'
-                    )
+                    st.text("  |  ".join(trends))
 
-                st.markdown(
-                    f'<div style="margin: 8px 0 4px; overflow-x: auto; white-space: nowrap;">{"".join(trends)}</div>',
-                    unsafe_allow_html=True
-                )
+        st.divider()
 
-            st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
-
-        # ---- SECTION 3: COMPARISON TABLE ----
+        # ---- COMPARISON TABLE ----
         if len(all_data) >= 1:
-            st.markdown('<div class="section-label">// COMPARATIVA MENSUAL</div>', unsafe_allow_html=True)
+            st.subheader("// COMPARATIVA MENSUAL")
 
-            month_headers = "".join(
-                f'<th>{MESES_CORTOS[m]}</th>' for m in meses_cerrados
-            )
-            header_html = f"<tr><th>METRICA</th>{month_headers}<th>PROMEDIO</th><th>META</th></tr>"
-
-            body_html = ""
+            comp_data = []
             for key, label, unit, tipo in FITNESS_METRICS + SLEEP_METRICS:
-                meta = metas[key]
-
-                cells = ""
-                for d in all_data:
-                    val = d[key]
-                    color_class = value_color_class(key, val, meta)
-                    val_str = format_val(val, unit)
-                    cells += f'<td class="{color_class}">{val_str}</td>'
-
-                avg_val = avg_data[key]
-                avg_color = value_color_class(key, avg_val, meta)
-                avg_str = format_val(avg_val, unit)
-                meta_str = format_val(meta, unit)
-
-                body_html += f"<tr><td>{label}</td>{cells}<td class='{avg_color}' style='font-weight:700;'>{avg_str}</td><td>{meta_str}</td></tr>"
+                row = {'Metrica': label}
+                for mes_idx, d in zip(meses_cerrados, all_data):
+                    row[MESES_CORTOS[mes_idx]] = fmt(d[key], unit)
+                row['Promedio'] = fmt(avg_data[key], unit)
+                row['Meta'] = fmt(metas[key], unit)
+                comp_data.append(row)
 
             # Score row
-            score_cells = ""
-            for d in all_data:
+            score_row = {'Metrica': 'SCORE'}
+            for mes_idx, d in zip(meses_cerrados, all_data):
                 s = calculate_score(d)
-                s_color = "td-good" if s >= total_metrics - 2 else "td-warn" if s >= total_metrics // 2 else "td-bad"
-                score_cells += f'<td class="{s_color}" style="font-weight:700;">{s}/{total_metrics}</td>'
+                score_row[MESES_CORTOS[mes_idx]] = f"{s}/{total_metrics}"
+            score_row['Promedio'] = f"{avg_score}/{total_metrics}"
+            score_row['Meta'] = f"{total_metrics}/{total_metrics}"
+            comp_data.append(score_row)
 
-            avg_s_color = "td-good" if avg_score >= total_metrics - 2 else "td-warn" if avg_score >= total_metrics // 2 else "td-bad"
-            body_html += f'<tr><td style="color:#00d4ff;">SCORE</td>{score_cells}<td class="{avg_s_color}" style="font-weight:700;">{avg_score}/{total_metrics}</td><td>{total_metrics}/{total_metrics}</td></tr>'
+            st.dataframe(comp_data, use_container_width=True, hide_index=True)
 
-            st.markdown(f"""
-            <div style="background: #0d0d0d; border: 1px solid #1a1a1a; border-radius: 10px; padding: 16px; overflow-x: auto;">
-                <table class="comparison-table">
-                    {header_html}
-                    {body_html}
-                </table>
-            </div>
-            """, unsafe_allow_html=True)
-
-        st.markdown(f"""
-        <div style='font-family: Space Mono, monospace; font-size: 0.55rem; color: #444; text-align: right; margin-top: 20px; letter-spacing: 2px;'>
-        LAST UPDATE: {datetime.now().strftime('%d/%m/%Y %H:%M')}
-        </div>
-        """, unsafe_allow_html=True)
+        st.caption(f"Last update: {datetime.now().strftime('%d/%m/%Y %H:%M')}")

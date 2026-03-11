@@ -11,7 +11,6 @@ def get_supabase():
     key = st.secrets["supabase"]["key"]
     supabase = create_client(url, key)
 
-    # Pasar el JWT del usuario para que RLS funcione
     if "access_token" in st.session_state and st.session_state.access_token:
         supabase.postgrest.auth(st.session_state.access_token)
 
@@ -23,35 +22,8 @@ def show_auth_page():
     if "user" in st.session_state and st.session_state.user:
         return True
 
-    # CSS para la pagina de auth (Neon Glass theme)
-    st.markdown("""
-    <style>
-    .auth-title {
-        font-family: 'Inter', sans-serif !important;
-        font-size: 2.4rem !important;
-        font-weight: 800 !important;
-        letter-spacing: 6px !important;
-        background: linear-gradient(135deg, #c4b5fd, #7c3aed, #06b6d4) !important;
-        -webkit-background-clip: text !important;
-        -webkit-text-fill-color: transparent !important;
-        background-clip: text !important;
-        text-align: center;
-        margin-bottom: 8px;
-    }
-    .auth-subtitle {
-        font-family: 'Space Mono', monospace;
-        font-size: 0.65rem;
-        color: #cbd5e1;
-        text-align: center;
-        letter-spacing: 3px;
-        margin-bottom: 32px;
-    }
-    </style>
-    """, unsafe_allow_html=True)
-
-    st.markdown('<div class="top-gradient"></div>', unsafe_allow_html=True)
-    st.markdown('<div class="auth-title">HABIT TRACKER</div>', unsafe_allow_html=True)
-    st.markdown('<div class="auth-subtitle">TRACK YOUR HABITS</div>', unsafe_allow_html=True)
+    st.title("HABIT TRACKER")
+    st.caption("TRACK YOUR HABITS")
 
     tab1, tab2 = st.tabs(["LOGIN", "REGISTRO"])
 
@@ -100,7 +72,6 @@ def show_auth_page():
                             "email": reg_email,
                             "password": reg_password
                         })
-                        # Auto-login si no requiere confirmacion de email
                         if res.session:
                             st.session_state.user = res.user
                             st.session_state.access_token = res.session.access_token
