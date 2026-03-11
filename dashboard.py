@@ -808,7 +808,7 @@ if st.session_state.vista == "mes":
             <div class="avg-title">// PROYECCION AL {days_in_month} DE {MESES_NOMBRES[current_month]}</div>
             <span class="month-score {proj_score_class}">{proj_met}/{total_metrics} METAS</span>
         </div>
-        {projection_rows}
+        {projection_rows.strip()}
     </div>
     """, unsafe_allow_html=True)
 
@@ -862,7 +862,7 @@ if st.session_state.vista == "mes":
             <div style="font-family: Bebas Neue, sans-serif; font-size: 1.2rem; letter-spacing: 3px; color: #00d4ff; margin-bottom: 16px;">
                 // {MESES_CORTOS[current_month]} VS {MESES_CORTOS[prev_month]}
             </div>
-            {comparison_items}
+            {comparison_items.strip()}
         </div>
         """, unsafe_allow_html=True)
 
@@ -938,7 +938,7 @@ else:
                 <div class="avg-title">// PROMEDIO GENERAL ({n} {'MES' if n == 1 else 'MESES'})</div>
                 <span class="month-score {avg_score_class}">{avg_score}/{total_metrics}</span>
             </div>
-            {rows_html}
+            {rows_html.strip()}
         </div>
         """, unsafe_allow_html=True)
 
