@@ -5,7 +5,6 @@ import streamlit as st
 from datetime import datetime
 from calendar import monthrange
 
-from auth import show_auth_page, show_logout_button
 from goals_setup import get_user_goals, has_goals, show_goals_setup
 from data_loader import get_monthly_data
 import views.mes_actual as view_mes
@@ -16,10 +15,6 @@ st.set_page_config(
     page_icon="🏃‍♂️",
     layout="wide"
 )
-
-# ============ AUTH GATE ============
-if not show_auth_page():
-    st.stop()
 
 # ============ GLOBAL STATE ============
 today = datetime.now()
@@ -40,7 +35,7 @@ if 'vista' not in st.session_state:
     st.session_state.vista = "mes"
 
 # ============ NAVIGATION ============
-col_nav1, col_nav2, col_nav3, col_nav4, col_nav5 = st.columns([1, 1, 1, 1, 1])
+col_nav1, col_nav2, col_nav3, col_nav4 = st.columns(4)
 
 with col_nav1:
     if st.button("MES ACTUAL", use_container_width=True):
@@ -61,9 +56,6 @@ with col_nav4:
     if st.button("ACTUALIZAR", use_container_width=True):
         st.cache_data.clear()
         st.rerun()
-
-with col_nav5:
-    show_logout_button()
 
 st.divider()
 

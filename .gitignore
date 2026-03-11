@@ -6,3 +6,4 @@ __pycache__/
 *.xlsx
 .env
 .streamlit/secrets.toml
+goals.json

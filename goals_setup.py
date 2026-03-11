@@ -1,8 +1,11 @@
 """
-Configuracion de metas personalizadas por usuario
+Configuracion de metas personalizadas - almacenamiento local (JSON)
 """
+import json
 import streamlit as st
-from auth import get_supabase, get_user_id
+from pathlib import Path
+
+GOALS_FILE = Path(__file__).parent / "goals.json"
 
 # Metas por defecto
 DEFAULT_GOALS = {
@@ -18,46 +21,41 @@ DEFAULT_GOALS = {
 }
 
 
+def _load_goals():
+    """Lee metas del archivo local."""
+    if GOALS_FILE.exists():
+        with open(GOALS_FILE) as f:
+            return json.load(f)
+    return None
+
+
+def _save_goals(goals):
+    """Guarda metas en archivo local."""
+    with open(GOALS_FILE, "w") as f:
+        json.dump(goals, f, indent=2)
+
+
 def get_user_goals():
-    """Obtiene las metas del usuario. Si no tiene, retorna las default."""
-    supabase = get_supabase()
-    user_id = get_user_id()
-
-    result = supabase.table("user_goals").select("*").eq(
-        "user_id", user_id
-    ).execute()
-
-    if result.data:
-        row = result.data[0]
-        return {
-            'steps_avg': row.get('steps_avg', DEFAULT_GOALS['steps_avg']),
-            'activities': row.get('activities', DEFAULT_GOALS['activities']),
-            'strength': row.get('strength', DEFAULT_GOALS['strength']),
-            'sleep_hours_avg': float(row.get('sleep_hours_avg', DEFAULT_GOALS['sleep_hours_avg'])),
-            'hr_zone_1_3': float(row.get('hr_zone_1_3', DEFAULT_GOALS['hr_zone_1_3'])),
-            'hr_zone_4_5': float(row.get('hr_zone_4_5', DEFAULT_GOALS['hr_zone_4_5'])),
-            'recovery_score': float(row.get('recovery_score', DEFAULT_GOALS['recovery_score'])),
-            'resting_hr': float(row.get('resting_hr', DEFAULT_GOALS['resting_hr'])),
-            'sleep_consistency': float(row.get('sleep_consistency', DEFAULT_GOALS['sleep_consistency'])),
-        }
-
+    """Obtiene las metas. Si no tiene, retorna las default."""
+    saved = _load_goals()
+    if saved:
+        result = dict(DEFAULT_GOALS)
+        result.update(saved)
+        # Asegurar floats
+        for key in ('sleep_hours_avg', 'hr_zone_1_3', 'hr_zone_4_5',
+                     'recovery_score', 'resting_hr', 'sleep_consistency'):
+            result[key] = float(result[key])
+        return result
     return dict(DEFAULT_GOALS)
 
 
 def has_goals():
-    """Verifica si el usuario ya configuro sus metas."""
-    supabase = get_supabase()
-    user_id = get_user_id()
-
-    result = supabase.table("user_goals").select("id").eq(
-        "user_id", user_id
-    ).execute()
-
-    return bool(result.data)
+    """Verifica si ya hay metas configuradas."""
+    return GOALS_FILE.exists()
 
 
 def show_goals_setup(first_time=True):
-    """Muestra formulario para configurar metas. Retorna True si ya tiene metas."""
+    """Muestra formulario para configurar metas."""
     if first_time and has_goals():
         return True
 
@@ -103,7 +101,6 @@ def show_goals_setup(first_time=True):
     else:
         st.markdown('<div class="goals-title">EDITAR METAS</div>', unsafe_allow_html=True)
 
-    # Cargar metas actuales (o defaults)
     current = get_user_goals()
 
     # ---- FITNESS HABITS ----
@@ -170,11 +167,7 @@ def show_goals_setup(first_time=True):
         )
 
     if st.button("GUARDAR METAS", use_container_width=True):
-        supabase = get_supabase()
-        user_id = get_user_id()
-
         goals_data = {
-            "user_id": user_id,
             "steps_avg": steps,
             "activities": activities,
             "strength": strength,
@@ -187,13 +180,7 @@ def show_goals_setup(first_time=True):
         }
 
         try:
-            if has_goals():
-                supabase.table("user_goals").update({
-                    k: v for k, v in goals_data.items() if k != "user_id"
-                }).eq("user_id", user_id).execute()
-            else:
-                supabase.table("user_goals").insert(goals_data).execute()
-
+            _save_goals(goals_data)
             st.success("Metas guardadas!")
             st.rerun()
         except Exception as e:
