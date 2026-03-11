@@ -1,0 +1,165 @@
+"""
+Configuracion de metas personalizadas por usuario
+"""
+import streamlit as st
+from auth import get_supabase, get_user_id
+
+# Metas por defecto
+DEFAULT_GOALS = {
+    'steps_avg': 10000,
+    'activities': 28,
+    'strength': 10,
+    'sleep_hours_avg': 7.5,
+    'hr_zone_1_3': 19.3,
+    'hr_zone_4_5': 2.9,
+    'recovery_score': 50.0,
+    'resting_hr': 55.0,
+    'sleep_consistency': 80.0,
+}
+
+
+def get_user_goals():
+    """Obtiene las metas del usuario. Si no tiene, retorna las default."""
+    supabase = get_supabase()
+    user_id = get_user_id()
+
+    result = supabase.table("user_goals").select("*").eq(
+        "user_id", user_id
+    ).execute()
+
+    if result.data:
+        row = result.data[0]
+        return {
+            'steps_avg': row.get('steps_avg', DEFAULT_GOALS['steps_avg']),
+            'activities': row.get('activities', DEFAULT_GOALS['activities']),
+            'strength': row.get('strength', DEFAULT_GOALS['strength']),
+            'sleep_hours_avg': float(row.get('sleep_hours_avg', DEFAULT_GOALS['sleep_hours_avg'])),
+            'hr_zone_1_3': float(row.get('hr_zone_1_3', DEFAULT_GOALS['hr_zone_1_3'])),
+            'hr_zone_4_5': float(row.get('hr_zone_4_5', DEFAULT_GOALS['hr_zone_4_5'])),
+            'recovery_score': float(row.get('recovery_score', DEFAULT_GOALS['recovery_score'])),
+            'resting_hr': float(row.get('resting_hr', DEFAULT_GOALS['resting_hr'])),
+            'sleep_consistency': float(row.get('sleep_consistency', DEFAULT_GOALS['sleep_consistency'])),
+        }
+
+    return dict(DEFAULT_GOALS)
+
+
+def has_goals():
+    """Verifica si el usuario ya configuro sus metas."""
+    supabase = get_supabase()
+    user_id = get_user_id()
+
+    result = supabase.table("user_goals").select("id").eq(
+        "user_id", user_id
+    ).execute()
+
+    return bool(result.data)
+
+
+def show_goals_setup(first_time=True):
+    """Muestra formulario para configurar metas. Retorna True si ya tiene metas."""
+    if first_time and has_goals():
+        return True
+
+    if first_time:
+        st.header("CONFIGURA TUS METAS")
+        st.caption("Define tus objetivos mensuales de fitness y sueno. Puedes cambiarlos en cualquier momento.")
+    else:
+        st.header("EDITAR METAS")
+
+    current = get_user_goals()
+
+    # ---- FITNESS HABITS ----
+    st.subheader("FITNESS HABITS")
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        steps = st.number_input(
+            "Steps diarios promedio",
+            min_value=1000, max_value=50000, value=current['steps_avg'], step=1000,
+            help="Promedio de pasos diarios que quieres alcanzar"
+        )
+        strength = st.number_input(
+            "Sesiones de fuerza / mes",
+            min_value=0, max_value=31, value=current['strength'], step=1,
+            help="Dias de entrenamiento de fuerza al mes"
+        )
+        hr_13 = st.number_input(
+            "Horas en HR Zones 1-3 / mes",
+            min_value=0.0, max_value=100.0, value=current['hr_zone_1_3'], step=0.5,
+            help="Horas totales en zonas de baja-media intensidad (WHOOP)"
+        )
+
+    with col2:
+        activities = st.number_input(
+            "Dias de ejercicio / mes",
+            min_value=0, max_value=31, value=current['activities'], step=1,
+            help="Total de actividades fisicas al mes"
+        )
+        hr_45 = st.number_input(
+            "Horas en HR Zones 4-5 / mes",
+            min_value=0.0, max_value=50.0, value=current['hr_zone_4_5'], step=0.5,
+            help="Horas totales en zonas de alta intensidad (WHOOP)"
+        )
+
+    # ---- SLEEP HABITS ----
+    st.subheader("SLEEP HABITS")
+
+    col3, col4 = st.columns(2)
+
+    with col3:
+        sleep_hours = st.number_input(
+            "Horas de sueno promedio",
+            min_value=4.0, max_value=12.0, value=current['sleep_hours_avg'], step=0.5,
+            help="Promedio de horas de sueno por noche (WHOOP)"
+        )
+        resting_hr = st.number_input(
+            "Resting HR maximo (bpm)",
+            min_value=30.0, max_value=100.0, value=current['resting_hr'], step=1.0,
+            help="Frecuencia cardiaca en reposo objetivo (menor es mejor)"
+        )
+
+    with col4:
+        recovery = st.number_input(
+            "Recovery Score promedio (%)",
+            min_value=10.0, max_value=100.0, value=current['recovery_score'], step=5.0,
+            help="Score de recuperacion promedio mensual (WHOOP)"
+        )
+        sleep_consistency = st.number_input(
+            "Sleep Consistency promedio (%)",
+            min_value=10.0, max_value=100.0, value=current['sleep_consistency'], step=5.0,
+            help="Consistencia de sueno promedio mensual (WHOOP)"
+        )
+
+    if st.button("GUARDAR METAS", use_container_width=True):
+        supabase = get_supabase()
+        user_id = get_user_id()
+
+        goals_data = {
+            "user_id": user_id,
+            "steps_avg": steps,
+            "activities": activities,
+            "strength": strength,
+            "sleep_hours_avg": sleep_hours,
+            "hr_zone_1_3": hr_13,
+            "hr_zone_4_5": hr_45,
+            "recovery_score": recovery,
+            "resting_hr": resting_hr,
+            "sleep_consistency": sleep_consistency,
+        }
+
+        try:
+            if has_goals():
+                supabase.table("user_goals").update({
+                    k: v for k, v in goals_data.items() if k != "user_id"
+                }).eq("user_id", user_id).execute()
+            else:
+                supabase.table("user_goals").insert(goals_data).execute()
+
+            st.success("Metas guardadas!")
+            st.rerun()
+        except Exception as e:
+            st.error(f"Error guardando metas: {str(e)}")
+
+    return False
