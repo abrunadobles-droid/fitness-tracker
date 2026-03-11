@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Opcion 3 - Gradient Bold</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800;900&display=swap" rel="stylesheet">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #0f0f1a; color: #ffffff; font-family: 'Inter', sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; }
+
+.header-wrap {
+    background: linear-gradient(135deg, #f97316, #ec4899, #8b5cf6);
+    border-radius: 20px; padding: 28px; text-align: center; margin-bottom: 24px;
+}
+.header { font-size: 2rem; font-weight: 900; color: white; letter-spacing: 4px; }
+.subtitle { font-size: 0.7rem; color: rgba(255,255,255,0.8); letter-spacing: 2px; margin-top: 4px; }
+.nav { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 24px; }
+.nav-item {
+    background: #1e1e2f; border: 1px solid rgba(255,255,255,0.06); border-radius: 12px; padding: 10px;
+    text-align: center; font-size: 0.6rem; font-weight: 700; color: #8b8ba0; letter-spacing: 2px;
+}
+.nav-item.active { background: linear-gradient(135deg, #f9731640, #ec489940); border-color: #f97316; color: #f97316; }
+.cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 28px; }
+.card {
+    background: linear-gradient(145deg, #1e1e2f, #2a2a40); border-radius: 16px; padding: 20px;
+    text-align: center; border: 1px solid rgba(255,255,255,0.05);
+}
+.card .emoji { font-size: 1.5rem; margin-bottom: 4px; }
+.card .value { font-size: 1.8rem; font-weight: 900; color: #ffffff; }
+.card .label { font-size: 0.55rem; color: #8b8ba0; letter-spacing: 2px; text-transform: uppercase; }
+.section { font-size: 0.85rem; font-weight: 800; color: #e2e8f0; letter-spacing: 2px; margin: 24px 0 14px 0; }
+.metric {
+    background: linear-gradient(145deg, #1e1e2f, #2a2a40); border-radius: 14px;
+    padding: 16px 20px; margin-bottom: 8px; border: 1px solid rgba(255,255,255,0.04);
+}
+.metric-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+.metric .name { font-size: 0.85rem; font-weight: 600; color: #e2e8f0; }
+.metric .val { font-size: 1.1rem; font-weight: 800; color: #ffffff; }
+.bar-bg { width: 100%; height: 8px; background: #1a1a2e; border-radius: 4px; overflow: hidden; }
+.bar-fill { height: 100%; border-radius: 4px; }
+.bar-fill.green { background: linear-gradient(90deg, #10b981, #34d399); }
+.bar-fill.yellow { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
+.badge {
+    display: inline-block; padding: 2px 8px; border-radius: 6px;
+    font-size: 0.6rem; font-weight: 700; letter-spacing: 1px; margin-left: 8px;
+}
+.badge.green { background: #10b98120; color: #34d399; }
+.badge.yellow { background: #f59e0b20; color: #fbbf24; }
+.footer { font-size: 0.6rem; color: #4b5563; text-align: center; margin-top: 24px; }
+.style-tag {
+    position: fixed; top: 0; left: 0; right: 0;
+    background: linear-gradient(90deg, #f97316, #ec4899, #8b5cf6);
+    color: white; text-align: center; padding: 8px; font-size: 0.75rem; font-weight: 700; letter-spacing: 2px; z-index: 100;
+}
+body { padding-top: 50px; }
+</style>
+</head>
+<body>
+<div class="style-tag">OPCION 3: GRADIENT BOLD</div>
+
+<div class="header-wrap">
+    <div class="header">FITNESS TRACKER</div>
+    <div class="subtitle">MARZO 2026 &middot; DIA 11/31</div>
+</div>
+
+<div class="nav">
+    <div class="nav-item active">MES ACTUAL</div>
+    <div class="nav-item">HISTORICO</div>
+    <div class="nav-item">METAS</div>
+    <div class="nav-item">ACTUALIZAR</div>
+</div>
+
+<div class="cards">
+    <div class="card"><div class="emoji">🔥</div><div class="value">12,450</div><div class="label">STEPS AVG</div></div>
+    <div class="card"><div class="emoji">🎯</div><div class="value">7 / 9</div><div class="label">METAS OK</div></div>
+    <div class="card"><div class="emoji">💚</div><div class="value">62%</div><div class="label">RECOVERY</div></div>
+    <div class="card"><div class="emoji">📊</div><div class="value">35%</div><div class="label">PROGRESO</div></div>
+</div>
+
+<div class="section">🏋️ FITNESS HABITS</div>
+<div class="metric"><div class="metric-top"><span class="name">Steps Daily Avg</span><div><span class="val">12,450</span><span class="badge yellow">85%</span></div></div><div class="bar-bg"><div class="bar-fill yellow" style="width:85%"></div></div></div>
+<div class="metric"><div class="metric-top"><span class="name">Activities / Mes</span><div><span class="val">22</span><span class="badge yellow">78%</span></div></div><div class="bar-bg"><div class="bar-fill yellow" style="width:78%"></div></div></div>
+<div class="metric"><div class="metric-top"><span class="name">Strength Training</span><div><span class="val">8</span><span class="badge yellow">80%</span></div></div><div class="bar-bg"><div class="bar-fill yellow" style="width:80%"></div></div></div>
+<div class="metric"><div class="metric-top"><span class="name">HR Zones 1-3</span><div><span class="val">15.2 h</span><span class="badge yellow">78%</span></div></div><div class="bar-bg"><div class="bar-fill yellow" style="width:78%"></div></div></div>
+<div class="metric"><div class="metric-top"><span class="name">HR Zones 4-5</span><div><span class="val">2.1 h</span><span class="badge yellow">72%</span></div></div><div class="bar-bg"><div class="bar-fill yellow" style="width:72%"></div></div></div>
+
+<div class="section">😴 SLEEP HABITS</div>
+<div class="metric"><div class="metric-top"><span class="name">Sleep Duration</span><div><span class="val">7.8 h</span><span class="badge green">100%</span></div></div><div class="bar-bg"><div class="bar-fill green" style="width:100%"></div></div></div>
+<div class="metric"><div class="metric-top"><span class="name">Recovery Score</span><div><span class="val">62%</span><span class="badge green">100%</span></div></div><div class="bar-bg"><div class="bar-fill green" style="width:100%"></div></div></div>
+<div class="metric"><div class="metric-top"><span class="name">Resting HR</span><div><span class="val">52 bpm</span><span class="badge green">100%</span></div></div><div class="bar-bg"><div class="bar-fill green" style="width:100%"></div></div></div>
+<div class="metric"><div class="metric-top"><span class="name">Sleep Consistency</span><div><span class="val">85%</span><span class="badge green">100%</span></div></div><div class="bar-bg"><div class="bar-fill green" style="width:100%"></div></div></div>
+
+<div class="footer">WHOOP: cache &middot; Last update: 11/03/2026 14:30</div>
+</body>
+</html>

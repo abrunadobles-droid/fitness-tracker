@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Opcion 4 - Terminal Hacker</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #000000; color: #00ff41; font-family: 'JetBrains Mono', monospace; padding: 20px; max-width: 800px; margin: 0 auto; }
+
+.header { font-size: 0.75rem; line-height: 2; margin: 20px 0; }
+.prompt { color: #00ff4180; }
+.cmd { color: #00ff41; font-weight: 700; }
+.divider { border: none; border-top: 1px solid #00ff4130; margin: 16px 0; }
+.nav { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 20px; }
+.nav-item {
+    background: transparent; border: 1px solid #00ff4130; padding: 8px;
+    text-align: center; font-size: 0.6rem; color: #00ff4160; letter-spacing: 1px;
+}
+.nav-item.active { border-color: #00ff41; color: #00ff41; background: #00ff4110; }
+.section { font-size: 0.65rem; color: #00ff4180; letter-spacing: 2px; margin: 20px 0 12px 0; }
+.metric {
+    display: flex; align-items: center; padding: 8px 0; border-bottom: 1px solid #00ff4108;
+}
+.bracket { color: #00ff4160; font-size: 0.7rem; min-width: 160px; }
+.val { color: #00ff41; font-size: 0.85rem; font-weight: 700; min-width: 80px; }
+.bar { display: inline-flex; margin: 0 12px; }
+.bar-char { font-size: 0.8rem; }
+.bar-char.filled { color: #00ff41; }
+.bar-char.empty { color: #00ff4120; }
+.pct { color: #00ff4190; font-size: 0.7rem; min-width: 50px; text-align: right; }
+.summary {
+    background: #00ff4108; border: 1px solid #00ff4120; border-radius: 4px;
+    padding: 16px; margin-top: 20px;
+}
+.summary-line { font-size: 0.7rem; color: #00ff41; line-height: 2; }
+.style-tag {
+    position: fixed; top: 0; left: 0; right: 0; background: #00ff41;
+    color: #000000; text-align: center; padding: 8px; font-size: 0.75rem; font-weight: 700; letter-spacing: 2px; z-index: 100;
+}
+body { padding-top: 50px; }
+</style>
+</head>
+<body>
+<div class="style-tag">OPCION 4: TERMINAL HACKER</div>
+
+<div class="header">
+    <span class="prompt">$</span> <span class="cmd">./fitness_tracker --status</span><br>
+    <span class="prompt">></span> FITNESS_TRACKER v2.0<br>
+    <span class="prompt">></span> DATE: 2026-03-11 | DAY: 11/31 | PROGRESS: 35%<br>
+    <span class="prompt">></span> STATUS: ACTIVE
+</div>
+
+<hr class="divider">
+
+<div class="nav">
+    <div class="nav-item active">[ MES ACTUAL ]</div>
+    <div class="nav-item">[ HISTORICO ]</div>
+    <div class="nav-item">[ METAS ]</div>
+    <div class="nav-item">[ REFRESH ]</div>
+</div>
+
+<div class="section">--- FITNESS ---</div>
+<div class="metric"><span class="bracket">[Steps Daily Avg]</span><span class="val">12,450</span><span class="bar"><span class="bar-char filled">█</span><span class="bar-char filled">█</span><span class="bar-char filled">█</span><span class="bar-char filled">█</span><span class="bar-char filled">█</span><span class="bar-char filled">█</span><span class="bar-char filled">█</span><span class="bar-char filled">█</span><span class="bar-char filled">▓</span><span class="bar-char empty">░</span></span><span class="pct">85%</span></div>
+<div class="metric"><span class="bracket">[Activities / Mes]</span><span class="val">22</span><span class="bar"><span class="bar-char filled">█</span><span class="bar-char filled">█</span><span class="bar-char filled">█</span><span class="bar-char filled">█</span><span class="bar-char filled">█</span><span class="bar-char filled">█</span><span class="bar-char filled">█</span><span class="bar-char filled">▓</span><span class="bar-char empty">░</span><span class="bar-char empty">░</span></span><span class="pct">78%</span></div>
+<div class="metric"><span class="bracket">[Strength Train.]</span><span class="val">8</span><span class="bar"><span class="bar-char filled">█</span><span class="bar-char filled">█</span><span class="bar-char filled">█</span><span class="bar-char filled">█</span><span class="bar-char filled">█</span><span class="bar-char filled">█</span><span class="bar-char filled">█</span><span class="bar-char filled">█</span><span class="bar-char empty">░</span><span class="bar-char empty">░</span></span><span class="pct">80%</span></div>
+<div class="metric"><span class="bracket">[HR Zones 1-3]</span><span class="val">15.2h</span><span class="bar"><span class="bar-char filled">█</span><span class="bar-char filled">█</span><span class="bar-char filled">█</span><span class="bar-char filled">█</span><span class="bar-char filled">█</span><span class="bar-char filled">█</span><span class="bar-char filled">█</span><span class="bar-char filled">▓</span><span class="bar-char empty">░</span><span class="bar-char empty">░</span></span><span class="pct">78%</span></div>
+<div class="metric"><span class="bracket">[HR Zones 4-5]</span><span class="val">2.1h</span><span class="bar"><span class="bar-char filled">█</span><span class="bar-char filled">█</span><span class="bar-char filled">█</span><span class="bar-char filled">█</span><span class="bar-char filled">█</span><span class="bar-char filled">█</span><span class="bar-char filled">█</span><span class="bar-char empty">░</span><span class="bar-char empty">░</span><span class="bar-char empty">░</span></span><span class="pct">72%</span></div>
+
+<div class="section">--- SLEEP ---</div>
+<div class="metric"><span class="bracket">[Sleep Duration]</span><span class="val">7.8h</span><span class="bar"><span class="bar-char filled">█</span><span class="bar-char filled">█</span><span class="bar-char filled">█</span><span class="bar-char filled">█</span><span class="bar-char filled">█</span><span class="bar-char filled">█</span><span class="bar-char filled">█</span><span class="bar-char filled">█</span><span class="bar-char filled">█</span><span class="bar-char filled">█</span></span><span class="pct">100%</span></div>
+<div class="metric"><span class="bracket">[Recovery Score]</span><span class="val">62%</span><span class="bar"><span class="bar-char filled">█</span><span class="bar-char filled">█</span><span class="bar-char filled">█</span><span class="bar-char filled">█</span><span class="bar-char filled">█</span><span class="bar-char filled">█</span><span class="bar-char filled">█</span><span class="bar-char filled">█</span><span class="bar-char filled">█</span><span class="bar-char filled">█</span></span><span class="pct">100%</span></div>
+<div class="metric"><span class="bracket">[Resting HR]</span><span class="val">52bpm</span><span class="bar"><span class="bar-char filled">█</span><span class="bar-char filled">█</span><span class="bar-char filled">█</span><span class="bar-char filled">█</span><span class="bar-char filled">█</span><span class="bar-char filled">█</span><span class="bar-char filled">█</span><span class="bar-char filled">█</span><span class="bar-char filled">█</span><span class="bar-char filled">█</span></span><span class="pct">100%</span></div>
+<div class="metric"><span class="bracket">[Sleep Consist.]</span><span class="val">85%</span><span class="bar"><span class="bar-char filled">█</span><span class="bar-char filled">█</span><span class="bar-char filled">█</span><span class="bar-char filled">█</span><span class="bar-char filled">█</span><span class="bar-char filled">█</span><span class="bar-char filled">█</span><span class="bar-char filled">█</span><span class="bar-char filled">█</span><span class="bar-char filled">█</span></span><span class="pct">100%</span></div>
+
+<div class="summary">
+    <div class="summary-line">> SCORE: 7/9 GOALS MET</div>
+    <div class="summary-line">> WHOOP: cache | GARMIN: api</div>
+    <div class="summary-line">> EOF</div>
+</div>
+</body>
+</html>
