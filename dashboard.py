@@ -16,6 +16,122 @@ st.set_page_config(
     layout="wide"
 )
 
+# ============ DARK NEON THEME ============
+st.markdown("""
+<style>
+    /* Main background */
+    .stApp, [data-testid="stAppViewContainer"], [data-testid="stHeader"] {
+        background-color: #0a0a0f !important;
+    }
+    [data-testid="stSidebar"] {
+        background-color: #0f0f18 !important;
+    }
+
+    /* Text colors */
+    .stApp h1 {
+        color: #06b6d4 !important;
+        font-weight: 800 !important;
+        letter-spacing: 2px;
+    }
+    .stApp h2, .stApp h3 {
+        color: #06b6d4 !important;
+        font-weight: 700 !important;
+        font-size: 1.1rem !important;
+        letter-spacing: 1px;
+    }
+    .stApp p, .stApp span, .stApp label, .stApp div {
+        color: #e2e8f0 !important;
+    }
+    .stApp [data-testid="stCaptionContainer"] * {
+        color: #64748b !important;
+    }
+
+    /* Metric cards */
+    [data-testid="stMetric"] {
+        background-color: #1a1a2e !important;
+        border: 1px solid rgba(6, 182, 212, 0.25) !important;
+        border-top: 3px solid #06b6d4 !important;
+        border-radius: 12px !important;
+        padding: 16px !important;
+    }
+    [data-testid="stMetricValue"] * {
+        color: #ffffff !important;
+        font-weight: 700 !important;
+    }
+    [data-testid="stMetricLabel"] * {
+        color: #94a3b8 !important;
+        font-weight: 600 !important;
+        text-transform: uppercase !important;
+        font-size: 0.75rem !important;
+    }
+    [data-testid="stMetricDelta"] * {
+        font-size: 0.8rem !important;
+    }
+
+    /* Progress bars */
+    [data-testid="stProgress"] > div > div {
+        background-color: #1e293b !important;
+        border-radius: 8px !important;
+    }
+    [data-testid="stProgress"] > div > div > div {
+        background: linear-gradient(90deg, #06b6d4, #22d3ee) !important;
+        border-radius: 8px !important;
+    }
+
+    /* Buttons - navigation */
+    .stButton > button {
+        background-color: #1a1a2e !important;
+        color: #06b6d4 !important;
+        border: 1px solid #06b6d4 !important;
+        border-radius: 8px !important;
+        font-weight: 600 !important;
+        letter-spacing: 1px !important;
+        transition: all 0.2s ease !important;
+    }
+    .stButton > button:hover {
+        background-color: #06b6d4 !important;
+        color: #0a0a0f !important;
+    }
+
+    /* Dividers */
+    [data-testid="stHorizontalBlock"] hr, hr {
+        border-color: rgba(6, 182, 212, 0.15) !important;
+    }
+
+    /* Dataframes */
+    [data-testid="stDataFrame"] {
+        border-radius: 12px !important;
+        overflow: hidden !important;
+    }
+    [data-testid="stDataFrame"] * {
+        background-color: #1a1a2e !important;
+        color: #e2e8f0 !important;
+    }
+
+    /* Expanders */
+    [data-testid="stExpander"] {
+        background-color: #1a1a2e !important;
+        border: 1px solid rgba(6, 182, 212, 0.15) !important;
+        border-radius: 12px !important;
+    }
+    [data-testid="stExpander"] summary * {
+        color: #06b6d4 !important;
+    }
+
+    /* Spinner */
+    .stSpinner > div {
+        border-top-color: #06b6d4 !important;
+    }
+
+    /* Info boxes */
+    [data-testid="stAlert"] {
+        background-color: #1a1a2e !important;
+        border: 1px solid rgba(6, 182, 212, 0.3) !important;
+        border-radius: 8px !important;
+    }
+</style>
+""", unsafe_allow_html=True)
+
 # ============ GLOBAL STATE ============
 today = datetime.now()
 current_month = today.month
