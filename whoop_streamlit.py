@@ -163,15 +163,19 @@ def get_whoop_monthly_live(year, month):
         'live': True,
     }
 
-    # --- Sleep ---
+    # --- Sleep (exclude naps, only count valid scores) ---
     sleeps = _get_all_records('activity/sleep', start_date, end_date)
     if sleeps:
         total_sleep_ms = 0
         total_consistency = 0
+        valid_sleeps = 0
 
         for sleep in sleeps:
+            if sleep.get('nap', False):
+                continue
             if sleep.get('score') and sleep['score'].get('stage_summary'):
                 stages = sleep['score']['stage_summary']
+                valid_sleeps += 1
                 actual_sleep_ms = (
                     stages.get('total_light_sleep_time_milli', 0) +
                     stages.get('total_slow_wave_sleep_time_milli', 0) +
@@ -180,37 +184,40 @@ def get_whoop_monthly_live(year, month):
                 total_sleep_ms += actual_sleep_ms
                 total_consistency += sleep['score'].get('sleep_consistency_percentage', 0)
 
-        num_sleeps = len(sleeps)
-        result['sleep_hours_avg'] = round((total_sleep_ms / num_sleeps) / 3600000, 2)
-        result['avg_sleep_consistency'] = round(total_consistency / num_sleeps, 1)
+        if valid_sleeps > 0:
+            result['sleep_hours_avg'] = round((total_sleep_ms / valid_sleeps) / 3600000, 2)
+            result['avg_sleep_consistency'] = round(total_consistency / valid_sleeps, 1)
 
-    # --- Recovery ---
+    # --- Recovery (only count records with valid scores) ---
     recoveries = _get_all_records('recovery', start_date, end_date)
     if recoveries:
         total_recovery = 0
         total_resting_hr = 0
         rhr_count = 0
+        valid_recovery = 0
 
         for rec in recoveries:
-            if rec.get('score'):
+            if rec.get('score') and rec['score'].get('recovery_score', 0) > 0:
+                valid_recovery += 1
                 total_recovery += rec['score'].get('recovery_score', 0)
                 rhr = rec['score'].get('resting_heart_rate', 0)
                 if rhr > 0:
                     total_resting_hr += rhr
                     rhr_count += 1
 
-        result['avg_recovery_score'] = round(total_recovery / len(recoveries), 1)
+        if valid_recovery > 0:
+            result['avg_recovery_score'] = round(total_recovery / valid_recovery, 1)
         result['avg_resting_hr'] = round(total_resting_hr / rhr_count, 1) if rhr_count > 0 else 0
 
-    # --- Workouts (HR Zones) ---
-    workouts = _get_all_records('activity/workout', start_date, end_date)
-    if workouts:
+    # --- Cycles (HR Zones from full-day strain, not just workouts) ---
+    cycles = _get_all_records('cycle', start_date, end_date)
+    if cycles:
         total_zone_1_3 = 0
         total_zone_4_5 = 0
 
-        for workout in workouts:
-            if workout.get('score') and workout['score'].get('zone_durations'):
-                zones = workout['score']['zone_durations']
+        for cycle in cycles:
+            if cycle.get('score') and cycle['score'].get('zone_durations'):
+                zones = cycle['score']['zone_durations']
                 total_zone_1_3 += (
                     zones.get('zone_one_milli', 0) +
                     zones.get('zone_two_milli', 0) +
