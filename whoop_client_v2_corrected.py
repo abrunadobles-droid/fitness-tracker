@@ -110,49 +110,55 @@ class WhoopClientV2:
                 total_performance = 0
                 total_consistency = 0
                 days_before_930 = 0
-                
+                valid_sleeps = 0
+
                 for sleep in summary['sleep']:
+                    # Skip naps - only count primary sleep
+                    if sleep.get('nap', False):
+                        continue
+
                     if sleep.get('score') and sleep['score'].get('stage_summary'):
                         stages = sleep['score']['stage_summary']
-                        
-                        # CORRECCIÓN 1: Usar tiempo REAL dormido (no in bed)
+                        valid_sleeps += 1
+
+                        # Usar tiempo REAL dormido (no in bed)
                         actual_sleep_ms = (
                             stages.get('total_light_sleep_time_milli', 0) +
                             stages.get('total_slow_wave_sleep_time_milli', 0) +
                             stages.get('total_rem_sleep_time_milli', 0)
                         )
                         total_sleep_ms += actual_sleep_ms
-                        
+
                         # Sleep performance y consistency
                         total_performance += sleep['score'].get('sleep_performance_percentage', 0)
                         total_consistency += sleep['score'].get('sleep_consistency_percentage', 0)
-                        
-                        # CORRECCIÓN 2: Convertir a hora local correctamente
+
+                        # Convertir a hora local correctamente
                         start_time_str = sleep.get('start', '')
                         timezone_offset = sleep.get('timezone_offset', '-06:00')
-                        
+
                         if start_time_str:
                             # Parse UTC time
                             utc_time = datetime.fromisoformat(start_time_str.replace('Z', '+00:00'))
-                            
+
                             # Aplicar offset (ej: -06:00)
                             offset_hours = int(timezone_offset.split(':')[0])
                             offset_minutes = int(timezone_offset.split(':')[1]) if ':' in timezone_offset else 0
                             offset = timedelta(hours=offset_hours, minutes=offset_minutes)
-                            
+
                             local_time = utc_time + offset
-                            
+
                             # Verificar si es antes de 9:30 PM (21:30)
                             if local_time.hour < 21 or (local_time.hour == 21 and local_time.minute < 30):
                                 days_before_930 += 1
-                
-                num_sleeps = len(summary['sleep'])
-                summary['avg_sleep_hours'] = (total_sleep_ms / num_sleeps) / 3600000
-                summary['avg_sleep_performance'] = total_performance / num_sleeps
-                summary['avg_sleep_consistency'] = total_consistency / num_sleeps
+
+                if valid_sleeps > 0:
+                    summary['avg_sleep_hours'] = (total_sleep_ms / valid_sleeps) / 3600000
+                    summary['avg_sleep_performance'] = total_performance / valid_sleeps
+                    summary['avg_sleep_consistency'] = total_consistency / valid_sleeps
                 summary['days_sleep_before_930pm'] = days_before_930
-                
-                print(f"         ✅ {num_sleeps} noches procesadas")
+
+                print(f"         ✅ {valid_sleeps} noches procesadas (excl. naps)")
         
         except Exception as e:
             print(f"         ⚠️  Error: {e}")
@@ -167,9 +173,11 @@ class WhoopClientV2:
                 total_recovery = 0
                 total_resting_hr = 0
                 rhr_count = 0
+                valid_recovery = 0
 
                 for rec in summary['recovery']:
-                    if rec.get('score'):
+                    if rec.get('score') and rec['score'].get('recovery_score', 0) > 0:
+                        valid_recovery += 1
                         total_hrv += rec['score'].get('hrv_rmssd_milli', 0)
                         total_recovery += rec['score'].get('recovery_score', 0)
                         rhr = rec['score'].get('resting_heart_rate', 0)
@@ -177,9 +185,9 @@ class WhoopClientV2:
                             total_resting_hr += rhr
                             rhr_count += 1
 
-                num_recovery = len(summary['recovery'])
-                summary['avg_hrv'] = total_hrv / num_recovery
-                summary['avg_recovery_score'] = total_recovery / num_recovery
+                if valid_recovery > 0:
+                    summary['avg_hrv'] = total_hrv / valid_recovery
+                    summary['avg_recovery_score'] = total_recovery / valid_recovery
                 summary['avg_resting_hr'] = round(total_resting_hr / rhr_count, 1) if rhr_count > 0 else 0
                 
             print(f"         ✅ {len(summary['recovery'])} registros")
