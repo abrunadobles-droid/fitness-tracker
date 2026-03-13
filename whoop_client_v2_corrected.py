@@ -32,9 +32,9 @@ class WhoopClientV2:
             return response.json()
         
         except requests.exceptions.HTTPError as e:
-            print(f"      Error HTTP {response.status_code} en {endpoint}")
-            print(f"      Response: {response.text}")
-            raise
+            print(f"      ERROR HTTP {response.status_code} en {endpoint}")
+            print(f"      Response: {response.text[:500]}")
+            raise Exception(f"WHOOP API error {response.status_code} en {endpoint}: {response.text[:200]}")
     
     def get_profile(self):
         return self._make_request('user/profile/basic')
