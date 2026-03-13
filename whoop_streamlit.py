@@ -202,15 +202,15 @@ def get_whoop_monthly_live(year, month):
         result['avg_recovery_score'] = round(total_recovery / len(recoveries), 1)
         result['avg_resting_hr'] = round(total_resting_hr / rhr_count, 1) if rhr_count > 0 else 0
 
-    # --- Workouts (HR Zones) ---
-    workouts = _get_all_records('activity/workout', start_date, end_date)
-    if workouts:
+    # --- Cycles (HR Zones from full-day strain, not just workouts) ---
+    cycles = _get_all_records('cycle', start_date, end_date)
+    if cycles:
         total_zone_1_3 = 0
         total_zone_4_5 = 0
 
-        for workout in workouts:
-            if workout.get('score') and workout['score'].get('zone_durations'):
-                zones = workout['score']['zone_durations']
+        for cycle in cycles:
+            if cycle.get('score') and cycle['score'].get('zone_durations'):
+                zones = cycle['score']['zone_durations']
                 total_zone_1_3 += (
                     zones.get('zone_one_milli', 0) +
                     zones.get('zone_two_milli', 0) +

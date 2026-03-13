@@ -186,43 +186,42 @@ class WhoopClientV2:
         except Exception as e:
             print(f"         ⚠️  Error: {e}")
         
-        # Workouts (con HR zones)
+        # Workouts (count only)
         print("      🏃 Obteniendo workouts...")
         try:
             summary['workouts'] = self.get_all_records('activity/workout', start_date, end_date)
-            
-            if summary['workouts']:
+            print(f"         ✅ {len(summary['workouts'])} workouts")
+        except Exception as e:
+            print(f"         ⚠️  Error: {e}")
+
+        # Cycles (HR zones from full-day strain, not just workouts)
+        print("      🔄 Obteniendo cycles (HR zones)...")
+        try:
+            cycles = self.get_all_records('cycle', start_date, end_date)
+
+            if cycles:
                 total_zone_1_3 = 0
                 total_zone_4_5 = 0
 
-                for workout in summary['workouts']:
-                    if workout.get('score') and workout['score'].get('zone_durations'):
-                        zones = workout['score']['zone_durations']
+                for cycle in cycles:
+                    if cycle.get('score') and cycle['score'].get('zone_durations'):
+                        zones = cycle['score']['zone_durations']
 
-                        # Zones 1-3 (low-moderate intensity)
-                        # WHOOP zone_one/two/three = HR zones 1-3
                         total_zone_1_3 += (
                             zones.get('zone_one_milli', 0) +
                             zones.get('zone_two_milli', 0) +
                             zones.get('zone_three_milli', 0)
                         )
 
-                        # Zones 4-5 (high intensity)
-                        # WHOOP zone_four/five = HR zones 4-5
                         total_zone_4_5 += (
                             zones.get('zone_four_milli', 0) +
                             zones.get('zone_five_milli', 0)
                         )
 
-                num_workouts = len(summary['workouts'])
-                # Total hours for the month (for dashboard)
                 summary['hr_zones_1_3_hours'] = total_zone_1_3 / 3600000
                 summary['hr_zones_4_5_hours'] = total_zone_4_5 / 3600000
-                # Average per workout in minutes (legacy)
-                summary['avg_time_hr_zone_1_3'] = (total_zone_1_3 / num_workouts) / 60000
-                summary['avg_time_hr_zone_4_5'] = (total_zone_4_5 / num_workouts) / 60000
-                
-            print(f"         ✅ {len(summary['workouts'])} workouts")
+
+            print(f"         ✅ {len(cycles)} cycles")
         except Exception as e:
             print(f"         ⚠️  Error: {e}")
         
