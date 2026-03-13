@@ -50,8 +50,9 @@ def get_user_goals():
 
 
 def has_goals():
-    """Verifica si ya hay metas configuradas."""
-    return GOALS_FILE.exists()
+    """Verifica si ya hay metas configuradas.
+    Siempre retorna True para usar defaults cuando no hay archivo."""
+    return True
 
 
 def show_goals_setup(first_time=True):

@@ -31,14 +31,14 @@ def show(data, metas, days_elapsed, days_in_month, progress_pct, current_month, 
     st.divider()
 
     # ---- FITNESS HABITS ----
-    st.subheader("// FITNESS HABITS")
+    st.subheader("FITNESS HABITS")
     for key, label, unit, tipo in FITNESS_METRICS:
         render_metric_row(label, data[key], metas[key], unit, tipo, days_elapsed, days_in_month, for_current_month=True)
 
     st.divider()
 
     # ---- SLEEP HABITS ----
-    st.subheader("// SLEEP HABITS")
+    st.subheader("SLEEP HABITS")
     for key, label, unit, tipo in SLEEP_METRICS:
         render_metric_row(label, data[key], metas[key], unit, tipo, days_elapsed, days_in_month, for_current_month=True)
 
@@ -48,7 +48,7 @@ def show(data, metas, days_elapsed, days_in_month, progress_pct, current_month, 
         prev_data = get_monthly_data(current_year, prev_month)
 
         st.divider()
-        st.subheader(f"// VS {MESES_NOMBRES[prev_month]} {current_year}")
+        st.subheader(f"VS {MESES_NOMBRES[prev_month]} {current_year}")
 
         comp_rows = []
         for key, label, unit, tipo in FITNESS_METRICS + SLEEP_METRICS:

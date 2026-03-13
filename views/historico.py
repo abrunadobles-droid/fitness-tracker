@@ -29,7 +29,7 @@ def show(metas, current_month, current_year):
     avg_score = sum(is_metric_met(key, avg_data[key], metas[key]) for key in ALL_METRIC_KEYS)
 
     # ---- PROMEDIO GENERAL ----
-    st.subheader(f"// PROMEDIO GENERAL ({n} {'MES' if n == 1 else 'MESES'})  —  {avg_score}/{total_metrics} metas")
+    st.subheader(f"PROMEDIO GENERAL ({n} {'MES' if n == 1 else 'MESES'})  —  {avg_score}/{total_metrics} metas")
 
     avg_rows = []
     for key, label, unit, tipo in FITNESS_METRICS + SLEEP_METRICS:
@@ -50,7 +50,7 @@ def show(metas, current_month, current_year):
     # ---- METAS AJUSTADAS ----
     remaining = 12 - n
     if remaining > 0:
-        st.subheader("// METAS AJUSTADAS")
+        st.subheader("METAS AJUSTADAS")
         st.caption(
             f"Para cumplir tus metas anuales, necesitas estos objetivos "
             f"mensuales en los {remaining} meses restantes."
@@ -89,7 +89,7 @@ def show(metas, current_month, current_year):
         st.divider()
 
     # ---- DETALLE POR MES ----
-    st.subheader("// DETALLE POR MES")
+    st.subheader("DETALLE POR MES")
 
     for i, (mes, data) in enumerate(zip(meses_cerrados, all_data)):
         score = calculate_score(data, metas)
@@ -135,7 +135,7 @@ def show(metas, current_month, current_year):
 
     # ---- COMPARATIVA MENSUAL ----
     if len(all_data) >= 1:
-        st.subheader("// COMPARATIVA MENSUAL")
+        st.subheader("COMPARATIVA MENSUAL")
 
         comp_data = []
         for key, label, unit, tipo in FITNESS_METRICS + SLEEP_METRICS:
