@@ -37,6 +37,15 @@ def get_status(pct):
     return "🔴"
 
 
+def get_status_class(pct):
+    """Returns CSS class for status dot."""
+    if pct >= 100:
+        return "green"
+    elif pct >= 70:
+        return "yellow"
+    return "red"
+
+
 def is_metric_met(key, valor, meta):
     tipo = _TIPO_MAP.get(key, 'total')
     if tipo == 'promedio_inverted':
@@ -60,39 +69,27 @@ def calculate_averages(all_data):
 
 
 def render_metric_row(label, valor, meta, unit, tipo, days_elapsed=1, days_in_month=30, for_current_month=False):
-    """Renderiza una métrica con st.metric + barra de progreso."""
+    """Renderiza una métrica como fila custom HTML (Dark Neon style)."""
     pct = get_pct(None, valor, meta, tipo, days_elapsed, days_in_month, for_current_month)
-    status = get_status(pct)
-    inverted = tipo == 'promedio_inverted'
-    meta_label = f"Max: {fmt(meta, unit)}" if inverted else f"Meta: {fmt(meta, unit)}"
+    status_cls = get_status_class(pct)
 
-    delta_val = None
-    delta_color = "normal"
-    if inverted:
-        diff = meta - valor
-        if diff >= 0:
-            delta_val = f"{abs(diff):.1f} below max"
-        else:
-            delta_val = f"{abs(diff):.1f} over max"
-            delta_color = "inverse"
+    if isinstance(valor, float):
+        display_val = f"{valor:.1f} {unit}".strip()
+    elif isinstance(valor, int) and valor >= 1000:
+        display_val = f"{valor:,}"
     else:
-        if for_current_month and tipo == 'total':
-            esperado = (meta / days_in_month) * days_elapsed
-            diff = valor - esperado
-            delta_val = f"{diff:+.0f} vs expected"
-        else:
-            diff = valor - meta
-            delta_val = f"{diff:+.1f} vs meta" if isinstance(diff, float) else f"{diff:+.0f} vs meta"
+        display_val = f"{valor} {unit}".strip()
 
-    c1, c2 = st.columns([3, 1])
-    with c1:
-        st.metric(
-            label=f"{status} {label}",
-            value=fmt(valor, unit),
-            delta=delta_val,
-            delta_color=delta_color,
-        )
-    with c2:
-        st.caption(meta_label)
-        st.progress(min(pct / 100, 1.0))
-        st.caption(f"{pct:.0f}%")
+    bar_w = min(pct, 100)
+
+    st.markdown(f'''<div class="dn-metric">
+        <div style="display:flex;align-items:center;">
+            <span class="dn-status {status_cls}"></span>
+            <span class="name">{label}</span>
+        </div>
+        <div style="display:flex;align-items:center;">
+            <span class="val">{display_val}</span>
+            <div class="dn-bar-bg"><div class="dn-bar-fill" style="width:{bar_w}%"></div></div>
+            <span class="dn-pct">{min(pct, 100):.0f}%</span>
+        </div>
+    </div>''', unsafe_allow_html=True)
