@@ -16,9 +16,11 @@ st.set_page_config(
     layout="wide"
 )
 
-# ============ DARK NEON THEME ============
+# ============ DARK NEON THEME (matching mockup) ============
 st.markdown("""
 <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800;900&family=Space+Mono:wght@400;700&display=swap');
+
     /* Main background */
     .stApp, [data-testid="stAppViewContainer"], [data-testid="stHeader"] {
         background-color: #0a0a0f !important;
@@ -27,88 +29,196 @@ st.markdown("""
         background-color: #0f0f18 !important;
     }
 
-    /* Text colors */
-    .stApp h1 {
-        color: #06b6d4 !important;
-        font-weight: 800 !important;
-        letter-spacing: 2px;
+    /* Hide default Streamlit elements */
+    #MainMenu, footer, header {visibility: hidden;}
+
+    /* ---- Typography ---- */
+    .dn-header {
+        font-family: 'Inter', sans-serif;
+        font-size: 2.2rem;
+        font-weight: 900;
+        letter-spacing: 6px;
+        background: linear-gradient(135deg, #06b6d4, #8b5cf6, #06b6d4);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        text-align: center;
+        margin: 0 0 4px 0;
     }
-    .stApp h2, .stApp h3 {
-        color: #06b6d4 !important;
-        font-weight: 700 !important;
-        font-size: 1.1rem !important;
-        letter-spacing: 1px;
+    .dn-subtitle {
+        font-family: 'Space Mono', monospace;
+        font-size: 0.7rem;
+        color: #64748b;
+        text-align: center;
+        letter-spacing: 3px;
+        margin-bottom: 20px;
     }
-    .stApp p, .stApp span, .stApp label, .stApp div {
-        color: #e2e8f0 !important;
-    }
-    .stApp [data-testid="stCaptionContainer"] * {
-        color: #64748b !important;
+    .dn-section {
+        font-family: 'Space Mono', monospace;
+        font-size: 0.7rem;
+        color: #06b6d4;
+        letter-spacing: 3px;
+        margin: 28px 0 12px 0;
+        padding-bottom: 8px;
+        border-bottom: 1px solid #06b6d420;
     }
 
-    /* Metric cards */
-    [data-testid="stMetric"] {
-        background-color: #1a1a2e !important;
-        border: 1px solid rgba(6, 182, 212, 0.25) !important;
-        border-top: 3px solid #06b6d4 !important;
-        border-radius: 12px !important;
-        padding: 16px !important;
+    /* ---- Summary Cards ---- */
+    .dn-card {
+        background: linear-gradient(145deg, #1a1a2e 0%, #16213e 100%);
+        border: 1px solid #06b6d420;
+        border-radius: 16px;
+        padding: 20px;
+        text-align: center;
+        position: relative;
+        overflow: hidden;
     }
-    [data-testid="stMetricValue"] * {
-        color: #ffffff !important;
-        font-weight: 700 !important;
+    .dn-card::before {
+        content: '';
+        position: absolute;
+        top: 0; left: 0; right: 0;
+        height: 3px;
+        background: linear-gradient(90deg, #06b6d4, #8b5cf6);
     }
-    [data-testid="stMetricLabel"] * {
-        color: #94a3b8 !important;
-        font-weight: 600 !important;
-        text-transform: uppercase !important;
-        font-size: 0.75rem !important;
+    .dn-card .value {
+        font-family: 'Inter', sans-serif;
+        font-size: 2rem;
+        font-weight: 900;
+        color: #f1f5f9;
+        margin: 8px 0 2px 0;
     }
-    [data-testid="stMetricDelta"] * {
-        font-size: 0.8rem !important;
+    .dn-card .label {
+        font-family: 'Space Mono', monospace;
+        font-size: 0.55rem;
+        color: #64748b;
+        letter-spacing: 3px;
+        text-transform: uppercase;
     }
 
-    /* Progress bars */
-    [data-testid="stProgress"] > div > div {
-        background-color: #1e293b !important;
-        border-radius: 8px !important;
+    /* ---- Metric Rows ---- */
+    .dn-metric {
+        background: #1a1a2e;
+        border: 1px solid #ffffff08;
+        border-radius: 12px;
+        padding: 16px 20px;
+        margin-bottom: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
     }
-    [data-testid="stProgress"] > div > div > div {
-        background: linear-gradient(90deg, #06b6d4, #22d3ee) !important;
-        border-radius: 8px !important;
+    .dn-metric .name {
+        font-family: 'Inter', sans-serif;
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: #e2e8f0;
     }
+    .dn-metric .val {
+        font-family: 'Inter', sans-serif;
+        font-size: 1.1rem;
+        font-weight: 800;
+        color: #f1f5f9;
+    }
+    .dn-bar-bg {
+        width: 120px;
+        height: 6px;
+        background: #1e293b;
+        border-radius: 3px;
+        overflow: hidden;
+        display: inline-block;
+        margin: 0 10px;
+    }
+    .dn-bar-fill {
+        height: 100%;
+        border-radius: 3px;
+        background: linear-gradient(90deg, #06b6d4, #8b5cf6);
+    }
+    .dn-pct {
+        font-family: 'Space Mono', monospace;
+        font-size: 0.7rem;
+        color: #06b6d4;
+        min-width: 40px;
+        text-align: right;
+    }
+    .dn-status {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        display: inline-block;
+        margin-right: 10px;
+        flex-shrink: 0;
+    }
+    .dn-status.green { background: #10b981; box-shadow: 0 0 8px #10b98180; }
+    .dn-status.yellow { background: #f59e0b; box-shadow: 0 0 8px #f59e0b80; }
+    .dn-status.red { background: #ef4444; box-shadow: 0 0 8px #ef444480; }
 
-    /* Buttons - navigation */
+    /* ---- Navigation ---- */
     .stButton > button {
         background-color: #1a1a2e !important;
-        color: #06b6d4 !important;
-        border: 1px solid #06b6d4 !important;
-        border-radius: 8px !important;
+        color: #94a3b8 !important;
+        border: 1px solid #06b6d430 !important;
+        border-radius: 12px !important;
+        font-family: 'Space Mono', monospace !important;
+        font-size: 0.65rem !important;
         font-weight: 600 !important;
-        letter-spacing: 1px !important;
+        letter-spacing: 2px !important;
         transition: all 0.2s ease !important;
+        padding: 10px 20px !important;
     }
     .stButton > button:hover {
-        background-color: #06b6d4 !important;
-        color: #0a0a0f !important;
+        background-color: #06b6d410 !important;
+        color: #06b6d4 !important;
+        border-color: #06b6d4 !important;
     }
 
-    /* Dividers */
-    [data-testid="stHorizontalBlock"] hr, hr {
+    /* ---- Dividers ---- */
+    hr {
         border-color: rgba(6, 182, 212, 0.15) !important;
     }
 
-    /* Dataframes */
+    /* ---- Tables (custom HTML) ---- */
+    .dn-table {
+        width: 100%;
+        border-collapse: separate;
+        border-spacing: 0;
+        background: #1a1a2e;
+        border-radius: 12px;
+        overflow: hidden;
+        border: 1px solid #ffffff08;
+        margin: 8px 0;
+    }
+    .dn-table th {
+        font-family: 'Space Mono', monospace;
+        font-size: 0.6rem;
+        color: #64748b;
+        letter-spacing: 2px;
+        text-transform: uppercase;
+        padding: 12px 16px;
+        text-align: left;
+        border-bottom: 1px solid #ffffff10;
+        background: #151525;
+    }
+    .dn-table td {
+        font-family: 'Inter', sans-serif;
+        font-size: 0.85rem;
+        color: #e2e8f0;
+        padding: 10px 16px;
+        border-bottom: 1px solid #ffffff06;
+    }
+    .dn-table tr:last-child td {
+        border-bottom: none;
+    }
+    .dn-table td.val {
+        font-weight: 700;
+        color: #f1f5f9;
+    }
+
+    /* ---- Dataframes (fallback styling) ---- */
     [data-testid="stDataFrame"] {
         border-radius: 12px !important;
         overflow: hidden !important;
     }
-    [data-testid="stDataFrame"] * {
-        background-color: #1a1a2e !important;
-        color: #e2e8f0 !important;
-    }
 
-    /* Expanders */
+    /* ---- Expanders ---- */
     [data-testid="stExpander"] {
         background-color: #1a1a2e !important;
         border: 1px solid rgba(6, 182, 212, 0.15) !important;
@@ -118,16 +228,31 @@ st.markdown("""
         color: #06b6d4 !important;
     }
 
-    /* Spinner */
-    .stSpinner > div {
-        border-top-color: #06b6d4 !important;
-    }
-
-    /* Info boxes */
+    /* ---- Alerts ---- */
     [data-testid="stAlert"] {
         background-color: #1a1a2e !important;
         border: 1px solid rgba(6, 182, 212, 0.3) !important;
         border-radius: 8px !important;
+    }
+
+    /* ---- Caption ---- */
+    .stApp [data-testid="stCaptionContainer"] * {
+        color: #64748b !important;
+    }
+
+    /* ---- Spinner ---- */
+    .stSpinner > div {
+        border-top-color: #06b6d4 !important;
+    }
+
+    /* ---- Footer text ---- */
+    .dn-footer {
+        font-family: 'Space Mono', monospace;
+        font-size: 0.6rem;
+        color: #475569;
+        text-align: center;
+        margin-top: 24px;
+        letter-spacing: 1px;
     }
 </style>
 """, unsafe_allow_html=True)

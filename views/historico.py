@@ -4,13 +4,32 @@ Vista: Histórico anual
 import streamlit as st
 from datetime import datetime
 from constants import MESES_NOMBRES, MESES_CORTOS, FITNESS_METRICS, SLEEP_METRICS, ALL_METRIC_KEYS
-from helpers import fmt, get_pct, get_status, is_metric_met, calculate_score, calculate_averages
+from helpers import fmt, get_pct, get_status, get_status_class, is_metric_met, calculate_score, calculate_averages
 from data_loader import get_monthly_data
 
 
+def _html_table(headers, rows):
+    """Build an HTML table with dn-table styling."""
+    ths = "".join(f"<th>{h}</th>" for h in headers)
+    trs = ""
+    for row in rows:
+        tds = ""
+        for i, cell in enumerate(row):
+            cls = ' class="val"' if i > 0 else ""
+            tds += f"<td{cls}>{cell}</td>"
+        trs += f"<tr>{tds}</tr>"
+    return f'''<table class="dn-table">
+        <thead><tr>{ths}</tr></thead>
+        <tbody>{trs}</tbody>
+    </table>'''
+
+
 def show(metas, current_month, current_year):
-    st.title(f"HISTORICO {current_year}")
-    st.caption("MESES CERRADOS")
+    st.markdown('<div class="dn-header">HISTORICO</div>', unsafe_allow_html=True)
+    st.markdown(
+        f'<div class="dn-subtitle">{current_year} &middot; MESES CERRADOS</div>',
+        unsafe_allow_html=True
+    )
 
     meses_cerrados = list(range(1, current_month))
     total_metrics = len(ALL_METRIC_KEYS)
@@ -29,34 +48,43 @@ def show(metas, current_month, current_year):
     avg_score = sum(is_metric_met(key, avg_data[key], metas[key]) for key in ALL_METRIC_KEYS)
 
     # ---- PROMEDIO GENERAL ----
-    st.subheader(f"PROMEDIO GENERAL ({n} {'MES' if n == 1 else 'MESES'})  —  {avg_score}/{total_metrics} metas")
+    st.markdown(
+        f'<div class="dn-section">// PROMEDIO GENERAL ({n} {"MES" if n == 1 else "MESES"}) '
+        f'&mdash; {avg_score}/{total_metrics} metas</div>',
+        unsafe_allow_html=True
+    )
 
-    avg_rows = []
+    headers = ["Metrica", "Promedio", "Meta", "%"]
+    rows = []
     for key, label, unit, tipo in FITNESS_METRICS + SLEEP_METRICS:
         valor = avg_data[key]
         meta = metas[key]
         pct = get_pct(key, valor, meta, tipo)
-        status = get_status(pct)
-        avg_rows.append({
-            'Metrica': f"{status} {label}",
-            'Promedio': fmt(valor, unit),
-            'Meta': fmt(meta, unit),
-            '%': f"{pct:.0f}%",
-        })
+        status_cls = get_status_class(pct)
+        dot = f'<span class="dn-status {status_cls}" style="vertical-align:middle;"></span>'
+        rows.append([
+            f"{dot} {label}",
+            fmt(valor, unit),
+            fmt(meta, unit),
+            f"{pct:.0f}%",
+        ])
 
-    st.dataframe(avg_rows, use_container_width=True, hide_index=True)
-    st.divider()
+    st.markdown(_html_table(headers, rows), unsafe_allow_html=True)
 
     # ---- METAS AJUSTADAS ----
     remaining = 12 - n
     if remaining > 0:
-        st.subheader("METAS AJUSTADAS")
+        st.markdown(
+            '<div class="dn-section">// METAS AJUSTADAS</div>',
+            unsafe_allow_html=True
+        )
         st.caption(
             f"Para cumplir tus metas anuales, necesitas estos objetivos "
             f"mensuales en los {remaining} meses restantes."
         )
 
-        adj_rows = []
+        headers = ["Metrica", "Meta Original", "Meta Ajustada", "Estado"]
+        rows = []
         for key, label, unit, tipo in FITNESS_METRICS + SLEEP_METRICS:
             avg_val = avg_data[key]
             goal = metas[key]
@@ -72,44 +100,36 @@ def show(metas, current_month, current_year):
                 diff_pct = ((adjusted - goal) / goal * 100) if goal > 0 else 0
 
             if diff_pct <= 0:
-                status = "🟢 ON TRACK"
+                status = '<span class="dn-status green" style="vertical-align:middle;"></span> ON TRACK'
             elif diff_pct <= 30:
-                status = f"🟡 +{diff_pct:.0f}%"
+                status = f'<span class="dn-status yellow" style="vertical-align:middle;"></span> +{diff_pct:.0f}%'
             else:
-                status = f"🔴 +{diff_pct:.0f}%"
+                status = f'<span class="dn-status red" style="vertical-align:middle;"></span> +{diff_pct:.0f}%'
 
-            adj_rows.append({
-                'Metrica': label,
-                'Meta Original': fmt(goal, unit),
-                'Meta Ajustada': fmt(adjusted_r, unit),
-                'Estado': status,
-            })
+            rows.append([label, fmt(goal, unit), fmt(adjusted_r, unit), status])
 
-        st.dataframe(adj_rows, use_container_width=True, hide_index=True)
-        st.divider()
+        st.markdown(_html_table(headers, rows), unsafe_allow_html=True)
 
     # ---- DETALLE POR MES ----
-    st.subheader("DETALLE POR MES")
+    st.markdown('<div class="dn-section">// DETALLE POR MES</div>', unsafe_allow_html=True)
 
     for i, (mes, data) in enumerate(zip(meses_cerrados, all_data)):
         score = calculate_score(data, metas)
         with st.expander(f"{MESES_NOMBRES[mes]} {current_year}  —  {score}/{total_metrics} metas"):
-
-            st.caption("FITNESS HABITS")
-            for key, label, unit, tipo in FITNESS_METRICS:
+            rows = []
+            for key, label, unit, tipo in FITNESS_METRICS + SLEEP_METRICS:
                 pct = get_pct(key, data[key], metas[key], tipo)
-                status = get_status(pct)
-                st.text(f"{status} {label}: {fmt(data[key], unit)}  (meta: {fmt(metas[key], unit)}, {pct:.0f}%)")
+                status_cls = get_status_class(pct)
+                dot = f'<span class="dn-status {status_cls}" style="vertical-align:middle;"></span>'
+                rows.append([f"{dot} {label}", fmt(data[key], unit), fmt(metas[key], unit), f"{pct:.0f}%"])
 
-            st.caption("SLEEP HABITS")
-            for key, label, unit, tipo in SLEEP_METRICS:
-                pct = get_pct(key, data[key], metas[key], tipo)
-                status = get_status(pct)
-                st.text(f"{status} {label}: {fmt(data[key], unit)}  (meta: {fmt(metas[key], unit)}, {pct:.0f}%)")
+            st.markdown(
+                _html_table(["Metrica", "Valor", "Meta", "%"], rows),
+                unsafe_allow_html=True
+            )
 
             if i > 0:
                 prev = all_data[i - 1]
-                st.caption(f"VS {MESES_NOMBRES[meses_cerrados[i-1]]}")
                 trends = []
                 for key, label, unit, tipo in FITNESS_METRICS + SLEEP_METRICS:
                     curr_val = data[key]
@@ -129,31 +149,36 @@ def show(metas, current_month, current_year):
                         arrow = "➡️"
                     short = label.split('/')[0].strip()[:14]
                     trends.append(f"{arrow} {short} {change_pct:+.0f}%")
-                st.text("  |  ".join(trends))
-
-    st.divider()
+                st.caption("  |  ".join(trends))
 
     # ---- COMPARATIVA MENSUAL ----
     if len(all_data) >= 1:
-        st.subheader("COMPARATIVA MENSUAL")
+        st.markdown('<div class="dn-section">// COMPARATIVA MENSUAL</div>', unsafe_allow_html=True)
 
-        comp_data = []
+        month_headers = [MESES_CORTOS[m] for m in meses_cerrados]
+        headers = ["Metrica"] + month_headers + ["Promedio", "Meta"]
+
+        rows = []
         for key, label, unit, tipo in FITNESS_METRICS + SLEEP_METRICS:
-            row = {'Metrica': label}
-            for mes_idx, d in zip(meses_cerrados, all_data):
-                row[MESES_CORTOS[mes_idx]] = fmt(d[key], unit)
-            row['Promedio'] = fmt(avg_data[key], unit)
-            row['Meta'] = fmt(metas[key], unit)
-            comp_data.append(row)
+            row = [label]
+            for d in all_data:
+                row.append(fmt(d[key], unit))
+            row.append(fmt(avg_data[key], unit))
+            row.append(fmt(metas[key], unit))
+            rows.append(row)
 
-        score_row = {'Metrica': 'SCORE'}
-        for mes_idx, d in zip(meses_cerrados, all_data):
+        # Score row
+        score_row = ["<strong>SCORE</strong>"]
+        for d in all_data:
             s = calculate_score(d, metas)
-            score_row[MESES_CORTOS[mes_idx]] = f"{s}/{total_metrics}"
-        score_row['Promedio'] = f"{avg_score}/{total_metrics}"
-        score_row['Meta'] = f"{total_metrics}/{total_metrics}"
-        comp_data.append(score_row)
+            score_row.append(f"{s}/{total_metrics}")
+        score_row.append(f"{avg_score}/{total_metrics}")
+        score_row.append(f"{total_metrics}/{total_metrics}")
+        rows.append(score_row)
 
-        st.dataframe(comp_data, use_container_width=True, hide_index=True)
+        st.markdown(_html_table(headers, rows), unsafe_allow_html=True)
 
-    st.caption(f"Last update: {datetime.now().strftime('%d/%m/%Y %H:%M')}")
+    st.markdown(
+        f'<div class="dn-footer">Last update: {datetime.now().strftime("%d/%m/%Y %H:%M")}</div>',
+        unsafe_allow_html=True
+    )
