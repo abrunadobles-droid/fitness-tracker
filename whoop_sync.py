@@ -41,7 +41,7 @@ def sync_month(whoop, year, month, cache):
 
     summary = whoop.get_monthly_summary(year, month)
 
-    cache[key] = {
+    new_data = {
         'year': year,
         'month': month,
         'synced_at': datetime.now().isoformat(),
@@ -56,6 +56,14 @@ def sync_month(whoop, year, month, cache):
         'num_sleeps': len(summary.get('sleep', [])),
         'num_workouts': len(summary.get('workouts', [])),
     }
+
+    # Protect cache: don't overwrite existing data with empty results (API failure)
+    if new_data['num_sleeps'] == 0 and new_data['avg_recovery_score'] == 0 and key in cache:
+        print(f"\n   ⚠️  API devolvió datos vacíos para {key}. Manteniendo cache anterior.")
+        print(f"   (Cache actual: {cache[key].get('num_sleeps', 0)} noches, synced {cache[key].get('synced_at', '?')})")
+        return cache
+
+    cache[key] = new_data
 
     d = cache[key]
     print(f"   Sleep avg:     {d['sleep_hours_avg']}h ({d['num_sleeps']} noches)")
