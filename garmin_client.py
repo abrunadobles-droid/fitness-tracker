@@ -3,11 +3,8 @@ Cliente de Garmin Connect
 - Uses garth token persistence to avoid repeated login failures
 - Auto-refreshes and re-saves tokens to keep the session alive
 - Supports CI via GARMIN_TOKENS_DIR env var or GARMIN_TOKENS_JSON secret
-- Falls back to email/password with native MFA support via garth
+- Falls back to email/password with MFA support
 - Use GARMIN_DEBUG=1 env var for verbose logging
-
-IMPORTANT: Patches garth.sso.USER_AGENT on import to ensure compatibility
-with Garmin's API regardless of installed garth version.
 """
 from garminconnect import Garmin
 from datetime import datetime, timedelta
@@ -15,16 +12,8 @@ import json
 import os
 import sys
 import tempfile
+import inspect
 import config
-
-# Patch garth User-Agent BEFORE any garth calls.
-# Garmin rejects browser-style User-Agents since early 2026.
-# The correct UA is the Garmin Connect mobile app identifier.
-try:
-    import garth.sso
-    garth.sso.USER_AGENT = {"User-Agent": "com.garmin.android.apps.connectmobile"}
-except (ImportError, AttributeError):
-    pass
 
 TOKENSTORE = os.path.expanduser("~/.garmin_tokens")
 DEBUG = os.environ.get('GARMIN_DEBUG', '') == '1'
@@ -94,6 +83,66 @@ def _prompt_mfa():
     return code
 
 
+def _garmin_with_mfa(email, password):
+    """Create Garmin client with MFA support, compatible with old and new versions."""
+    # Check if garminconnect supports prompt_mfa
+    sig = inspect.signature(Garmin.__init__)
+    if 'prompt_mfa' in sig.parameters:
+        return Garmin(email, password, prompt_mfa=_prompt_mfa)
+    else:
+        return Garmin(email, password)
+
+
+def _login_via_garth_direct(email, password):
+    """
+    Login using garth.login() directly, bypassing garminconnect.
+    This can work when garminconnect's login fails due to version issues.
+    Returns an authenticated Garmin client.
+    """
+    import garth
+
+    _debug("Intentando login via garth.login() directo...")
+    garth.login(email, password, prompt_mfa=_prompt_mfa)
+    garth.save(TOKENSTORE)
+    _debug(f"garth tokens guardados en {TOKENSTORE}")
+
+    # Now create Garmin client and load the saved tokens
+    client = Garmin()
+    client.login(TOKENSTORE)
+    return client
+
+
+def _debug_oauth1_exchange(ticket):
+    """Debug the OAuth1 token exchange to understand 401 errors."""
+    try:
+        import requests
+        from requests_oauthlib import OAuth1Session
+
+        # Fetch consumer credentials
+        consumer = requests.get('https://thegarth.s3.amazonaws.com/oauth_consumer.json', timeout=10).json()
+        _debug(f"OAuth consumer key: {consumer['consumer_key'][:12]}...")
+
+        # Create OAuth1 session
+        sess = OAuth1Session(consumer['consumer_key'], consumer['consumer_secret'])
+        url = (
+            f"https://connectapi.garmin.com/oauth-service/oauth/"
+            f"preauthorized?ticket={ticket}"
+            f"&login-url=https://sso.garmin.com/sso/embed"
+            f"&accepts-mfa-tokens=true"
+        )
+        headers = {'User-Agent': 'com.garmin.android.apps.connectmobile'}
+
+        resp = sess.get(url, headers=headers, timeout=15)
+        _debug(f"OAuth1 exchange status: {resp.status_code}")
+        _debug(f"OAuth1 exchange response: {resp.text[:300]}")
+        if resp.status_code == 200:
+            _debug("OAuth1 exchange EXITOSO con llamada manual!")
+        return resp
+    except Exception as e:
+        _debug(f"OAuth1 debug exchange error: {e}")
+        return None
+
+
 class GarminClient:
     def __init__(self):
         self.client = None
@@ -104,7 +153,8 @@ class GarminClient:
         Login to Garmin Connect. Tries methods in order:
         1. Tokens from GARMIN_TOKENS_JSON env var (CI)
         2. Saved tokens in ~/.garmin_tokens/
-        3. Email/password via garminconnect library (with native MFA support)
+        3. garth.login() directly (bypasses garminconnect version issues)
+        4. Email/password via garminconnect library
 
         Each step logs the failure reason so auth issues can be diagnosed.
         """
@@ -142,25 +192,45 @@ class GarminClient:
                 import shutil
                 shutil.rmtree(TOKENSTORE, ignore_errors=True)
 
-        # Step 3: Email/password login via garminconnect (uses garth SSO + MFA natively)
+        # Need credentials for steps 3-4
         email = config.GARMIN_EMAIL
         password = config.GARMIN_PASSWORD
         if not email or not password:
             errors.append("Credenciales: GARMIN_EMAIL o GARMIN_PASSWORD no configurados")
-            _debug("Sin credenciales configuradas, saltando login con email/password")
+            _debug("Sin credenciales configuradas")
             self._raise_auth_error(errors)
 
+        # Step 3: Try garth.login() directly (most reliable, bypasses garminconnect)
         try:
-            _debug(f"Intentando login con email/password ({email})...")
-            self.client = Garmin(email, password, prompt_mfa=_prompt_mfa)
+            self.client = _login_via_garth_direct(email, password)
+            self.client.garth.dump(TOKENSTORE)
+            self._tokendir = TOKENSTORE
+            print("[GARMIN] Login exitoso via garth directo")
+            return
+        except Exception as e:
+            errors.append(f"garth directo: {e}")
+            _debug(f"garth directo fallo: {e}")
+
+        # Step 4: Try garminconnect library login (with MFA support if available)
+        try:
+            _debug(f"Intentando login con garminconnect ({email})...")
+            self.client = _garmin_with_mfa(email, password)
             self.client.login()
             self.client.garth.dump(TOKENSTORE)
             self._tokendir = TOKENSTORE
-            print("[GARMIN] Login exitoso con email/password")
+            print("[GARMIN] Login exitoso con garminconnect")
             return
         except Exception as e:
-            errors.append(f"Email/password: {e}")
-            _debug(f"Email/password fallo: {e}")
+            errors.append(f"garminconnect: {e}")
+            _debug(f"garminconnect fallo: {e}")
+
+            # Debug the OAuth1 exchange if ticket-related 401
+            if '401' in str(e) and 'preauthorized' in str(e):
+                _debug("=== Diagnostico OAuth1 ===")
+                _debug("El ticket SSO se obtuvo correctamente pero el intercambio OAuth1 falla.")
+                _debug("Esto puede ser un problema temporal de Garmin o de la version de garth.")
+                _debug(f"garth version: {_get_garth_version()}")
+                _debug(f"garminconnect version: {_get_garminconnect_version()}")
 
         self._raise_auth_error(errors)
 
@@ -171,7 +241,7 @@ class GarminClient:
         for i, err in enumerate(errors, 1):
             msg += f"  {i}. {err}\n"
         msg += "\nSoluciones:\n"
-        msg += "  - Actualiza garth: pip3 install --upgrade garth\n"
+        msg += "  - Actualiza dependencias: pip3 install --upgrade garth garminconnect\n"
         msg += "  - Verifica email/password en .streamlit/secrets.toml seccion [garmin]\n"
         msg += "  - O exporta: GARMIN_EMAIL='tu@email' GARMIN_PASSWORD='tupass'\n"
         msg += "  - Si ya tienes tokens, revisa ~/.garmin_tokens/\n"
@@ -214,3 +284,19 @@ class GarminClient:
         return self._call_with_retry(
             self.client.get_activities_by_date, start_str, end_str
         )
+
+
+def _get_garth_version():
+    try:
+        import garth
+        return getattr(garth, '__version__', 'unknown')
+    except Exception:
+        return 'not installed'
+
+
+def _get_garminconnect_version():
+    try:
+        import garminconnect
+        return getattr(garminconnect, '__version__', 'unknown')
+    except Exception:
+        return 'not installed'
