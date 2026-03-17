@@ -10,6 +10,7 @@ from garminconnect import Garmin
 from datetime import datetime, timedelta
 import json
 import os
+import sys
 import tempfile
 import config
 
@@ -91,15 +92,24 @@ class GarminClient:
             pass
 
         # Fall back to custom SSO flow (handles Garmin SSO page changes)
-        from garmin_auth import garmin_login, garmin_connect_with_ticket
+        from garmin_auth import garmin_login, garmin_verify_mfa, garmin_connect_with_ticket
         result = garmin_login(config.GARMIN_EMAIL, config.GARMIN_PASSWORD)
 
         if result.get('mfa_required'):
-            raise Exception(
-                "Garmin requiere MFA. Usa la pagina de setup para conectar tu cuenta."
-            )
+            # Interactive MFA: prompt user for code if running in a terminal
+            if not sys.stdin.isatty():
+                raise Exception(
+                    "Garmin requiere MFA. Corre el sync desde terminal para ingresar el codigo."
+                )
+            print("\n🔐 Garmin requiere verificacion MFA.")
+            print("   Revisa tu app de autenticacion o SMS.")
+            mfa_code = input("   Ingresa el codigo MFA: ").strip()
+            if not mfa_code:
+                raise Exception("No se ingreso codigo MFA.")
+            ticket = garmin_verify_mfa(result['session'], mfa_code)
+        else:
+            ticket = result['ticket']
 
-        ticket = result['ticket']
         self.client = garmin_connect_with_ticket(
             config.GARMIN_EMAIL, config.GARMIN_PASSWORD, ticket
         )
