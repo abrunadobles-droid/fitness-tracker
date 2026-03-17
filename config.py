@@ -34,16 +34,13 @@ def _load_secrets_toml():
 
 # Prioridad: env vars > Streamlit secrets > secrets.toml directo
 
-# 1. Intentar desde variables de entorno (GitHub Actions)
+# 1. Intentar WHOOP desde variables de entorno (GitHub Actions)
 if os.environ.get('WHOOP_CLIENT_ID'):
     WHOOP_CLIENT_ID = os.environ['WHOOP_CLIENT_ID']
     WHOOP_CLIENT_SECRET = os.environ.get('WHOOP_CLIENT_SECRET', '')
     WHOOP_ACCESS_TOKEN = os.environ.get('WHOOP_ACCESS_TOKEN', '')
     WHOOP_REFRESH_TOKEN = os.environ.get('WHOOP_REFRESH_TOKEN', '')
-    GARMIN_EMAIL = os.environ.get('GARMIN_EMAIL', '')
-    GARMIN_PASSWORD = os.environ.get('GARMIN_PASSWORD', '')
 else:
-    _secrets = None
     try:
         # 2. Streamlit Secrets (cuando corre dentro de Streamlit)
         import streamlit as st
@@ -51,18 +48,27 @@ else:
         WHOOP_CLIENT_SECRET = st.secrets["whoop"]["client_secret"]
         WHOOP_ACCESS_TOKEN = st.secrets.get("whoop", {}).get("access_token", "")
         WHOOP_REFRESH_TOKEN = st.secrets.get("whoop", {}).get("refresh_token", "")
-        GARMIN_EMAIL = st.secrets["garmin"]["email"]
-        GARMIN_PASSWORD = st.secrets["garmin"]["password"]
     except Exception:
         # 3. Leer secrets.toml directamente (para scripts de terminal)
         _secrets = _load_secrets_toml()
         _whoop = _secrets.get('whoop', {})
-        _garmin = _secrets.get('garmin', {})
         WHOOP_CLIENT_ID = _whoop.get('client_id', '')
         WHOOP_CLIENT_SECRET = _whoop.get('client_secret', '')
         WHOOP_ACCESS_TOKEN = _whoop.get('access_token', '')
         WHOOP_REFRESH_TOKEN = _whoop.get('refresh_token', '')
-        GARMIN_EMAIL = _garmin.get('email', '')
-        GARMIN_PASSWORD = _garmin.get('password', '')
+
+# Garmin: env vars tienen prioridad, luego Streamlit secrets, luego secrets.toml
+GARMIN_EMAIL = os.environ.get('GARMIN_EMAIL', '')
+GARMIN_PASSWORD = os.environ.get('GARMIN_PASSWORD', '')
+if not GARMIN_EMAIL or not GARMIN_PASSWORD:
+    try:
+        import streamlit as st
+        GARMIN_EMAIL = GARMIN_EMAIL or st.secrets["garmin"]["email"]
+        GARMIN_PASSWORD = GARMIN_PASSWORD or st.secrets["garmin"]["password"]
+    except Exception:
+        _garmin_secrets = _load_secrets_toml()
+        _garmin = _garmin_secrets.get('garmin', {})
+        GARMIN_EMAIL = GARMIN_EMAIL or _garmin.get('email', '')
+        GARMIN_PASSWORD = GARMIN_PASSWORD or _garmin.get('password', '')
 
 WHOOP_REDIRECT_URI = 'http://localhost:8000/callback'
