@@ -26,16 +26,14 @@ SSO = "https://sso.garmin.com/sso"
 SSO_EMBED = f"{SSO}/embed"
 
 EMBED_PARAMS = {
-    "clientId": "GarminConnect",
-    "locale": "en",
-    "service": "https://connect.garmin.com/modern",
+    "id": "gauth-widget",
+    "embedWidget": "true",
+    "gauthHost": SSO,
 }
 
 SIGNIN_PARAMS = {
     "id": "gauth-widget",
     "embedWidget": "true",
-    "clientId": "GarminConnect",
-    "locale": "en",
     "gauthHost": SSO_EMBED,
     "service": SSO_EMBED,
     "source": SSO_EMBED,
@@ -43,11 +41,7 @@ SIGNIN_PARAMS = {
     "redirectAfterAccountCreationUrl": SSO_EMBED,
 }
 
-USER_AGENT = (
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-    "AppleWebKit/537.36 (KHTML, like Gecko) "
-    "Chrome/131.0.0.0 Safari/537.36"
-)
+USER_AGENT = "com.garmin.android.apps.connectmobile"
 
 
 # ---- Helpers ----
