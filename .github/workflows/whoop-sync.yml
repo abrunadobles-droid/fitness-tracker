@@ -1,4 +1,4 @@
-name: WHOOP Daily Sync
+name: Daily Fitness Sync
 
 on:
   schedule:
@@ -22,7 +22,7 @@ jobs:
           python-version: '3.11'
 
       - name: Install dependencies
-        run: pip install requests
+        run: pip install requests garminconnect garth
 
       - name: Run WHOOP sync
         env:
@@ -31,27 +31,50 @@ jobs:
           WHOOP_TOKENS_JSON: ${{ secrets.WHOOP_TOKENS_JSON }}
         run: python whoop_sync.py --all
 
-      - name: Save updated tokens as secret
+      - name: Save updated WHOOP tokens
         env:
           GH_TOKEN: ${{ secrets.GH_PAT }}
         run: |
-          # Después del sync, whoop_tokens.json tiene los tokens renovados
           if [ -f whoop_tokens.json ]; then
-            echo "Actualizando secreto WHOOP_TOKENS_JSON con tokens renovados..."
+            echo "Actualizando secreto WHOOP_TOKENS_JSON..."
             gh secret set WHOOP_TOKENS_JSON --body "$(cat whoop_tokens.json)"
-            echo "Tokens actualizados exitosamente"
-          else
-            echo "No se encontró whoop_tokens.json - tokens no actualizados"
+            echo "WHOOP tokens actualizados"
           fi
 
-      - name: Commit and push cache
+      - name: Run Garmin sync
+        env:
+          GARMIN_TOKENS_JSON: ${{ secrets.GARMIN_TOKENS_JSON }}
+          GARMIN_EMAIL: ${{ secrets.GARMIN_EMAIL }}
+          GARMIN_PASSWORD: ${{ secrets.GARMIN_PASSWORD }}
+        run: python garmin_sync.py --all
+
+      - name: Save updated Garmin tokens
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+        run: |
+          # Export refreshed tokens back to GitHub Secrets
+          UPDATED_TOKENS=$(python -c "
+          from garmin_client import _export_tokens_json
+          import tempfile, os
+          tmpdir = os.path.join(tempfile.gettempdir(), 'garmin_tokens')
+          tokens = _export_tokens_json(tmpdir)
+          if tokens:
+              print(tokens)
+          " 2>/dev/null)
+          if [ -n "$UPDATED_TOKENS" ]; then
+            echo "Actualizando secreto GARMIN_TOKENS_JSON..."
+            gh secret set GARMIN_TOKENS_JSON --body "$UPDATED_TOKENS"
+            echo "Garmin tokens actualizados"
+          fi
+
+      - name: Commit and push caches
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add whoop_cache.json
+          git add whoop_cache.json garmin_cache.json
           if git diff --cached --quiet; then
-            echo "No hay cambios en whoop_cache.json"
+            echo "No hay cambios en caches"
           else
-            git commit -m "Sync WHOOP data $(date +'%Y-%m-%d')"
+            git commit -m "Sync fitness data $(date +'%Y-%m-%d')"
             git push
           fi
