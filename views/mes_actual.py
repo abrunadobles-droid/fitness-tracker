@@ -97,8 +97,9 @@ def show(data, metas, days_elapsed, days_in_month, progress_pct, current_month, 
         </table>''', unsafe_allow_html=True)
 
     whoop_src = data.get('whoop_source', '?')
+    garmin_src = data.get('garmin_source', '?')
     st.markdown(
-        f'<div class="dn-footer">WHOOP: {whoop_src} &middot; '
+        f'<div class="dn-footer">GARMIN: {garmin_src} &middot; WHOOP: {whoop_src} &middot; '
         f'Last update: {datetime.now().strftime("%d/%m/%Y %H:%M")}</div>',
         unsafe_allow_html=True
     )

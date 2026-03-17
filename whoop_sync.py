@@ -96,12 +96,22 @@ def main():
         whoop = WhoopClientV2()
 
         if not whoop.auth.is_authenticated():
-            print("No hay tokens de WHOOP. Ejecuta primero:")
-            print("  python whoop_sync.py --auth")
+            print("❌ No hay tokens de WHOOP. Ejecuta primero:")
+            print("   python3 whoop_sync.py --auth")
+            return
+
+        # Quick auth check: try to get profile to verify tokens work
+        try:
+            whoop.get_profile()
+            print("   ✅ Conectado a WHOOP")
+        except Exception:
+            print("❌ Tokens de WHOOP expirados o inválidos.")
+            print("   Ejecuta: python3 whoop_sync.py --auth")
+            print("   (Esto abrirá el navegador para re-autorizar)")
             return
     except Exception as e:
         print(f"Error inicializando WHOOP: {e}")
-        print("Ejecuta primero: python whoop_sync.py --auth")
+        print("Ejecuta primero: python3 whoop_sync.py --auth")
         return
 
     cache = load_cache()

@@ -1,9 +1,60 @@
 """
 Carga de datos mensuales: Garmin + WHOOP.
+Intenta API live primero, luego cae a cache local.
 """
+import json
+import os
 import streamlit as st
 from datetime import datetime, timedelta
 from calendar import monthrange
+
+
+def _load_garmin_cache():
+    """Load Garmin data from local cache file (fallback)."""
+    cache_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'garmin_cache.json')
+    if os.path.exists(cache_path):
+        with open(cache_path, 'r') as f:
+            return json.load(f)
+    return {}
+
+
+def _get_garmin_live(year, month, start_date, end_date):
+    """Fetch Garmin data live from API. Raises on failure."""
+    from garmin_client import GarminClient
+    garmin = GarminClient()
+    garmin.login()
+
+    total_steps = 0
+    days_with_steps = 0
+    current_date = start_date
+    while current_date <= end_date:
+        try:
+            stats = garmin.get_stats_for_date(current_date)
+            if stats and stats.get('totalSteps'):
+                total_steps += stats['totalSteps']
+                days_with_steps += 1
+        except Exception:
+            pass
+        current_date += timedelta(days=1)
+
+    steps_avg = round(total_steps / days_with_steps) if days_with_steps > 0 else 0
+
+    all_activities = garmin.get_activities(start_date, end_date)
+    activities_count = 0
+    strength_count = 0
+
+    for activity in all_activities:
+        activity_date_str = activity.get('startTimeLocal', '')
+        if activity_date_str:
+            activity_date = datetime.strptime(activity_date_str[:10], '%Y-%m-%d')
+            if activity_date.year == year and activity_date.month == month:
+                activity_type = activity.get('activityType', {}).get('typeKey', '').lower()
+                if 'breath' not in activity_type and 'meditation' not in activity_type:
+                    activities_count += 1
+                    if any(kw in activity_type for kw in ['strength', 'training', 'gym', 'weight']):
+                        strength_count += 1
+
+    return steps_avg, activities_count, strength_count
 
 
 @st.cache_data(ttl=60)
@@ -24,49 +75,37 @@ def get_monthly_data(year, month):
         'hr_zone_1_3': 0, 'hr_zone_4_5': 0,
         'recovery_score': 0, 'resting_hr': 0, 'sleep_consistency': 0,
         'whoop_source': 'NO DATA',
+        'garmin_source': 'NO DATA',
     }
 
     # --- GARMIN ---
+    cache_key = f"{year}-{month:02d}"
+
+    # Try live API first
     try:
-        from garmin_client import GarminClient
-        garmin = GarminClient()
-        garmin.login()
-
-        total_steps = 0
-        days_with_steps = 0
-        current_date = start_date
-        while current_date <= end_date:
-            try:
-                stats = garmin.get_stats_for_date(current_date)
-                if stats and stats.get('totalSteps'):
-                    total_steps += stats['totalSteps']
-                    days_with_steps += 1
-            except Exception:
-                pass
-            current_date += timedelta(days=1)
-
-        data['steps_avg'] = round(total_steps / days_with_steps) if days_with_steps > 0 else 0
-
-        all_activities = garmin.get_activities(start_date, end_date)
-        filtered_activities = []
-        strength_count = 0
-
-        for activity in all_activities:
-            activity_date_str = activity.get('startTimeLocal', '')
-            if activity_date_str:
-                activity_date = datetime.strptime(activity_date_str[:10], '%Y-%m-%d')
-                if activity_date.year == year and activity_date.month == month:
-                    activity_type = activity.get('activityType', {}).get('typeKey', '').lower()
-                    if 'breath' not in activity_type and 'meditation' not in activity_type:
-                        filtered_activities.append(activity)
-                        if any(kw in activity_type for kw in ['strength', 'training', 'gym', 'weight']):
-                            strength_count += 1
-
-        data['activities'] = len(filtered_activities)
-        data['strength'] = strength_count
-
+        steps_avg, activities, strength = _get_garmin_live(year, month, start_date, end_date)
+        data['steps_avg'] = steps_avg
+        data['activities'] = activities
+        data['strength'] = strength
+        data['garmin_source'] = 'LIVE'
+        print(f"[GARMIN] {cache_key} fetched LIVE")
     except Exception as e:
-        st.error(f"Error cargando Garmin: {str(e)}")
+        print(f"[GARMIN] Live fetch failed for {cache_key}: {e}")
+
+        # Fall back to cache
+        try:
+            garmin_cache = _load_garmin_cache()
+            if cache_key in garmin_cache:
+                cached = garmin_cache[cache_key]
+                data['steps_avg'] = cached.get('steps_avg', 0)
+                data['activities'] = cached.get('activities', 0)
+                data['strength'] = cached.get('strength', 0)
+                data['garmin_source'] = f"CACHE ({cached.get('synced_at', '?')})"
+                print(f"[GARMIN] {cache_key} loaded from CACHE")
+            else:
+                print(f"[GARMIN] No cache data for {cache_key}")
+        except Exception as cache_err:
+            print(f"[GARMIN] Cache load failed: {cache_err}")
 
     # --- WHOOP ---
     from whoop_streamlit import get_whoop_data
