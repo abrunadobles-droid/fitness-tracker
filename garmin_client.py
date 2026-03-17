@@ -3,9 +3,11 @@ Cliente de Garmin Connect
 - Uses garth token persistence to avoid repeated login failures
 - Auto-refreshes and re-saves tokens to keep the session alive
 - Supports CI via GARMIN_TOKENS_DIR env var or GARMIN_TOKENS_JSON secret
-- Falls back to custom SSO flow (garmin_auth.py) when library login fails
-- Falls back to email/password only when tokens are missing or expired
+- Falls back to email/password with native MFA support via garth
 - Use GARMIN_DEBUG=1 env var for verbose logging
+
+IMPORTANT: Patches garth.sso.USER_AGENT on import to ensure compatibility
+with Garmin's API regardless of installed garth version.
 """
 from garminconnect import Garmin
 from datetime import datetime, timedelta
@@ -14,6 +16,15 @@ import os
 import sys
 import tempfile
 import config
+
+# Patch garth User-Agent BEFORE any garth calls.
+# Garmin rejects browser-style User-Agents since early 2026.
+# The correct UA is the Garmin Connect mobile app identifier.
+try:
+    import garth.sso
+    garth.sso.USER_AGENT = {"User-Agent": "com.garmin.android.apps.connectmobile"}
+except (ImportError, AttributeError):
+    pass
 
 TOKENSTORE = os.path.expanduser("~/.garmin_tokens")
 DEBUG = os.environ.get('GARMIN_DEBUG', '') == '1'
@@ -59,6 +70,30 @@ def _export_tokens_json(tokendir):
     return json.dumps(tokens) if tokens else None
 
 
+def _prompt_mfa():
+    """Prompt for MFA code from terminal, or raise if not interactive."""
+    if not sys.stdin.isatty():
+        raise Exception(
+            "Garmin requiere verificacion MFA pero no hay terminal interactiva.\n"
+            "Corre el sync desde terminal: python3 garmin_sync.py"
+        )
+    print("\n" + "=" * 50)
+    print("  Garmin requiere verificacion adicional (MFA)")
+    print("=" * 50)
+    print()
+    print("  Esto puede pasar si:")
+    print("  - Tienes MFA/2FA activado en tu cuenta Garmin")
+    print("  - Garmin detecto un login desde un dispositivo nuevo")
+    print("  - Garmin envio un codigo a tu email o SMS")
+    print()
+    print("  Revisa tu email, SMS, o app de autenticacion.")
+    print()
+    code = input("  Ingresa el codigo de verificacion (o 'skip' para cancelar): ").strip()
+    if not code or code.lower() == 'skip':
+        raise Exception("MFA: usuario cancelo la verificacion")
+    return code
+
+
 class GarminClient:
     def __init__(self):
         self.client = None
@@ -69,8 +104,7 @@ class GarminClient:
         Login to Garmin Connect. Tries methods in order:
         1. Tokens from GARMIN_TOKENS_JSON env var (CI)
         2. Saved tokens in ~/.garmin_tokens/
-        3. Email/password via garminconnect library
-        4. Custom SSO flow with MFA support
+        3. Email/password via garminconnect library (with native MFA support)
 
         Each step logs the failure reason so auth issues can be diagnosed.
         """
@@ -108,85 +142,27 @@ class GarminClient:
                 import shutil
                 shutil.rmtree(TOKENSTORE, ignore_errors=True)
 
-        # Step 3: Try library's built-in email/password login
+        # Step 3: Email/password login via garminconnect (uses garth SSO + MFA natively)
         email = config.GARMIN_EMAIL
         password = config.GARMIN_PASSWORD
         if not email or not password:
             errors.append("Credenciales: GARMIN_EMAIL o GARMIN_PASSWORD no configurados")
             _debug("Sin credenciales configuradas, saltando login con email/password")
-        else:
-            try:
-                _debug(f"Intentando login con email/password ({email})...")
-                self.client = Garmin(email, password)
-                self.client.login()
-                self.client.garth.dump(TOKENSTORE)
-                self._tokendir = TOKENSTORE
-                print("[GARMIN] Login exitoso con email/password")
-                return
-            except Exception as e:
-                errors.append(f"Email/password: {e}")
-                _debug(f"Email/password fallo: {e}")
-
-        # Step 4: Fall back to custom SSO flow (handles Garmin SSO page changes)
-        if not email or not password:
             self._raise_auth_error(errors)
 
         try:
-            _debug("Intentando login via SSO custom...")
-            from garmin_auth import garmin_login, garmin_verify_mfa, garmin_connect_with_ticket
-            result = garmin_login(email, password)
-
-            if result.get('mfa_required'):
-                self._handle_mfa(result, email, password, errors)
-            else:
-                ticket = result['ticket']
-                _debug(f"SSO retorno ticket: {ticket[:20]}...")
-                self.client = garmin_connect_with_ticket(email, password, ticket)
-                self.client.garth.dump(TOKENSTORE)
-                self._tokendir = TOKENSTORE
-                print("[GARMIN] Login exitoso via SSO")
-                return
-        except Exception as e:
-            errors.append(f"SSO custom: {e}")
-            _debug(f"SSO custom fallo: {e}")
-
-        self._raise_auth_error(errors)
-
-    def _handle_mfa(self, result, email, password, errors):
-        """Handle MFA challenge from SSO flow."""
-        from garmin_auth import garmin_verify_mfa, garmin_connect_with_ticket
-
-        if not sys.stdin.isatty():
-            raise Exception(
-                "Garmin requiere verificacion MFA pero no hay terminal interactiva.\n"
-                "Corre el sync desde terminal: python3 garmin_sync.py"
-            )
-
-        print("\n" + "=" * 50)
-        print("  Garmin requiere verificacion adicional (MFA)")
-        print("=" * 50)
-        print()
-        print("  Esto puede pasar si:")
-        print("  - Tienes MFA/2FA activado en tu cuenta Garmin")
-        print("  - Garmin detecto un login desde un dispositivo nuevo")
-        print("  - Garmin envio un codigo a tu email o SMS")
-        print()
-        print("  Revisa tu email, SMS, o app de autenticacion.")
-        print()
-
-        mfa_code = input("  Ingresa el codigo de verificacion (o 'skip' para cancelar): ").strip()
-        if not mfa_code or mfa_code.lower() == 'skip':
-            errors.append("MFA: usuario cancelo la verificacion")
-            self._raise_auth_error(errors)
-
-        try:
-            ticket = garmin_verify_mfa(result['session'], mfa_code)
-            self.client = garmin_connect_with_ticket(email, password, ticket)
+            _debug(f"Intentando login con email/password ({email})...")
+            self.client = Garmin(email, password, prompt_mfa=_prompt_mfa)
+            self.client.login()
             self.client.garth.dump(TOKENSTORE)
             self._tokendir = TOKENSTORE
-            print("[GARMIN] Login exitoso via MFA")
+            print("[GARMIN] Login exitoso con email/password")
+            return
         except Exception as e:
-            raise Exception(f"Codigo MFA invalido o expirado: {e}")
+            errors.append(f"Email/password: {e}")
+            _debug(f"Email/password fallo: {e}")
+
+        self._raise_auth_error(errors)
 
     def _raise_auth_error(self, errors):
         """Raise a detailed auth error with all attempted methods."""
@@ -195,6 +171,7 @@ class GarminClient:
         for i, err in enumerate(errors, 1):
             msg += f"  {i}. {err}\n"
         msg += "\nSoluciones:\n"
+        msg += "  - Actualiza garth: pip3 install --upgrade garth\n"
         msg += "  - Verifica email/password en .streamlit/secrets.toml seccion [garmin]\n"
         msg += "  - O exporta: GARMIN_EMAIL='tu@email' GARMIN_PASSWORD='tupass'\n"
         msg += "  - Si ya tienes tokens, revisa ~/.garmin_tokens/\n"
