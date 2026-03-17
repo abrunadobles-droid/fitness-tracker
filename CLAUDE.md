@@ -109,13 +109,19 @@ Garmin API ────┘   (cron diario)    └── garmin_cache.json ──
 **Archivos tocados:**
 - `config.py` - Agregado parser TOML directo como fallback
 - `.streamlit/secrets.toml` - Creado con credenciales WHOOP
+- `garmin_client.py` - Agregado soporte CI: lee tokens desde GARMIN_TOKENS_JSON env var, export tokens como JSON
+- `.github/workflows/whoop-sync.yml` - Renombrado a "Daily Fitness Sync", agregado Garmin sync + token refresh
+- `export_garmin_tokens.py` - Nuevo script para exportar tokens locales de Garmin a GitHub Secrets
 - `CLAUDE.md` - Reescrito con estado completo del proyecto
 
 **Decisiones:**
 - No se necesita app approval de WHOOP para uso personal (<10 usuarios)
 - Config lee secrets.toml directamente con tomllib/tomli/parser manual según versión de Python
+- Garmin tokens se serializan como JSON único (todos los archivos de garth) para guardar en GitHub Secrets
+- Workflow unificado: WHOOP + Garmin en un solo workflow diario
 
 **Próximos pasos:**
-- Pendiente: completar refactor de Garmin client (branch actual)
-- Verificar que Garmin sync funciona correctamente en la Mac
-- Considerar agregar Garmin al workflow de GitHub Actions
+- En la Mac: correr `python3 garmin_sync.py` para generar garmin_cache.json y verificar login
+- En la Mac: correr `python3 export_garmin_tokens.py` y guardar output como secret GARMIN_TOKENS_JSON en GitHub
+- Agregar secrets GARMIN_EMAIL y GARMIN_PASSWORD en GitHub (fallback)
+- Verificar que el workflow corre correctamente con ambos syncs
