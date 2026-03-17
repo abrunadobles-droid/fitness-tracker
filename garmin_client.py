@@ -104,6 +104,9 @@ class GarminClient:
             except Exception as e:
                 errors.append(f"Tokens guardados: {e}")
                 _debug(f"Tokens guardados fallaron: {e}")
+                _debug(f"Borrando tokens corruptos en {TOKENSTORE}...")
+                import shutil
+                shutil.rmtree(TOKENSTORE, ignore_errors=True)
 
         # Step 3: Try library's built-in email/password login
         email = config.GARMIN_EMAIL
@@ -144,9 +147,8 @@ class GarminClient:
                 print("[GARMIN] Login exitoso via SSO")
                 return
         except Exception as e:
-            if "MFA" not in str(e):
-                errors.append(f"SSO custom: {e}")
-                _debug(f"SSO custom fallo: {e}")
+            errors.append(f"SSO custom: {e}")
+            _debug(f"SSO custom fallo: {e}")
 
         self._raise_auth_error(errors)
 

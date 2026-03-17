@@ -7,11 +7,18 @@ Phase 3: OAuth token exchange via garth → returns authenticated client
 
 Based on Garmin Connect SSO flow documentation.
 """
+import os
 import re
 import requests
 from urllib.parse import urlencode
 from garminconnect import Garmin
 from garth.sso import get_oauth1_token, exchange
+
+DEBUG = os.environ.get('GARMIN_DEBUG', '') == '1'
+
+def _debug(msg):
+    if DEBUG:
+        print(f"[GARMIN AUTH DEBUG] {msg}")
 
 
 # ---- Constants ----
@@ -100,6 +107,9 @@ def garmin_login(email, password):
     )
 
     html = resp.text
+    _debug(f"SSO signin response status: {resp.status_code}")
+    _debug(f"SSO signin response URL: {resp.url}")
+    _debug(f"SSO signin redirects: {len(resp.history)}")
 
     # Step 4: Check response
     if "AccountLocked" in html or "account has been locked" in html.lower():
@@ -108,9 +118,16 @@ def garmin_login(email, password):
     if "incorrectCredentials" in html or "Invalid credentials" in html or "invalidCredentials" in html:
         raise Exception("Email o password de Garmin incorrecto.")
 
+    if "accountTempLocked" in html or "temporarily locked" in html.lower():
+        raise Exception(
+            "Tu cuenta de Garmin esta temporalmente bloqueada por muchos intentos.\n"
+            "Espera unos minutos e intenta de nuevo."
+        )
+
     # Check for ticket in response body
     ticket = _find_ticket(html)
     if ticket:
+        _debug(f"Ticket encontrado en response body")
         return {"ticket": ticket}
 
     # Check in redirect chain
@@ -118,12 +135,37 @@ def garmin_login(email, password):
         loc = r.headers.get("Location", "")
         ticket = _find_ticket(loc)
         if ticket:
+            _debug(f"Ticket encontrado en redirect Location")
             return {"ticket": ticket}
         ticket = _find_ticket(r.text or "")
         if ticket:
+            _debug(f"Ticket encontrado en redirect body")
             return {"ticket": ticket}
 
-    # No ticket → MFA required
+    # No ticket found - check if it's actually MFA or just a failed login
+    has_mfa_indicator = any(kw in html.lower() for kw in [
+        'verifymfa', 'mfa-code', 'verificationcode', 'mfa_challenge',
+        'enter the code', 'verification code', 'two-factor', 'two-step',
+        'codigo de verificacion',
+    ])
+
+    _debug(f"MFA indicators found: {has_mfa_indicator}")
+    if DEBUG:
+        # Show a snippet of the response for debugging
+        snippet = html[:500].replace('\n', ' ').strip()
+        _debug(f"Response snippet: {snippet}")
+
+    if not has_mfa_indicator:
+        # Not MFA - probably a login failure we didn't detect
+        raise Exception(
+            "Login SSO fallo sin ticket ni MFA.\n"
+            "Posibles causas:\n"
+            "  - Password incorrecto (verifica que no tenga caracteres especiales sin escapar)\n"
+            "  - Cuenta bloqueada temporalmente por muchos intentos\n"
+            "  - Garmin cambio el flujo SSO\n"
+            "Corre con GARMIN_DEBUG=1 para mas detalles."
+        )
+
     new_csrf = _get_csrf(html) or csrf
 
     # Try to find MFA form action
