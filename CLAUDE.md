@@ -10,7 +10,8 @@ Dashboard personal de fitness que sincroniza datos de WHOOP y Garmin Connect, lo
 - User's machine is macOS (MacBook Pro)
 - Python command is `python3`, NOT `python` (no `python` alias on this Mac)
 - Always use `python3` and `pip3` in any instructions or scripts for the user
-- Python 3.11 en CI, Python 3.9 en la Mac del usuario
+- Python 3.11 en CI, Python 3.12 en la Mac del usuario (via Homebrew)
+- garth >= 0.7.9 requerido (versiones anteriores tienen bug OAuth1 iOS→Android mismatch)
 
 ## Arquitectura
 
@@ -46,7 +47,8 @@ Garmin API ────┘   (cron diario)    └── garmin_cache.json ──
 - `whoop_cache.json` - Cache de datos mensuales (commiteado al repo)
 
 ### Garmin
-- `garmin_client.py` - Cliente Garmin Connect (garth tokens → email/password → SSO)
+- `garmin_client.py` - Cliente Garmin Connect (tokens → email/password con MFA)
+- `garmin_setup_auth.py` - Setup interactivo: login, guarda tokens, exporta para CI
 - `garmin_auth.py` - SSO authentication con soporte MFA
 - `garmin_sync.py` - CLI sync: `--all`, `--month N --year Y`
 - `garmin_cache.json` - Cache de datos mensuales
@@ -99,32 +101,17 @@ Garmin API ────┘   (cron diario)    └── garmin_cache.json ──
 ## Última sesión
 
 **Fecha:** 2026-03-18
-**Qué estábamos haciendo:**
-- Debuggeando Garmin OAuth1 exchange que falla con 401 Unauthorized en la Mac
-- El flujo SSO login funciona perfecto (se obtiene ticket), pero el paso de OAuth1 token exchange al endpoint `connectapi.garmin.com/oauth-service/oauth/preauthorized` devuelve 401
+**Qué hicimos:**
+- Resolvimos la causa raíz del Garmin OAuth1 401 Unauthorized
+- garth 0.7.9 (lanzado 18-mar-2026) corrigió mismatch iOS→Android en los identificadores OAuth1
+- garth 0.4.47 tenía este bug; 0.5+ requiere Python 3.10+
+- Creamos `garmin_setup_auth.py` para setup interactivo de auth
+- Simplificamos `garmin_client.py` (eliminados workarounds y debug helpers)
+- Eliminamos scripts de diagnóstico (`garmin_debug.py`, `garmin_signing_test.py`, `garmin_curl_test.py`)
 
-**Investigación exhaustiva realizada:**
-1. **garth 0.4.47 vs 0.6.3:** La Mac tiene Python 3.9, garth 0.5+ requiere Python 3.10+. Atrapados en garth 0.4.47 + requests-oauthlib 1.3.1
-2. **Test de signing determinista** (`garmin_signing_test.py`): Firmas OAuth1 HMAC-SHA1 son **idénticas** entre servidor (Python 3.11/Linux/OpenSSL 3.0) y Mac (Python 3.9/macOS/LibreSSL 2.8.3). El signing está perfecto.
-3. **Test desde servidor remoto (US):** Consumer credentials válidas → 429 (rate limited, OAuth1 aceptado). Wrong key → 401. Confirma que las credenciales SON válidas.
-4. **Test con curl** (`garmin_curl_test.py`): curl (SecureTransport/LibreSSL 3.3.6) TAMBIÉN da 401. **Descartado TLS fingerprinting** como causa.
-5. **OAuth1 manual** (`garmin_debug.py` v2): Implementación pure Python (hmac/hashlib, sin oauthlib) TAMBIÉN da 401. **Descartadas las librerías** como causa.
-
-**Conclusión:** El endpoint `connectapi.garmin.com` rechaza OAuth1 desde la red del usuario (Costa Rica) pero lo acepta desde un servidor US. Probable bloqueo geográfico por Cloudflare o restricción regional de Garmin.
-
-**Archivos de diagnóstico creados (branch `claude/garmin-client-refactor-Z6G0v`):**
-- `garmin_debug.py` - Test OAuth1 con requests-oauthlib + pure Python manual
-- `garmin_signing_test.py` - Test determinista de signing (parámetros fijos, compara entre máquinas)
-- `garmin_curl_test.py` - Test OAuth1 via curl (aísla TLS de Python)
-
-**Decisiones:**
-- El problema NO es de código, librerías, ni signing — es de red/geografía
-- garth 0.5+ requiere Python 3.10+ (usa match/case y union types sin future annotations)
-
-**Próximos pasos (cuando Antonio vuelva):**
-1. **Probar desde hotspot del celular** — si funciona, los tokens se guardan (~1 año vida) y después se refrescan sin login
-2. **Si hotspot funciona:** correr `garmin_curl_test.py` desde hotspot, guardar tokens, volver a red normal
-3. **Si hotspot no funciona:** instalar Python 3.12 via brew (`brew install python@3.12`) para desbloquear garth 0.6.3
-4. **Alternativa: VPN** — rutear por US debería funcionar inmediatamente
-5. **Después de obtener tokens:** correr `python3 garmin_sync.py` para generar garmin_cache.json
-6. **Pendiente de sesión anterior:** exportar tokens a GitHub Secrets y verificar workflow diario
+**Próximos pasos para Antonio:**
+1. `brew install python@3.12`
+2. `python3.12 -m pip install garth>=0.7.9 garminconnect requests`
+3. `python3.12 garmin_setup_auth.py` (login interactivo, guarda tokens)
+4. `python3.12 garmin_setup_auth.py --export` (exportar tokens para GitHub Secrets)
+5. `python3.12 garmin_sync.py` (sincronizar datos)
