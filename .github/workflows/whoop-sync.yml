@@ -22,7 +22,7 @@ jobs:
           python-version: '3.11'
 
       - name: Install dependencies
-        run: pip install requests garminconnect garth
+        run: pip install requests garminconnect 'garth>=0.7.9'
 
       - name: Run WHOOP sync
         env:
@@ -42,6 +42,7 @@ jobs:
           fi
 
       - name: Run Garmin sync
+        timeout-minutes: 10
         env:
           GARMIN_TOKENS_JSON: ${{ secrets.GARMIN_TOKENS_JSON }}
           GARMIN_EMAIL: ${{ secrets.GARMIN_EMAIL }}
