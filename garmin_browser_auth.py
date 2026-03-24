@@ -159,13 +159,33 @@ def browser_login():
 
 
 def save_tokens(oauth1, oauth2):
-    """Guardar tokens en ~/.garmin_tokens/ (compatible con garmin_client.py)."""
-    os.makedirs(TOKENSTORE, exist_ok=True)
-    with open(os.path.join(TOKENSTORE, "oauth1_token.json"), "w") as f:
-        json.dump(oauth1, f, indent=2)
-    with open(os.path.join(TOKENSTORE, "oauth2_token.json"), "w") as f:
-        json.dump(oauth2, f, indent=2)
-    print(f"\n[OK] Tokens guardados en {TOKENSTORE}/")
+    """Guardar tokens via garth para formato 100% compatible con garminconnect."""
+    import garth
+    from garth import sso as garth_sso
+
+    # Guardar tokens usando garth (garantiza formato correcto)
+    garth.configure(domain="garmin.com")
+    garth.client.oauth1_token = garth_sso.OAuth1Token(**oauth1)
+    garth.client.oauth2_token = garth.OAuth2Token(**oauth2)
+    garth.save(TOKENSTORE)
+    print(f"\n[OK] Tokens guardados en {TOKENSTORE}/ (via garth)")
+
+    # Verificar que garminconnect los puede leer
+    try:
+        from garminconnect import Garmin
+        client = Garmin()
+        client.login(TOKENSTORE)
+        name = client.get_full_name()
+        print(f"[OK] Verificado con garminconnect: {name}")
+    except Exception as e:
+        # Fallback: guardar manualmente si garth no coopera
+        print(f"[WARN] garth save no fue compatible, guardando manualmente...")
+        os.makedirs(TOKENSTORE, exist_ok=True)
+        with open(os.path.join(TOKENSTORE, "oauth1_token.json"), "w") as f:
+            json.dump(oauth1, f, indent=2)
+        with open(os.path.join(TOKENSTORE, "oauth2_token.json"), "w") as f:
+            json.dump(oauth2, f, indent=2)
+        print(f"[OK] Tokens guardados manualmente en {TOKENSTORE}/")
 
 
 def export_tokens():
@@ -235,19 +255,8 @@ def main():
     profile = verify.json()
     print(f"  Conectado como: {profile.get('displayName', 'unknown')}")
 
-    # Step 6: Guardar
+    # Step 6: Guardar (save_tokens ya verifica con garminconnect)
     save_tokens(oauth1, oauth2)
-
-    # Step 7: Verificar con garminconnect
-    try:
-        from garminconnect import Garmin
-        client = Garmin()
-        client.login(TOKENSTORE)
-        name = client.get_full_name()
-        print(f"  garminconnect OK: {name}")
-    except Exception as e:
-        print(f"  [WARN] garminconnect no pudo verificar: {e}")
-        print("  (Los tokens se guardaron igual, probá garmin_sync.py)")
 
     if '--export' in sys.argv:
         export_tokens()
