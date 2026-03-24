@@ -75,10 +75,23 @@ def browser_login():
 
     ticket = None
 
+    # Usar persistent context con Chrome real para evitar detección Cloudflare.
+    # Esto lanza el Chrome instalado en tu Mac (no el Chromium de Playwright),
+    # que tiene historial/cookies reales y no se marca como bot.
+    import tempfile
+    user_data_dir = tempfile.mkdtemp(prefix="garmin_auth_")
+
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=False)
-        context = browser.new_context()
-        page = context.new_page()
+        # channel="chrome" usa el Chrome real del sistema
+        context = p.chromium.launch_persistent_context(
+            user_data_dir,
+            channel="chrome",
+            headless=False,
+            args=[
+                "--disable-blink-features=AutomationControlled",
+            ],
+        )
+        page = context.pages[0] if context.pages else context.new_page()
 
         # SSO URL con el service que garth espera
         # El ticket queda vinculado al service — DEBE coincidir
@@ -96,7 +109,7 @@ def browser_login():
 
         print()
         print("=" * 50)
-        print("  Se abrió el browser — logueate con tu")
+        print("  Se abrió Chrome — logueate con tu")
         print("  cuenta de Garmin. La ventana se cierra")
         print("  automáticamente cuando termine.")
         print("=" * 50)
@@ -129,7 +142,7 @@ def browser_login():
 
             page.wait_for_timeout(500)
 
-        browser.close()
+        context.close()
 
     if not ticket:
         print("[ERROR] Timeout esperando login (5 min). Intentá de nuevo.")
