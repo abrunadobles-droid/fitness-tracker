@@ -92,9 +92,8 @@ def get_credentials():
 
 
 def login_and_save(email, password):
-    """Hacer login y guardar tokens. Reintenta automáticamente en caso de 429."""
+    """Hacer login y guardar tokens."""
     import garth
-    import time
 
     def prompt_mfa():
         print("\n" + "=" * 50)
@@ -103,41 +102,35 @@ def login_and_save(email, password):
         print("  Revisá tu email, SMS, o app de autenticación.")
         return input("  Código de verificación: ").strip()
 
-    max_retries = 5
-    # Backoff: 2min, 5min, 10min, 20min, 30min
-    wait_times = [120, 300, 600, 1200, 1800]
+    print("\nConectando a Garmin Connect...")
+    try:
+        garth.login(email, password, prompt_mfa=prompt_mfa)
+        garth.save(TOKENSTORE)
+        print(f"\n[OK] Tokens guardados en {TOKENSTORE}/")
 
-    for attempt in range(1, max_retries + 1):
-        print(f"\nConectando a Garmin Connect... (intento {attempt}/{max_retries})")
-        try:
-            garth.login(email, password, prompt_mfa=prompt_mfa)
-            garth.save(TOKENSTORE)
-            print(f"\n[OK] Tokens guardados en {TOKENSTORE}/")
+        # Verificar que funcionan
+        from garminconnect import Garmin
+        client = Garmin()
+        client.login(TOKENSTORE)
+        name = client.get_full_name()
+        print(f"[OK] Conectado como: {name}")
+        return client
 
-            # Verificar que funcionan
-            from garminconnect import Garmin
-            client = Garmin()
-            client.login(TOKENSTORE)
-            name = client.get_full_name()
-            print(f"[OK] Conectado como: {name}")
-            return client
-
-        except Exception as e:
-            error_str = str(e)
-            if '429' in error_str:
-                if attempt < max_retries:
-                    wait = wait_times[attempt - 1]
-                    mins = wait // 60
-                    print(f"\n[429] Garmin te bloqueó por rate limiting.")
-                    print(f"      Reintentando en {mins} minutos... (dejá el script corriendo)")
-                    print(f"      Podés cancelar con Ctrl+C y reintentar mañana.")
-                    time.sleep(wait)
-                else:
-                    print(f"\n[429] Garmin sigue bloqueando después de {max_retries} intentos.")
-                    print("      Esperá varias horas (o hasta mañana) e intentá de nuevo.")
-                    raise
-            else:
-                raise
+    except Exception as e:
+        error_str = str(e)
+        if '429' in error_str:
+            print(f"\n[429] Garmin bloqueó el login programático.")
+            print("      Desde marzo 2026, Garmin bloquea scripts en sso.garmin.com.")
+            print()
+            print("  Solución: usá el login por browser:")
+            print("    python3 garmin_browser_auth.py")
+            print()
+            print("  Requiere una vez:")
+            print("    pip3 install playwright requests-oauthlib")
+            print("    python3 -m playwright install chromium")
+            sys.exit(1)
+        else:
+            raise
 
 
 def export_tokens():
