@@ -16,6 +16,23 @@ import config
 
 TOKENSTORE = os.path.expanduser("~/.garmin_tokens")
 DEBUG = os.environ.get('GARMIN_DEBUG', '') == '1'
+MIN_GARTH_VERSION = (0, 7, 9)
+
+# --- Garth version check ---
+try:
+    import garth
+    _garth_version_str = getattr(garth, '__version__', '0.0.0')
+    _garth_version = tuple(int(x) for x in _garth_version_str.split('.')[:3])
+    if _garth_version < MIN_GARTH_VERSION:
+        print(
+            f"[GARMIN WARN] garth {_garth_version_str} detectado. "
+            f"Se requiere >= {'.'.join(str(x) for x in MIN_GARTH_VERSION)} para OAuth1 confiable.\n"
+            f"  Correr: pip3 install 'garth>={'.'.join(str(x) for x in MIN_GARTH_VERSION)}'",
+            file=sys.stderr
+        )
+except ImportError:
+    _garth_version_str = 'no instalado'
+    print("[GARMIN WARN] garth no está instalado. Correr: pip3 install 'garth>=0.7.9'", file=sys.stderr)
 
 
 def _debug(msg):
@@ -96,6 +113,7 @@ class GarminClient:
                 self.client = Garmin()
                 self.client.login(env_tokendir)
                 self.client.garth.dump(env_tokendir)
+                self.client.garth.timeout = 30
                 self._tokendir = env_tokendir
                 print("[GARMIN] Login exitoso con tokens de CI")
                 return
@@ -110,6 +128,7 @@ class GarminClient:
                 self.client = Garmin()
                 self.client.login(TOKENSTORE)
                 self.client.garth.dump(TOKENSTORE)
+                self.client.garth.timeout = 30
                 self._tokendir = TOKENSTORE
                 print("[GARMIN] Login exitoso con tokens guardados")
                 return
@@ -131,6 +150,7 @@ class GarminClient:
             self.client = Garmin(email, password, prompt_mfa=_prompt_mfa)
             self.client.login()
             self.client.garth.dump(TOKENSTORE)
+            self.client.garth.timeout = 30
             self._tokendir = TOKENSTORE
             print("[GARMIN] Login exitoso con email/password")
             return
@@ -145,9 +165,11 @@ class GarminClient:
         msg += "\nMetodos intentados:\n"
         for i, err in enumerate(errors, 1):
             msg += f"  {i}. {err}\n"
+        msg += f"\nInfo:\n"
+        msg += f"  - garth version: {_garth_version_str}\n"
         msg += "\nSoluciones:\n"
-        msg += "  - Correr: python3.12 garmin_setup_auth.py\n"
-        msg += "  - Verificar garth >= 0.7.9: pip3 show garth\n"
+        msg += "  - Correr: python3 garmin_setup_auth.py\n"
+        msg += "  - Verificar garth >= 0.7.9: pip3 install 'garth>=0.7.9'\n"
         msg += "  - Verificar credenciales en .streamlit/secrets.toml\n"
         msg += "  - Diagnostico: GARMIN_DEBUG=1 python3 garmin_sync.py\n"
         raise Exception(msg)

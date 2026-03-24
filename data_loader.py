@@ -81,31 +81,50 @@ def get_monthly_data(year, month):
     # --- GARMIN ---
     cache_key = f"{year}-{month:02d}"
 
-    # Try live API first
-    try:
-        steps_avg, activities, strength = _get_garmin_live(year, month, start_date, end_date)
-        data['steps_avg'] = steps_avg
-        data['activities'] = activities
-        data['strength'] = strength
-        data['garmin_source'] = 'LIVE'
-        print(f"[GARMIN] {cache_key} fetched LIVE")
-    except Exception as e:
-        print(f"[GARMIN] Live fetch failed for {cache_key}: {e}")
-
-        # Fall back to cache
+    # Historical months: prefer cache (data won't change, avoids ~30 API calls per month)
+    # Current month: try live first, fall back to cache
+    if not is_current:
+        garmin_cache = _load_garmin_cache()
+        if cache_key in garmin_cache:
+            cached = garmin_cache[cache_key]
+            data['steps_avg'] = cached.get('steps_avg', 0)
+            data['activities'] = cached.get('activities', 0)
+            data['strength'] = cached.get('strength', 0)
+            data['garmin_source'] = f"CACHE ({cached.get('synced_at', '?')})"
+            print(f"[GARMIN] {cache_key} loaded from CACHE (historical)")
+        else:
+            try:
+                steps_avg, activities, strength = _get_garmin_live(year, month, start_date, end_date)
+                data['steps_avg'] = steps_avg
+                data['activities'] = activities
+                data['strength'] = strength
+                data['garmin_source'] = 'LIVE'
+                print(f"[GARMIN] {cache_key} fetched LIVE (no cache)")
+            except Exception as e:
+                print(f"[GARMIN] No data for {cache_key}: {e}")
+    else:
         try:
-            garmin_cache = _load_garmin_cache()
-            if cache_key in garmin_cache:
-                cached = garmin_cache[cache_key]
-                data['steps_avg'] = cached.get('steps_avg', 0)
-                data['activities'] = cached.get('activities', 0)
-                data['strength'] = cached.get('strength', 0)
-                data['garmin_source'] = f"CACHE ({cached.get('synced_at', '?')})"
-                print(f"[GARMIN] {cache_key} loaded from CACHE")
-            else:
-                print(f"[GARMIN] No cache data for {cache_key}")
-        except Exception as cache_err:
-            print(f"[GARMIN] Cache load failed: {cache_err}")
+            steps_avg, activities, strength = _get_garmin_live(year, month, start_date, end_date)
+            data['steps_avg'] = steps_avg
+            data['activities'] = activities
+            data['strength'] = strength
+            data['garmin_source'] = 'LIVE'
+            print(f"[GARMIN] {cache_key} fetched LIVE")
+        except Exception as e:
+            print(f"[GARMIN] Live fetch failed for {cache_key}: {e}")
+            try:
+                garmin_cache = _load_garmin_cache()
+                if cache_key in garmin_cache:
+                    cached = garmin_cache[cache_key]
+                    data['steps_avg'] = cached.get('steps_avg', 0)
+                    data['activities'] = cached.get('activities', 0)
+                    data['strength'] = cached.get('strength', 0)
+                    data['garmin_source'] = f"CACHE ({cached.get('synced_at', '?')})"
+                    print(f"[GARMIN] {cache_key} loaded from CACHE")
+                else:
+                    print(f"[GARMIN] No cache data for {cache_key}")
+            except Exception as cache_err:
+                print(f"[GARMIN] Cache load failed: {cache_err}")
 
     # --- WHOOP ---
     from whoop_streamlit import get_whoop_data
