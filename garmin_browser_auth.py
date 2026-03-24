@@ -4,17 +4,16 @@ Garmin Browser Auth — login via browser real para evitar el bloqueo 429.
 
 Desde ~17 marzo 2026, Garmin bloqueó el endpoint /mobile/api/login para
 scripts. Este workaround abre un browser real (Chromium via Playwright),
-te deja loguearte normalmente, y captura los tokens OAuth.
+te deja loguearte normalmente, y captura el ticket SSO. Luego usa garth
+directamente para intercambiar el ticket por tokens OAuth.
 
 Requisitos:
-    pip3 install playwright requests requests-oauthlib
+    pip3 install playwright garth garminconnect
     python3 -m playwright install chromium
 
 Uso:
     python3 garmin_browser_auth.py
     python3 garmin_browser_auth.py --export  # También muestra JSON para GitHub Secrets
-
-Basado en: https://gist.github.com/coleman8er/5c8e192d2aa3c8a3a6220c5702e8a5e6
 """
 
 import json
@@ -22,72 +21,8 @@ import os
 import re
 import sys
 import time
-from pathlib import Path
-from urllib.parse import parse_qs
-
-import requests
-from requests_oauthlib import OAuth1Session
 
 TOKENSTORE = os.path.expanduser("~/.garmin_tokens")
-OAUTH_CONSUMER_URL = "https://thegarth.s3.amazonaws.com/oauth_consumer.json"
-ANDROID_UA = "com.garmin.android.apps.connectmobile"
-
-
-def get_oauth_consumer():
-    """Fetch OAuth consumer key/secret (mismos que usa garth)."""
-    resp = requests.get(OAUTH_CONSUMER_URL, timeout=10)
-    resp.raise_for_status()
-    return resp.json()
-
-
-def get_oauth1_token(ticket, consumer):
-    """Intercambiar ticket SSO por token OAuth1."""
-    sess = OAuth1Session(
-        consumer["consumer_key"],
-        consumer["consumer_secret"],
-    )
-    url = (
-        f"https://connectapi.garmin.com/oauth-service/oauth/"
-        f"preauthorized?ticket={ticket}"
-        f"&login-url=https://sso.garmin.com/sso/embed"
-        f"&accepts-mfa-tokens=true"
-    )
-    resp = sess.get(url, headers={"User-Agent": ANDROID_UA}, timeout=15)
-    resp.raise_for_status()
-    parsed = parse_qs(resp.text)
-    token = {k: v[0] for k, v in parsed.items()}
-    token["domain"] = "garmin.com"
-    return token
-
-
-def exchange_oauth2(oauth1, consumer):
-    """Intercambiar token OAuth1 por OAuth2."""
-    sess = OAuth1Session(
-        consumer["consumer_key"],
-        consumer["consumer_secret"],
-        resource_owner_key=oauth1["oauth_token"],
-        resource_owner_secret=oauth1["oauth_token_secret"],
-    )
-    url = "https://connectapi.garmin.com/oauth-service/oauth/exchange/user/2.0"
-    data = {}
-    if oauth1.get("mfa_token"):
-        data["mfa_token"] = oauth1["mfa_token"]
-    resp = sess.post(
-        url,
-        headers={
-            "User-Agent": ANDROID_UA,
-            "Content-Type": "application/x-www-form-urlencoded",
-        },
-        data=data,
-        timeout=15,
-    )
-    resp.raise_for_status()
-    token = resp.json()
-    token["expires_at"] = int(time.time() + token["expires_in"])
-    token["refresh_token_expires_at"] = int(
-        time.time() + token["refresh_token_expires_in"]
-    )
-    return token
 
 
 def browser_login():
@@ -108,6 +43,7 @@ def browser_login():
         context = browser.new_context()
         page = context.new_page()
 
+        # Usar el mismo SSO embed URL que garth usa internamente
         sso_url = (
             "https://sso.garmin.com/sso/embed"
             "?id=gauth-widget"
@@ -158,34 +94,29 @@ def browser_login():
     return ticket
 
 
-def save_tokens(oauth1, oauth2):
-    """Guardar tokens via garth para formato 100% compatible con garminconnect."""
+def exchange_ticket(ticket):
+    """Usar garth internamente para intercambiar ticket por OAuth1+OAuth2."""
     import garth
-    from garth import sso as garth_sso
+    from garth.sso import get_oauth1_token, exchange
 
-    # Guardar tokens usando garth (garantiza formato correcto)
-    garth.configure(domain="garmin.com")
-    garth.client.oauth1_token = garth_sso.OAuth1Token(**oauth1)
-    garth.client.oauth2_token = garth.OAuth2Token(**oauth2)
-    garth.save(TOKENSTORE)
-    print(f"\n[OK] Tokens guardados en {TOKENSTORE}/ (via garth)")
+    # Crear un client de garth configurado
+    client = garth.Client(domain="garmin.com")
 
-    # Verificar que garminconnect los puede leer
-    try:
-        from garminconnect import Garmin
-        client = Garmin()
-        client.login(TOKENSTORE)
-        name = client.get_full_name()
-        print(f"[OK] Verificado con garminconnect: {name}")
-    except Exception as e:
-        # Fallback: guardar manualmente si garth no coopera
-        print(f"[WARN] garth save no fue compatible, guardando manualmente...")
-        os.makedirs(TOKENSTORE, exist_ok=True)
-        with open(os.path.join(TOKENSTORE, "oauth1_token.json"), "w") as f:
-            json.dump(oauth1, f, indent=2)
-        with open(os.path.join(TOKENSTORE, "oauth2_token.json"), "w") as f:
-            json.dump(oauth2, f, indent=2)
-        print(f"[OK] Tokens guardados manualmente en {TOKENSTORE}/")
+    # Intercambiar ticket → OAuth1 (usa garth's GarminOAuth1Session)
+    print("  Intercambiando ticket por OAuth1 (via garth)...")
+    oauth1 = get_oauth1_token(ticket, client)
+    print(f"  OAuth1 OK: {oauth1.oauth_token[:20]}...")
+
+    # Intercambiar OAuth1 → OAuth2
+    print("  Intercambiando OAuth1 por OAuth2 (via garth)...")
+    oauth2 = exchange(oauth1, client)
+    print(f"  OAuth2 OK (expira en {oauth2.expires_in // 3600}h)")
+
+    # Guardar en el client global de garth
+    client.oauth1_token = oauth1
+    client.oauth2_token = oauth2
+
+    return client
 
 
 def export_tokens():
@@ -222,41 +153,30 @@ def main():
     print("  (Workaround para bloqueo 429 de marzo 2026)")
     print("=" * 60)
 
-    # Step 1: OAuth consumer credentials
-    print("\nObteniendo credenciales OAuth...")
-    consumer = get_oauth_consumer()
-
-    # Step 2: Browser login
-    print("Abriendo browser...")
+    # Step 1: Browser login → capturar ticket SSO
+    print("\nAbriendo browser...")
     ticket = browser_login()
     print(f"  Ticket obtenido: {ticket[:30]}...")
 
-    # Step 3: OAuth1
-    print("Intercambiando ticket por OAuth1...")
-    oauth1 = get_oauth1_token(ticket, consumer)
-    print(f"  OAuth1 OK")
+    # Step 2: Usar garth para intercambiar ticket → OAuth1 → OAuth2
+    print("\nIntercambiando tokens (via garth)...")
+    client = exchange_ticket(ticket)
 
-    # Step 4: OAuth2
-    print("Intercambiando OAuth1 por OAuth2...")
-    oauth2 = exchange_oauth2(oauth1, consumer)
-    print(f"  OAuth2 OK (expira en {oauth2['expires_in'] // 3600}h)")
+    # Step 3: Guardar tokens via garth (formato 100% compatible)
+    client.dump(TOKENSTORE)
+    print(f"\n[OK] Tokens guardados en {TOKENSTORE}/")
 
-    # Step 5: Verificar
-    print("Verificando tokens...")
-    verify = requests.get(
-        "https://connectapi.garmin.com/userprofile-service/socialProfile",
-        headers={
-            "User-Agent": "GCM-iOS-5.7.2.1",
-            "Authorization": f"Bearer {oauth2['access_token']}",
-        },
-        timeout=15,
-    )
-    verify.raise_for_status()
-    profile = verify.json()
-    print(f"  Conectado como: {profile.get('displayName', 'unknown')}")
-
-    # Step 6: Guardar (save_tokens ya verifica con garminconnect)
-    save_tokens(oauth1, oauth2)
+    # Step 4: Verificar con garminconnect
+    print("\nVerificando con garminconnect...")
+    try:
+        from garminconnect import Garmin
+        gc = Garmin()
+        gc.login(TOKENSTORE)
+        name = gc.get_full_name()
+        print(f"[OK] Conectado como: {name}")
+    except Exception as e:
+        print(f"[WARN] Verificación falló: {e}")
+        print("  Los tokens se guardaron — probá: python3 garmin_sync.py --all")
 
     if '--export' in sys.argv:
         export_tokens()
