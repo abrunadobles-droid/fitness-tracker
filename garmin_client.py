@@ -135,8 +135,7 @@ class GarminClient:
             except Exception as e:
                 errors.append(f"Tokens guardados: {e}")
                 _debug(f"Tokens guardados fallaron: {e}")
-                import shutil
-                shutil.rmtree(TOKENSTORE, ignore_errors=True)
+                # NO borrar tokens — puede ser error temporal
 
         # Step 3: Email/password
         email = config.GARMIN_EMAIL
@@ -168,9 +167,8 @@ class GarminClient:
         msg += f"\nInfo:\n"
         msg += f"  - garth version: {_garth_version_str}\n"
         msg += "\nSoluciones:\n"
-        msg += "  - Correr: python3 garmin_setup_auth.py\n"
+        msg += "  - Correr: python3 garmin_browser_auth.py (recomendado)\n"
         msg += "  - Verificar garth >= 0.7.9: pip3 install 'garth>=0.7.9'\n"
-        msg += "  - Verificar credenciales en .streamlit/secrets.toml\n"
         msg += "  - Diagnostico: GARMIN_DEBUG=1 python3 garmin_sync.py\n"
         raise Exception(msg)
 
