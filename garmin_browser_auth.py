@@ -25,6 +25,40 @@ import time
 TOKENSTORE = os.path.expanduser("~/.garmin_tokens")
 
 
+def _get_sso_params():
+    """Leer las URLs de SSO que garth 0.7.x usa internamente."""
+    import garth
+    from garth.sso import get_oauth1_token
+
+    # Crear client para inspeccionar qué login-url usa garth
+    client = garth.Client(domain="garmin.com")
+
+    # Extraer la login_url que garth construye internamente
+    # En 0.7.11 es https://mobile.integration.garmin.com/gcm/android
+    # En 0.4.x era https://sso.garmin.com/sso/embed
+    # Lo detectamos dinámicamente inspeccionando garth
+    domain = client.domain
+
+    # Intentar detectar la URL que garth usa para el service
+    # Chequeamos si garth tiene las constantes nuevas (0.7.x)
+    try:
+        from garth import sso as garth_sso
+        # garth 0.7.x usa CLIENT_ID y construye URLs dinámicamente
+        if hasattr(garth_sso, 'CLIENT_ID'):
+            # garth 0.7.x: service es mobile.integration.{domain}/gcm/android
+            service_url = f"https://mobile.integration.{domain}/gcm/android"
+            sso_embed = f"https://sso.{domain}/portal/sso/embed"
+        else:
+            # garth 0.4.x: service es sso.{domain}/sso/embed
+            service_url = f"https://sso.{domain}/sso/embed"
+            sso_embed = f"https://sso.{domain}/sso/embed"
+    except Exception:
+        service_url = f"https://sso.{domain}/sso/embed"
+        sso_embed = f"https://sso.{domain}/sso/embed"
+
+    return service_url, sso_embed, client
+
+
 def browser_login():
     """Abrir browser real, esperar login del usuario, capturar ticket SSO."""
     try:
@@ -36,6 +70,9 @@ def browser_login():
         print("    python3 -m playwright install chromium")
         sys.exit(1)
 
+    service_url, sso_embed, _ = _get_sso_params()
+    print(f"  Service URL: {service_url}")
+
     ticket = None
 
     with sync_playwright() as p:
@@ -43,16 +80,17 @@ def browser_login():
         context = browser.new_context()
         page = context.new_page()
 
-        # Usar el mismo SSO embed URL que garth usa internamente
+        # SSO URL con el service que garth espera
+        # El ticket queda vinculado al service — DEBE coincidir
         sso_url = (
-            "https://sso.garmin.com/sso/embed"
-            "?id=gauth-widget"
-            "&embedWidget=true"
-            "&gauthHost=https://sso.garmin.com/sso"
-            "&clientId=GarminConnect"
-            "&locale=en_US"
-            "&redirectAfterAccountLoginUrl=https://sso.garmin.com/sso/embed"
-            "&service=https://sso.garmin.com/sso/embed"
+            f"{sso_embed}"
+            f"?id=gauth-widget"
+            f"&embedWidget=true"
+            f"&gauthHost={sso_embed}"
+            f"&clientId=GarminConnect"
+            f"&locale=en_US"
+            f"&redirectAfterAccountLoginUrl={sso_embed}"
+            f"&service={service_url}"
         )
         page.goto(sso_url)
 
@@ -64,22 +102,28 @@ def browser_login():
         print("=" * 50)
         print()
 
+        # Capturar ticket — puede aparecer en:
+        # 1. El contenido HTML de la página (respuesta SSO inline)
+        # 2. La URL (redirect con ?ticket=ST-...)
+        # 3. Un request interceptado (redirect a service_url?ticket=ST-...)
         max_wait = 300  # 5 minutos
         start = time.time()
         while time.time() - start < max_wait:
             try:
-                content = page.content()
-                m = re.search(r'ticket=(ST-[A-Za-z0-9\-]+)', content)
-                if m:
-                    ticket = m.group(1)
-                    break
-
+                # Revisar URL actual
                 url = page.url
                 if "ticket=" in url:
                     m = re.search(r'ticket=(ST-[A-Za-z0-9\-]+)', url)
                     if m:
                         ticket = m.group(1)
                         break
+
+                # Revisar contenido HTML
+                content = page.content()
+                m = re.search(r'ticket=(ST-[A-Za-z0-9\-]+)', content)
+                if m:
+                    ticket = m.group(1)
+                    break
             except Exception:
                 pass
 
