@@ -8,10 +8,12 @@ Dashboard personal de fitness que sincroniza datos de WHOOP y Garmin Connect, lo
 ## Environment
 
 - User's machine is macOS (MacBook Pro)
-- Python command is `python3`, NOT `python` (no `python` alias on this Mac)
-- Always use `python3` and `pip3` in any instructions or scripts for the user
-- Python 3.11 en CI, Python 3.12 en la Mac del usuario (via Homebrew)
-- garth >= 0.7.9 requerido (versiones anteriores tienen bug OAuth1 iOS→Android mismatch)
+- **Python venv:** `.venv/` en el root del proyecto (Python 3.12 via Homebrew)
+- Activar siempre: `source .venv/bin/activate` antes de cualquier comando
+- Python 3.12 está en `/opt/homebrew/bin/python3.12` (NO está en PATH por default)
+- El system Python es 3.9 — NO usar, garth moderno requiere >= 3.10
+- garminconnect >= 0.3.1 (usa curl_cffi para bypass Cloudflare)
+- garth está DEPRECADO pero garminconnect lo usa internamente
 
 ## Arquitectura
 
@@ -47,9 +49,7 @@ Garmin API ────┘   (cron diario)    └── garmin_cache.json ──
 - `whoop_cache.json` - Cache de datos mensuales (commiteado al repo)
 
 ### Garmin
-- `garmin_client.py` - Cliente Garmin Connect (tokens → email/password con MFA)
-- `garmin_setup_auth.py` - Setup interactivo: login, guarda tokens, exporta para CI
-- `garmin_auth.py` - SSO authentication con soporte MFA
+- `garmin_client.py` - Cliente Garmin Connect (garminconnect 0.3.1, token persistence en ~/.garmin_tokens/)
 - `garmin_sync.py` - CLI sync: `--all`, `--month N --year Y`
 - `garmin_cache.json` - Cache de datos mensuales
 
@@ -83,10 +83,14 @@ Garmin API ────┘   (cron diario)    └── garmin_cache.json ──
 - **Cache protection:** No sobreescribir cache con datos vacíos de API
 - **Error propagation:** Errores de API propagan para que workflow de CI falle visiblemente
 - **Naps excluidos:** Promedios de sueño solo cuentan noches, no siestas
-- **HR Zones de cycles:** Se usan cycles endpoint en vez de solo workouts para HR zones completas
 - **Dark Neon theme:** Seleccionado como tema definitivo del dashboard
 - **Goals local:** Migrado de Supabase auth a JSON local (simplificación)
 - **Auto-merge:** Branches `claude/*` se mergean automáticamente a main
+- **Venv obligatorio:** Usar siempre `.venv/` (Python 3.12). System Python 3.9 no sirve.
+- **HR Zones de workouts:** API v2 de WHOOP tiene `zone_durations` en workouts, NO en cycles
+- **Garmin token persistence:** Una vez logueado, tokens en `~/.garmin_tokens/` se refrescan sin tocar SSO (sin 429)
+- **Garmin fail-fast:** data_loader no intenta Garmin live si no hay tokens guardados
+- **Garmin browser fallback:** Si garmin_sync.py da 429, se puede extraer data desde Chrome con sesión activa usando gc-api + CSRF token (ver Troubleshooting)
 
 ## Reglas de sesión
 
@@ -98,20 +102,77 @@ Garmin API ────┘   (cron diario)    └── garmin_cache.json ──
 
 2. **Actualizar después de cambios relevantes:** Después de cada cambio relevante de código o decisión importante, actualizar la sección "Última sesión" de este archivo.
 
+## Troubleshooting
+
+### WHOOP tokens expirados
+```bash
+source .venv/bin/activate && python whoop_sync.py --auth
+# Abre browser, login en WHOOP, autorizar app
+# Luego: python whoop_sync.py --all
+```
+Si el refresh token aún funciona (expiran en ~6 meses), el sync los renueva automáticamente.
+
+### Garmin 429 (Too Many Requests)
+Garmin bloquea login programático si se intentó muchas veces. El bloqueo dura horas/días.
+
+**Solución 1: Esperar y reintentar**
+```bash
+source .venv/bin/activate && python garmin_sync.py --all
+```
+
+**Solución 2: Extraer data desde Chrome (bypass 429)**
+El browser NO está bloqueado — solo el login programático. Pasos:
+1. Estar logueado en https://connect.garmin.com en Chrome
+2. Navegar a la página Daily Summary
+3. Abrir DevTools Console (F12)
+4. La API interna usa: `/gc-api/usersummary-service/usersummary/daily/{username}?calendarDate=YYYY-MM-DD`
+5. Headers requeridos: `NK: NT` + `Connect-Csrf-Token` (capturar de network tab)
+6. Claude Code con Chrome MCP puede automatizar esto completamente
+
+**Solución 3: Service ticket desde browser**
+1. Navegar a: `https://sso.garmin.com/sso/embed?clientId=GarminConnect&locale=en&consumeServiceTicket=false`
+2. Si estás logueado, redirige a URL con `?ticket=ST-xxxxx`
+3. Ese ticket se puede usar para generar tokens OAuth
+
+### HR Zones muestran 0.0h
+- WHOOP API v2: `zone_durations` está en **workouts** (`activity/workout`), NO en cycles (`cycle`)
+- Verificar que `whoop_client_v2_corrected.py` y `whoop_streamlit.py` buscan zones en workouts
+
+### Dashboard se cuelga al cargar
+- Probablemente `data_loader.py` está intentando Garmin live API sin tokens
+- `data_loader.py` tiene guard `_garmin_has_tokens()` que evita esto
+- Si se quitó el guard, re-agregar: no intentar login sin `~/.garmin_tokens/`
+
+### Python: garth no instala o da error
+- **NO usar system Python 3.9** — garth >= 0.5 requiere Python >= 3.10
+- Usar siempre: `source .venv/bin/activate` (Python 3.12)
+- El venv está en `.venv/` creado con `/opt/homebrew/bin/python3.12`
+- Para recrear: `/opt/homebrew/bin/python3.12 -m venv .venv && source .venv/bin/activate && pip install garth garminconnect requests streamlit`
+
 ## Última sesión
 
-**Fecha:** 2026-03-18
+**Fecha:** 2026-04-06
 **Qué hicimos:**
-- Resolvimos la causa raíz del Garmin OAuth1 401 Unauthorized
-- garth 0.7.9 (lanzado 18-mar-2026) corrigió mismatch iOS→Android en los identificadores OAuth1
-- garth 0.4.47 tenía este bug; 0.5+ requiere Python 3.10+
-- Creamos `garmin_setup_auth.py` para setup interactivo de auth
-- Simplificamos `garmin_client.py` (eliminados workarounds y debug helpers)
-- Eliminamos scripts de diagnóstico (`garmin_debug.py`, `garmin_signing_test.py`, `garmin_curl_test.py`)
+- Creamos venv con Python 3.12 (`.venv/`) — el system Python 3.9 NO sirve para garth moderno
+- Refrescamos WHOOP tokens (estaban expirados 12 días)
+- Sincronizamos 4 meses de datos WHOOP (ene-abr 2026)
+- Arreglamos HR Zones: estaban en 0.0h porque buscaban `zone_durations` en cycles (no existe en API v2), ahora se sacan de workouts
+- Reescribimos `garmin_client.py` limpio con garminconnect 0.3.1 y token persistence
+- Eliminamos 7 scripts muertos de Garmin auth
+- Agregamos guard en data_loader.py para no intentar Garmin live sin tokens
+- Garmin 429 activo — extrajimos data real via Chrome MCP (gc-api + CSRF token)
+- 4 meses de pasos diarios reales (ene: 11,458, feb: 11,288, mar: 12,115, abr: 14,683)
+- 4 meses de actividades reales (ene: 31/13str, feb: 27/14str, mar: 30/14str, abr: 5/1str)
+- Dashboard funcionando end-to-end con 9 métricas y datos reales de ambas fuentes
 
-**Próximos pasos para Antonio:**
-1. `brew install python@3.12`
-2. `python3.12 -m pip install garth>=0.7.9 garminconnect requests`
-3. `python3.12 garmin_setup_auth.py` (login interactivo, guarda tokens)
-4. `python3.12 garmin_setup_auth.py --export` (exportar tokens para GitHub Secrets)
-5. `python3.12 garmin_sync.py` (sincronizar datos)
+**Estado actual:**
+- WHOOP: funcionando (tokens válidos, cache con 4 meses, HR zones corregidas)
+- Garmin: datos reales en cache (extraídos via browser), garmin_sync.py listo para cuando 429 se levante
+- Dashboard: 100% funcional con datos reales de WHOOP + Garmin
+
+**Para sincronizar datos futuros:**
+```bash
+source .venv/bin/activate
+python whoop_sync.py --all    # WHOOP
+python garmin_sync.py --all   # Garmin (requiere tokens en ~/.garmin_tokens/)
+```

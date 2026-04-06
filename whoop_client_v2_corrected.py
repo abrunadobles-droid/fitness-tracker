@@ -202,34 +202,31 @@ class WhoopClientV2:
         except Exception as e:
             print(f"         ⚠️  Error: {e}")
 
-        # Cycles (HR zones from full-day strain, not just workouts)
-        print("      🔄 Obteniendo cycles (HR zones)...")
+        # HR zones from workouts (zone_durations is in workouts, not cycles)
+        print("      ❤️  Calculando HR zones desde workouts...")
         try:
-            cycles = self.get_all_records('cycle', start_date, end_date)
+            total_zone_1_3 = 0
+            total_zone_4_5 = 0
 
-            if cycles:
-                total_zone_1_3 = 0
-                total_zone_4_5 = 0
+            for workout in summary['workouts']:
+                if workout.get('score') and workout['score'].get('zone_durations'):
+                    zones = workout['score']['zone_durations']
 
-                for cycle in cycles:
-                    if cycle.get('score') and cycle['score'].get('zone_durations'):
-                        zones = cycle['score']['zone_durations']
+                    total_zone_1_3 += (
+                        zones.get('zone_one_milli', 0) +
+                        zones.get('zone_two_milli', 0) +
+                        zones.get('zone_three_milli', 0)
+                    )
 
-                        total_zone_1_3 += (
-                            zones.get('zone_one_milli', 0) +
-                            zones.get('zone_two_milli', 0) +
-                            zones.get('zone_three_milli', 0)
-                        )
+                    total_zone_4_5 += (
+                        zones.get('zone_four_milli', 0) +
+                        zones.get('zone_five_milli', 0)
+                    )
 
-                        total_zone_4_5 += (
-                            zones.get('zone_four_milli', 0) +
-                            zones.get('zone_five_milli', 0)
-                        )
+            summary['hr_zones_1_3_hours'] = total_zone_1_3 / 3600000
+            summary['hr_zones_4_5_hours'] = total_zone_4_5 / 3600000
 
-                summary['hr_zones_1_3_hours'] = total_zone_1_3 / 3600000
-                summary['hr_zones_4_5_hours'] = total_zone_4_5 / 3600000
-
-            print(f"         ✅ {len(cycles)} cycles")
+            print(f"         ✅ HR zones calculadas de {len(summary['workouts'])} workouts")
         except Exception as e:
             print(f"         ⚠️  Error: {e}")
         

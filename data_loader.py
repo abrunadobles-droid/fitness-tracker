@@ -18,8 +18,17 @@ def _load_garmin_cache():
     return {}
 
 
+def _garmin_has_tokens():
+    """Check if Garmin tokens exist before attempting login (avoids 429)."""
+    import os
+    tokenstore = os.path.expanduser("~/.garmin_tokens")
+    return os.path.isdir(tokenstore) and len(os.listdir(tokenstore)) > 0
+
+
 def _get_garmin_live(year, month, start_date, end_date):
     """Fetch Garmin data live from API. Raises on failure."""
+    if not _garmin_has_tokens():
+        raise Exception("No Garmin tokens saved. Run: source .venv/bin/activate && python garmin_sync.py")
     from garmin_client import GarminClient
     garmin = GarminClient()
     garmin.login()

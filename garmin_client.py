@@ -1,210 +1,88 @@
 """
-Cliente de Garmin Connect
-- Token persistence via garth (evita login repetido y rate-limiting)
-- CI: restaura tokens desde GARMIN_TOKENS_JSON env var
-- Local: tokens en ~/.garmin_tokens/
-- Fallback: email/password con soporte MFA
-- Diagnóstico: GARMIN_DEBUG=1
+Cliente de Garmin Connect (garminconnect >= 0.3.1)
+
+Token persistence: una vez logueado, tokens se guardan en TOKENSTORE.
+Los refreshes no tocan SSO, así que no hay 429.
+Solo el primer login (o tokens completamente expirados) requiere SSO.
+
+Uso:
+    from garmin_client import GarminClient
+    garmin = GarminClient()
+    garmin.login()
+    stats = garmin.get_stats_for_date(datetime.now())
 """
+
 from garminconnect import Garmin
 from datetime import datetime, timedelta
 import json
 import os
 import sys
-import tempfile
 import config
 
 TOKENSTORE = os.path.expanduser("~/.garmin_tokens")
-DEBUG = os.environ.get('GARMIN_DEBUG', '') == '1'
-MIN_GARTH_VERSION = (0, 7, 9)
-
-# --- Garth version check ---
-try:
-    import garth
-    _garth_version_str = getattr(garth, '__version__', '0.0.0')
-    _garth_version = tuple(int(x) for x in _garth_version_str.split('.')[:3])
-    if _garth_version < MIN_GARTH_VERSION:
-        print(
-            f"[GARMIN WARN] garth {_garth_version_str} detectado. "
-            f"Se requiere >= {'.'.join(str(x) for x in MIN_GARTH_VERSION)} para OAuth1 confiable.\n"
-            f"  Correr: pip3 install 'garth>={'.'.join(str(x) for x in MIN_GARTH_VERSION)}'",
-            file=sys.stderr
-        )
-except ImportError:
-    _garth_version_str = 'no instalado'
-    print("[GARMIN WARN] garth no está instalado. Correr: pip3 install 'garth>=0.7.9'", file=sys.stderr)
-
-
-def _debug(msg):
-    if DEBUG:
-        print(f"[GARMIN DEBUG] {msg}")
-
-
-def _restore_tokens_from_env():
-    """En CI, restaurar garth tokens desde GARMIN_TOKENS_JSON a un dir temporal."""
-    tokens_json = os.environ.get('GARMIN_TOKENS_JSON')
-    if not tokens_json:
-        return None
-    try:
-        tokens = json.loads(tokens_json)
-        tmpdir = os.path.join(tempfile.gettempdir(), 'garmin_tokens')
-        os.makedirs(tmpdir, exist_ok=True)
-        for filename, content in tokens.items():
-            with open(os.path.join(tmpdir, filename), 'w') as f:
-                json.dump(content, f)
-        return tmpdir
-    except Exception as e:
-        print(f"[GARMIN] Error restaurando tokens desde env: {e}")
-        return None
-
-
-def _export_tokens_json(tokendir):
-    """Exportar tokens como JSON string para GitHub Secrets."""
-    tokens = {}
-    if not os.path.isdir(tokendir):
-        return None
-    for filename in os.listdir(tokendir):
-        filepath = os.path.join(tokendir, filename)
-        if os.path.isfile(filepath):
-            try:
-                with open(filepath, 'r') as f:
-                    tokens[filename] = json.load(f)
-            except (json.JSONDecodeError, UnicodeDecodeError):
-                pass
-    return json.dumps(tokens) if tokens else None
 
 
 def _prompt_mfa():
-    """Prompt MFA desde terminal."""
     if not sys.stdin.isatty():
-        raise Exception(
-            "Garmin requiere verificacion MFA pero no hay terminal interactiva.\n"
-            "Corre: python3 garmin_setup_auth.py"
-        )
-    print("\n" + "=" * 50)
-    print("  Garmin requiere verificacion adicional (MFA)")
-    print("=" * 50)
-    print("\n  Revisa tu email, SMS, o app de autenticacion.\n")
-    code = input("  Codigo de verificacion (o 'skip' para cancelar): ").strip()
+        raise Exception("Garmin requiere MFA pero no hay terminal interactiva.")
+    print("\n  Garmin requiere verificación MFA.")
+    print("  Revisa tu email o app de autenticación.\n")
+    code = input("  Código: ").strip()
     if not code or code.lower() == 'skip':
-        raise Exception("MFA: usuario cancelo la verificacion")
+        raise Exception("MFA cancelado")
     return code
 
 
 class GarminClient:
     def __init__(self):
         self.client = None
-        self._tokendir = TOKENSTORE
 
     def login(self):
-        """
-        Login a Garmin Connect. Orden de prioridad:
-        1. Tokens desde GARMIN_TOKENS_JSON env var (CI)
-        2. Tokens guardados en ~/.garmin_tokens/
-        3. Email/password via garminconnect (con soporte MFA)
-        """
-        errors = []
-
-        # Step 1: Tokens desde env var (CI/GitHub Actions)
-        env_tokendir = _restore_tokens_from_env()
-        if env_tokendir:
-            try:
-                _debug("Login con tokens de CI...")
-                self.client = Garmin()
-                self.client.login(env_tokendir)
-                self.client.garth.dump(env_tokendir)
-                self.client.garth.timeout = 30
-                self._tokendir = env_tokendir
-                print("[GARMIN] Login exitoso con tokens de CI")
-                return
-            except Exception as e:
-                errors.append(f"Tokens CI: {e}")
-                _debug(f"Tokens de env fallaron: {e}")
-
-        # Step 2: Tokens guardados localmente
-        if os.path.isdir(TOKENSTORE):
-            try:
-                _debug(f"Login con tokens en {TOKENSTORE}...")
-                self.client = Garmin()
-                self.client.login(TOKENSTORE)
-                self.client.garth.dump(TOKENSTORE)
-                self.client.garth.timeout = 30
-                self._tokendir = TOKENSTORE
-                print("[GARMIN] Login exitoso con tokens guardados")
-                return
-            except Exception as e:
-                errors.append(f"Tokens guardados: {e}")
-                _debug(f"Tokens guardados fallaron: {e}")
-                # NO borrar tokens — puede ser error temporal
-
-        # Step 3: Email/password
+        """Login con token persistence. Intenta tokens guardados primero."""
         email = config.GARMIN_EMAIL
         password = config.GARMIN_PASSWORD
-        if not email or not password:
-            errors.append("GARMIN_EMAIL o GARMIN_PASSWORD no configurados")
-            self._raise_auth_error(errors)
 
-        try:
-            _debug(f"Login con email/password ({email})...")
-            self.client = Garmin(email, password, prompt_mfa=_prompt_mfa)
-            self.client.login()
-            self.client.garth.dump(TOKENSTORE)
-            self.client.garth.timeout = 30
-            self._tokendir = TOKENSTORE
-            print("[GARMIN] Login exitoso con email/password")
-            return
-        except Exception as e:
-            errors.append(f"Email/password: {e}")
-            _debug(f"Login fallo: {e}")
+        # Crear cliente con credenciales (se usan solo si no hay tokens)
+        self.client = Garmin(
+            email=email or None,
+            password=password or None,
+            prompt_mfa=_prompt_mfa,
+        )
 
-        self._raise_auth_error(errors)
+        # login() intenta cargar tokens de TOKENSTORE primero.
+        # Solo toca SSO si no hay tokens guardados.
+        self.client.login(tokenstore=TOKENSTORE)
 
-    def _raise_auth_error(self, errors):
-        msg = "No se pudo conectar a Garmin Connect.\n"
-        msg += "\nMetodos intentados:\n"
-        for i, err in enumerate(errors, 1):
-            msg += f"  {i}. {err}\n"
-        msg += f"\nInfo:\n"
-        msg += f"  - garth version: {_garth_version_str}\n"
-        msg += "\nSoluciones:\n"
-        msg += "  - Correr: python3 garmin_browser_auth.py (recomendado)\n"
-        msg += "  - Verificar garth >= 0.7.9: pip3 install 'garth>=0.7.9'\n"
-        msg += "  - Diagnostico: GARMIN_DEBUG=1 python3 garmin_sync.py\n"
-        raise Exception(msg)
-
-    def get_tokens_json(self):
-        """Tokens como JSON string para GitHub Secrets."""
-        return _export_tokens_json(self._tokendir)
-
-    def _call_with_retry(self, func, *args, **kwargs):
-        """Llamar API con retry si el token expiró."""
-        try:
-            return func(*args, **kwargs)
-        except Exception:
-            _debug("API call fallo, re-login...")
-            self.login()
-            return func(*args, **kwargs)
+        # Guardar tokens actualizados
+        os.makedirs(TOKENSTORE, exist_ok=True)
+        self.client.client.dump(TOKENSTORE)
 
     def get_stats_for_date(self, date=None):
         if date is None:
             date = datetime.now()
-        date_str = date.strftime('%Y-%m-%d')
-        return self._call_with_retry(self.client.get_stats, date_str)
+        return self.client.get_stats(date.strftime('%Y-%m-%d'))
 
-    def get_sleep_data(self, date=None):
-        if date is None:
-            date = datetime.now()
-        date_str = date.strftime('%Y-%m-%d')
-        return self._call_with_retry(self.client.get_sleep_data, date_str)
-
-    def get_activities(self, start_date=None, end_date=None, limit=10):
+    def get_activities(self, start_date=None, end_date=None):
         if start_date is None:
             start_date = datetime.now() - timedelta(days=7)
         if end_date is None:
             end_date = datetime.now()
-
-        start_str = start_date.strftime('%Y-%m-%d')
-        end_str = end_date.strftime('%Y-%m-%d')
-        return self._call_with_retry(
-            self.client.get_activities_by_date, start_str, end_str
+        return self.client.get_activities_by_date(
+            start_date.strftime('%Y-%m-%d'),
+            end_date.strftime('%Y-%m-%d'),
         )
+
+    def get_tokens_json(self):
+        """Exportar tokens como JSON string para GitHub Secrets."""
+        if not os.path.isdir(TOKENSTORE):
+            return None
+        tokens = {}
+        for filename in os.listdir(TOKENSTORE):
+            filepath = os.path.join(TOKENSTORE, filename)
+            if os.path.isfile(filepath):
+                try:
+                    with open(filepath) as f:
+                        tokens[filename] = json.load(f)
+                except (json.JSONDecodeError, UnicodeDecodeError):
+                    pass
+        return json.dumps(tokens) if tokens else None
