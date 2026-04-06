@@ -1,9 +1,4 @@
-streamlit==1.50.0
-plotly==6.5.2
-pandas==2.3.3
-requests==2.32.5
-openpyxl==3.1.2
-garminconnect==0.2.38
-garth>=0.7.9
-supabase==2.13.0
-cryptography==44.0.0
+streamlit>=1.50.0
+requests>=2.32.0
+garminconnect>=0.3.1
+garth>=0.8.0
