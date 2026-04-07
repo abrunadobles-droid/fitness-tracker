@@ -2,3 +2,4 @@ streamlit>=1.50.0
 requests>=2.32.0
 garminconnect>=0.3.1
 garth>=0.8.0
+fpdf2>=2.8.0

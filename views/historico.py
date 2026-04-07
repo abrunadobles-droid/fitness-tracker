@@ -6,6 +6,7 @@ from datetime import datetime
 from constants import MESES_NOMBRES, MESES_CORTOS, FITNESS_METRICS, SLEEP_METRICS, ALL_METRIC_KEYS
 from helpers import fmt, get_pct, get_status, get_status_class, is_metric_met, calculate_score, calculate_averages
 from data_loader import get_monthly_data
+from pdf_export import generate_historico_pdf
 
 
 def _html_table(headers, rows):
@@ -46,6 +47,16 @@ def show(metas, current_month, current_year):
     avg_data = calculate_averages(all_data)
     n = len(all_data)
     avg_score = sum(is_metric_met(key, avg_data[key], metas[key]) for key in ALL_METRIC_KEYS)
+
+    # ---- EXPORTAR PDF ----
+    pdf_bytes = generate_historico_pdf(all_data, metas, meses_cerrados, current_year)
+    st.download_button(
+        "EXPORTAR PDF",
+        data=pdf_bytes,
+        file_name=f"fitness_tracker_{current_year}.pdf",
+        mime="application/pdf",
+        use_container_width=True,
+    )
 
     # ---- PROMEDIO GENERAL ----
     st.markdown(
