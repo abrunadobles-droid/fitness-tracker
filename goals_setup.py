@@ -36,7 +36,11 @@ def _save_goals(goals):
 
 
 def get_user_goals():
-    """Obtiene las metas. Si no tiene, retorna las default."""
+    """Obtiene las metas. Prioridad: session_state > goals.json > defaults."""
+    # Session state persists within a Streamlit Cloud session
+    if 'user_goals' in st.session_state:
+        return dict(st.session_state.user_goals)
+
     saved = _load_goals()
     if saved:
         result = dict(DEFAULT_GOALS)
@@ -182,6 +186,8 @@ def show_goals_setup(first_time=True):
 
         try:
             _save_goals(goals_data)
+            st.session_state.user_goals = goals_data
+            st.cache_data.clear()
             st.success("Metas guardadas!")
             st.rerun()
         except Exception as e:

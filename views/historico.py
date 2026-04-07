@@ -105,7 +105,9 @@ def show(metas, current_month, current_year):
             adjusted_r = round(adjusted, 1)
 
             if is_inverted:
-                diff_pct = -((goal - adjusted) / goal * 100) if goal > 0 else 0
+                # For inverted metrics (lower is better): adjusted > goal means ON TRACK
+                # (you've earned headroom — can afford worse values going forward)
+                diff_pct = ((goal - adjusted) / goal * 100) if goal > 0 else 0
             else:
                 diff_pct = ((adjusted - goal) / goal * 100) if goal > 0 else 0
 
