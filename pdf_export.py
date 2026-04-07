@@ -193,4 +193,4 @@ def generate_historico_pdf(all_data, metas, meses_cerrados, current_year):
 
     pdf._table(headers, rows, widths)
 
-    return pdf.output()
+    return bytes(pdf.output())
