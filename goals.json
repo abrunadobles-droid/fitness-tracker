@@ -3,9 +3,9 @@
   "activities": 28,
   "strength": 10,
   "sleep_hours_avg": 7.5,
-  "hr_zone_1_3": 19.3,
+  "hr_zone_1_3": 17.5,
   "hr_zone_4_5": 2.9,
-  "recovery_score": 50.0,
+  "recovery_score": 67.0,
   "resting_hr": 55.0,
   "sleep_consistency": 80.0
 }
