@@ -55,7 +55,6 @@ def show(metas, current_month, current_year):
         data=pdf_bytes,
         file_name=f"fitness_tracker_{current_year}.pdf",
         mime="application/pdf",
-        use_container_width=True,
     )
 
     # ---- PROMEDIO GENERAL ----
