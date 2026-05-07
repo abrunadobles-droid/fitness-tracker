@@ -33,7 +33,9 @@ def show(metas, current_month, current_year):
     )
 
     meses_cerrados = list(range(1, current_month))
-    total_metrics = len(ALL_METRIC_KEYS)
+    historico_metrics = FITNESS_METRICS + SLEEP_METRICS
+    historico_keys = [m[0] for m in historico_metrics]
+    total_metrics = len(historico_metrics)
 
     if not meses_cerrados:
         st.info("No hay meses cerrados aun.")
@@ -46,7 +48,7 @@ def show(metas, current_month, current_year):
 
     avg_data = calculate_averages(all_data)
     n = len(all_data)
-    avg_score = sum(is_metric_met(key, avg_data[key], metas[key]) for key in ALL_METRIC_KEYS)
+    avg_score = sum(is_metric_met(key, avg_data[key], metas[key]) for key in historico_keys)
 
     # ---- EXPORTAR PDF ----
     pdf_bytes = generate_historico_pdf(all_data, metas, meses_cerrados, current_year)
@@ -126,7 +128,7 @@ def show(metas, current_month, current_year):
     st.markdown('<div class="dn-section">// DETALLE POR MES</div>', unsafe_allow_html=True)
 
     for i, (mes, data) in enumerate(zip(meses_cerrados, all_data)):
-        score = calculate_score(data, metas)
+        score = sum(is_metric_met(k, data[k], metas[k]) for k in historico_keys if k in data and k in metas)
         with st.expander(f"{MESES_NOMBRES[mes]} {current_year}  —  {score}/{total_metrics} metas"):
             rows = []
             for key, label, unit, tipo in FITNESS_METRICS + SLEEP_METRICS:
@@ -182,7 +184,7 @@ def show(metas, current_month, current_year):
         # Score row
         score_row = ["<strong>SCORE</strong>"]
         for d in all_data:
-            s = calculate_score(d, metas)
+            s = sum(is_metric_met(k, d[k], metas[k]) for k in historico_keys if k in d and k in metas)
             score_row.append(f"{s}/{total_metrics}")
         score_row.append(f"{avg_score}/{total_metrics}")
         score_row.append(f"{total_metrics}/{total_metrics}")

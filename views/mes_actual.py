@@ -18,11 +18,12 @@ def show(data, metas, days_elapsed, days_in_month, progress_pct, current_month, 
     )
 
     # ---- SUMMARY CARDS ----
+    fitness_sleep_metrics = FITNESS_METRICS + SLEEP_METRICS
     total_ok = sum(
-        1 for k, _, _, t in FITNESS_METRICS + SLEEP_METRICS
+        1 for k, _, _, t in fitness_sleep_metrics
         if get_pct(k, data[k], metas[k], t, days_elapsed, days_in_month, True) >= 100
     )
-    total_metrics = len(ALL_METRIC_KEYS)
+    total_metrics = len(fitness_sleep_metrics)
 
     steps_display = f"{data['steps_avg']:,}" if data['steps_avg'] >= 1000 else str(data['steps_avg'])
 

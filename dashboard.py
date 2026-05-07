@@ -9,6 +9,7 @@ from goals_setup import get_user_goals, has_goals, show_goals_setup
 from data_loader import get_monthly_data
 import views.mes_actual as view_mes
 import views.historico as view_historico
+import views.meditacion as view_meditacion
 
 st.set_page_config(
     page_title="Fitness Tracker",
@@ -276,7 +277,7 @@ if 'vista' not in st.session_state:
     st.session_state.vista = "mes"
 
 # ============ NAVIGATION ============
-col_nav1, col_nav2, col_nav3, col_nav4 = st.columns(4)
+col_nav1, col_nav2, col_nav3, col_nav4, col_nav5 = st.columns(5)
 
 with col_nav1:
     if st.button("MES ACTUAL", use_container_width=True):
@@ -289,11 +290,16 @@ with col_nav2:
         st.rerun()
 
 with col_nav3:
+    if st.button("MENTE", use_container_width=True):
+        st.session_state.vista = "mente"
+        st.rerun()
+
+with col_nav4:
     if st.button("METAS", use_container_width=True):
         st.session_state.vista = "metas"
         st.rerun()
 
-with col_nav4:
+with col_nav5:
     if st.button("ACTUALIZAR", use_container_width=True):
         st.cache_data.clear()
         st.rerun()
@@ -311,3 +317,6 @@ elif st.session_state.vista == "mes":
 
 elif st.session_state.vista == "historico":
     view_historico.show(metas, current_month, current_year)
+
+elif st.session_state.vista == "mente":
+    view_meditacion.show(metas, current_month, current_year, days_elapsed, days_in_month)

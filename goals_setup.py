@@ -18,6 +18,8 @@ DEFAULT_GOALS = {
     'recovery_score': 50.0,
     'resting_hr': 55.0,
     'sleep_consistency': 80.0,
+    'meditation_sessions': 20,
+    'meditation_minutes': 240,
 }
 
 
@@ -171,6 +173,25 @@ def show_goals_setup(first_time=True):
             help="Consistencia de sueno promedio mensual (WHOOP)"
         )
 
+    # ---- MIND HABITS (MBAT - Amishi Jha) ----
+    st.markdown('<div class="section-label">// MIND HABITS</div>', unsafe_allow_html=True)
+
+    col5, col6 = st.columns(2)
+
+    with col5:
+        meditation_sessions = st.number_input(
+            "Sesiones de meditacion / mes",
+            min_value=0, max_value=31, value=int(current.get('meditation_sessions', 20)), step=1,
+            help="Total de sesiones MBAT (12 min) al mes"
+        )
+
+    with col6:
+        meditation_minutes = st.number_input(
+            "Minutos de meditacion / mes",
+            min_value=0, max_value=1500, value=int(current.get('meditation_minutes', 240)), step=12,
+            help="Minutos totales de meditacion al mes (12 min x sesiones)"
+        )
+
     if st.button("GUARDAR METAS", use_container_width=True):
         goals_data = {
             "steps_avg": steps,
@@ -182,6 +203,8 @@ def show_goals_setup(first_time=True):
             "recovery_score": recovery,
             "resting_hr": resting_hr,
             "sleep_consistency": sleep_consistency,
+            "meditation_sessions": meditation_sessions,
+            "meditation_minutes": meditation_minutes,
         }
 
         try:

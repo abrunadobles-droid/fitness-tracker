@@ -31,4 +31,9 @@ SLEEP_METRICS = [
     ('sleep_consistency','Sleep Consistency',  '%',   'promedio'),
 ]
 
-ALL_METRIC_KEYS = [m[0] for m in FITNESS_METRICS + SLEEP_METRICS]
+MIND_METRICS = [
+    ('meditation_sessions', 'Sesiones Meditacion', '',    'total'),
+    ('meditation_minutes',  'Minutos Meditacion',  'min', 'total'),
+]
+
+ALL_METRIC_KEYS = [m[0] for m in FITNESS_METRICS + SLEEP_METRICS + MIND_METRICS]

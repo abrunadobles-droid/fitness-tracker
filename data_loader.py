@@ -83,9 +83,18 @@ def get_monthly_data(year, month):
         'sleep_hours_avg': 0,
         'hr_zone_1_3': 0, 'hr_zone_4_5': 0,
         'recovery_score': 0, 'resting_hr': 0, 'sleep_consistency': 0,
+        'meditation_sessions': 0, 'meditation_minutes': 0,
         'whoop_source': 'NO DATA',
         'garmin_source': 'NO DATA',
     }
+
+    try:
+        import meditation_log as _mlog
+        _mstats = _mlog.monthly_stats(year, month)
+        data['meditation_sessions'] = _mstats['sessions_count']
+        data['meditation_minutes'] = _mstats['minutes_total']
+    except Exception as e:
+        print(f"[MEDITATION] Failed to load monthly stats: {e}")
 
     # --- GARMIN ---
     cache_key = f"{year}-{month:02d}"
