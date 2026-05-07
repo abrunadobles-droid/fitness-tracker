@@ -2,7 +2,7 @@
   "2026-01": {
     "year": 2026,
     "month": 1,
-    "synced_at": "2026-05-07T17:37:36.248885",
+    "synced_at": "2026-05-07T23:41:04.038062",
     "sleep_hours_avg": 6.96,
     "days_before_930": 4,
     "hr_zones_1_3_hours": 19.32,
@@ -17,7 +17,7 @@
   "2026-02": {
     "year": 2026,
     "month": 2,
-    "synced_at": "2026-05-07T17:37:38.927202",
+    "synced_at": "2026-05-07T23:41:06.153057",
     "sleep_hours_avg": 7.15,
     "days_before_930": 7,
     "hr_zones_1_3_hours": 17.93,
@@ -32,7 +32,7 @@
   "2026-03": {
     "year": 2026,
     "month": 3,
-    "synced_at": "2026-05-07T17:37:41.662699",
+    "synced_at": "2026-05-07T23:41:07.993283",
     "sleep_hours_avg": 7.05,
     "days_before_930": 4,
     "hr_zones_1_3_hours": 16.37,
@@ -47,7 +47,7 @@
   "2026-04": {
     "year": 2026,
     "month": 4,
-    "synced_at": "2026-05-07T17:37:44.530548",
+    "synced_at": "2026-05-07T23:41:09.776853",
     "sleep_hours_avg": 7.07,
     "days_before_930": 5,
     "hr_zones_1_3_hours": 22.99,
@@ -62,7 +62,7 @@
   "2026-05": {
     "year": 2026,
     "month": 5,
-    "synced_at": "2026-05-07T17:37:45.614865",
+    "synced_at": "2026-05-07T23:41:10.415683",
     "sleep_hours_avg": 7.05,
     "days_before_930": 0,
     "hr_zones_1_3_hours": 5.43,
