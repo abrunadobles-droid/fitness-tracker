@@ -151,28 +151,37 @@ El browser NO está bloqueado — solo el login programático. Pasos:
 
 ## Última sesión
 
-**Fecha:** 2026-04-06
+**Fecha:** 2026-05-07
 **Qué hicimos:**
-- Creamos venv con Python 3.12 (`.venv/`) — el system Python 3.9 NO sirve para garth moderno
-- Refrescamos WHOOP tokens (estaban expirados 12 días)
-- Sincronizamos 4 meses de datos WHOOP (ene-abr 2026)
-- Arreglamos HR Zones: estaban en 0.0h porque buscaban `zone_durations` en cycles (no existe en API v2), ahora se sacan de workouts
-- Reescribimos `garmin_client.py` limpio con garminconnect 0.3.1 y token persistence
-- Eliminamos 7 scripts muertos de Garmin auth
-- Agregamos guard en data_loader.py para no intentar Garmin live sin tokens
-- Garmin 429 activo — extrajimos data real via Chrome MCP (gc-api + CSRF token)
-- 4 meses de pasos diarios reales (ene: 11,458, feb: 11,288, mar: 12,115, abr: 14,683)
-- 4 meses de actividades reales (ene: 31/13str, feb: 27/14str, mar: 30/14str, abr: 5/1str)
-- Dashboard funcionando end-to-end con 9 métricas y datos reales de ambas fuentes
+- Diagnóstico: cron diario fallando 30 días seguidos. Causas raíz:
+  1. `WHOOP_TOKENS_JSON` secret corrupto (refresh token expirado)
+  2. `GARMIN_TOKENS_JSON` inválido + `GARMIN_EMAIL/PASSWORD` vacíos
+  3. Cualquier falla cascadaba — workflow exit 1 saltaba el commit
+  4. `GITHUB_TOKEN` faltaba `contents: write` (push 403)
+  5. `GH_PAT` expirado (ya no rota tokens automáticamente)
+- Re-auth WHOOP en browser → tokens nuevos guardados en `whoop_tokens.json`
+- WHOOP cache resincronizado: 5 meses (ene-may 2026), mayo con 7 noches
+- `WHOOP_TOKENS_JSON` secret actualizado en GitHub
+- Workflow `.github/workflows/whoop-sync.yml` rediseñado:
+  - `permissions: contents: write` para que pueda commitear
+  - `continue-on-error: true` en cada sync y cada save-tokens
+  - `if: always()` en commit step
+  - Job solo falla si **ambos** syncs caen
+- Workflow validado: corre verde end-to-end (Garmin no sync, pero no bloquea WHOOP)
 
 **Estado actual:**
-- WHOOP: funcionando (tokens válidos, cache con 4 meses, HR zones corregidas)
-- Garmin: datos reales en cache (extraídos via browser), garmin_sync.py listo para cuando 429 se levante
-- Dashboard: 100% funcional con datos reales de WHOOP + Garmin
+- WHOOP: ✅ funcionando (tokens válidos por ~6 meses, cache hasta mayo)
+- Garmin: ⚠️ cache fijo en abr-2026 (ene-abr OK, no mayo) — falta re-auth
+- Cron diario: ✅ verde, commitea cache de WHOOP automáticamente
+- `GH_PAT`: ⚠️ expirado, no es crítico — solo significa que cuando el WHOOP refresh token rote, hay que actualizar el secret manualmente
+
+**Pendiente (próxima sesión):**
+- Re-auth Garmin: necesita o credenciales (`GARMIN_EMAIL`/`PASSWORD` como secrets) o tokens generados desde browser. Opción más simple: generar tokens localmente con `garminconnect` y subirlos como `GARMIN_TOKENS_JSON`.
+- Renovar `GH_PAT` si quieres que el workflow auto-actualice los tokens (sin esto, hay que correr `whoop_sync.py --auth` manualmente cuando expiren).
 
 **Para sincronizar datos futuros:**
 ```bash
 source .venv/bin/activate
-python whoop_sync.py --all    # WHOOP
-python garmin_sync.py --all   # Garmin (requiere tokens en ~/.garmin_tokens/)
+python whoop_sync.py --all    # WHOOP — el cron lo hace solo a 7AM CR
+python garmin_sync.py --all   # Garmin — requiere tokens en ~/.garmin_tokens/
 ```
