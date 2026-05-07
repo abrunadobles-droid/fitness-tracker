@@ -17,14 +17,17 @@ import meditation_log as mlog
 import meditation_program as mprog
 
 
-# ============ TIMER + CAMPANAS HTML/JS ============
+# ============ TIMER + VOZ + CAMPANAS ============
 def _render_timer(phases, total_seconds):
     """
-    Componente HTML con timer + campanas Web Audio API.
+    Componente HTML con timer, campanas (Web Audio API) y voz dictada
+    (Web Speech API en espanol). En cada cambio de fase suena una campana
+    suave y se dicta la instruccion de la fase. El resto es silencio.
+
     phases: list of (start_seconds, title, instruction)
     """
     import json as _json
-    phases_js = _json.dumps(phases)
+    phases_js = _json.dumps(phases, ensure_ascii=False)
     html = f"""
     <div id="timer-root" style="
         font-family: 'Inter', -apple-system, sans-serif;
@@ -59,7 +62,7 @@ def _render_timer(phases, total_seconds):
             max-width: 600px;
             line-height: 1.6;
             min-height: 80px;
-        ">Cuando inicies, las instrucciones de cada fase apareceran aqui.<br>Una campana sonara al inicio, en cada cambio de fase, y al final.</div>
+        ">Al iniciar, una voz en espanol dictara la instruccion de cada fase.<br>Las campanas marcan el inicio, los cambios de fase, y el cierre.</div>
 
         <div style="margin-top: 16px;">
             <button id="timer-start" style="
@@ -90,8 +93,26 @@ def _render_timer(phases, total_seconds):
             ">DETENER</button>
         </div>
 
+        <div style="margin-top: 14px;">
+            <select id="voice-select" style="
+                background: #1a1a2e;
+                color: #e2e8f0;
+                border: 1px solid #06b6d430;
+                border-radius: 8px;
+                padding: 6px 10px;
+                font-family: 'Space Mono', monospace;
+                font-size: 0.65rem;
+                letter-spacing: 1px;
+            ">
+                <option value="">VOZ ESPANOL (auto)</option>
+            </select>
+            <label style="font-family:'Space Mono',monospace; font-size:0.65rem; color:#94a3b8; margin-left:14px; letter-spacing:1px;">
+                <input type="checkbox" id="voice-enabled" checked style="vertical-align:middle;"> VOZ ACTIVA
+            </label>
+        </div>
+
         <div id="timer-progress-bar" style="
-            margin: 24px auto 0 auto;
+            margin: 20px auto 0 auto;
             max-width: 480px;
             height: 4px;
             background: #1e293b;
@@ -115,6 +136,7 @@ def _render_timer(phases, total_seconds):
         let interval = null;
         let currentPhaseIdx = -1;
         let audioCtx = null;
+        let chosenVoice = null;
 
         const titleEl = document.getElementById('timer-phase-title');
         const dispEl = document.getElementById('timer-display');
@@ -122,6 +144,51 @@ def _render_timer(phases, total_seconds):
         const startBtn = document.getElementById('timer-start');
         const stopBtn = document.getElementById('timer-stop');
         const fillEl = document.getElementById('timer-progress-fill');
+        const voiceSelect = document.getElementById('voice-select');
+        const voiceEnabled = document.getElementById('voice-enabled');
+
+        // ---- Voz: cargar voces espanolas y poblar el selector ----
+        function loadVoices() {{
+            try {{
+                const all = window.speechSynthesis.getVoices();
+                const esVoices = all.filter(v => v.lang && v.lang.toLowerCase().startsWith('es'));
+                voiceSelect.innerHTML = '<option value="">VOZ ESPANOL (auto)</option>';
+                esVoices.forEach((v, i) => {{
+                    const opt = document.createElement('option');
+                    opt.value = v.name;
+                    opt.textContent = v.name + ' (' + v.lang + ')';
+                    voiceSelect.appendChild(opt);
+                }});
+                if (!chosenVoice && esVoices.length > 0) {{
+                    // Preferencias macOS / iOS: Monica, Paulina, Jorge, Diego
+                    const preferred = ['Monica','Paulina','Jorge','Diego','Marisol'];
+                    chosenVoice = esVoices.find(v => preferred.some(p => v.name.includes(p))) || esVoices[0];
+                }}
+            }} catch(e) {{ console.error('Voice load error', e); }}
+        }}
+        if (typeof speechSynthesis !== 'undefined') {{
+            loadVoices();
+            speechSynthesis.onvoiceschanged = loadVoices;
+        }}
+        voiceSelect.addEventListener('change', () => {{
+            const all = window.speechSynthesis.getVoices();
+            chosenVoice = all.find(v => v.name === voiceSelect.value) || null;
+        }});
+
+        function speak(text) {{
+            if (!voiceEnabled.checked) return;
+            if (typeof speechSynthesis === 'undefined') return;
+            try {{
+                window.speechSynthesis.cancel();
+                const u = new SpeechSynthesisUtterance(text);
+                u.lang = 'es-ES';
+                u.rate = 0.88;  // un poco lento, tono meditativo
+                u.pitch = 1;
+                u.volume = 0.9;
+                if (chosenVoice) u.voice = chosenVoice;
+                window.speechSynthesis.speak(u);
+            }} catch(e) {{ console.error('Speak error', e); }}
+        }}
 
         function fmt(s) {{
             const m = Math.floor(s / 60);
@@ -139,7 +206,7 @@ def _render_timer(phases, total_seconds):
                 osc.connect(gain);
                 gain.connect(audioCtx.destination);
                 gain.gain.setValueAtTime(0, audioCtx.currentTime);
-                gain.gain.linearRampToValueAtTime(0.35, audioCtx.currentTime + 0.02);
+                gain.gain.linearRampToValueAtTime(0.32, audioCtx.currentTime + 0.02);
                 gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + (duration || 2.5));
                 osc.start();
                 osc.stop(audioCtx.currentTime + (duration || 2.5));
@@ -147,12 +214,10 @@ def _render_timer(phases, total_seconds):
         }}
 
         function bellSequence(times) {{
-            // Encadena varias campanas (suena 'tres golpes' al final)
-            times.forEach((t, i) => setTimeout(() => bell(528, 2.5), t));
+            times.forEach((t) => setTimeout(() => bell(528, 2.5), t));
         }}
 
         function updatePhase() {{
-            // Encuentra la fase activa segun elapsed
             let idx = 0;
             for (let i = 0; i < phases.length; i++) {{
                 if (elapsed >= phases[i][0]) idx = i;
@@ -162,11 +227,15 @@ def _render_timer(phases, total_seconds):
                 const p = phases[idx];
                 titleEl.textContent = p[1];
                 instrEl.textContent = p[2];
-                if (idx > 0 && p[1] !== 'FIN') bell(528, 2.5); // Campana de cambio de fase
                 if (p[1] === 'FIN') {{
-                    bellSequence([0, 700, 1400]); // Triple campana al final
+                    bellSequence([0, 700, 1400]);
+                    setTimeout(() => speak('Sesion completada. Tomate un momento antes de moverte.'), 2200);
                     stop(true);
+                    return;
                 }}
+                // Cambio de fase: campana suave + dictar instruccion
+                bell(528, 2.5);
+                setTimeout(() => speak(p[2]), 2200);
             }}
         }}
 
@@ -184,8 +253,11 @@ def _render_timer(phases, total_seconds):
         function start() {{
             elapsed = 0;
             currentPhaseIdx = -1;
+            // Cargar voces JIT en caso de que aun no esten
+            if (typeof speechSynthesis !== 'undefined') {{
+                loadVoices();
+            }}
             updatePhase();
-            bell(528, 2.5); // Campana inicial
             interval = setInterval(tick, 1000);
             startBtn.style.display = 'none';
             stopBtn.style.display = 'inline-block';
@@ -195,6 +267,10 @@ def _render_timer(phases, total_seconds):
             if (interval) {{
                 clearInterval(interval);
                 interval = null;
+            }}
+            if (typeof speechSynthesis !== 'undefined') {{
+                // No cancelamos si esta el speak final del FIN
+                if (!completed) speechSynthesis.cancel();
             }}
             startBtn.style.display = 'inline-block';
             stopBtn.style.display = 'none';
@@ -214,7 +290,7 @@ def _render_timer(phases, total_seconds):
     }})();
     </script>
     """
-    components.html(html, height=400)
+    components.html(html, height=470)
 
 
 # ============ MAIN VIEW ============
@@ -298,7 +374,11 @@ def _show_programa():
     st.markdown('<div class="dn-section">// SESION GUIADA (12 MIN)</div>', unsafe_allow_html=True)
     _render_timer(session["phases"], session["duration_seconds"])
 
-    st.caption("Las campanas suenan: al inicio, en cada cambio de fase (3 min), y triple al final.")
+    st.caption(
+        "Voz en espanol dictara la instruccion al inicio de cada fase. "
+        "Campanas: inicial, en cada cambio de fase (cada 3 min), y triple al cierre. "
+        "Si no escuchas voz, revisa el selector y permite audio en el navegador."
+    )
 
     # Marcar completada
     st.markdown('<div class="dn-section">// REGISTRAR</div>', unsafe_allow_html=True)
@@ -309,6 +389,7 @@ def _show_programa():
     with col_a:
         if st.button("MARCAR COMPLETADA", use_container_width=True, key="mark_done"):
             mlog.log_session(current_day, mprog.SESSION_MINUTES, completed=True, notes=notes)
+            st.session_state.last_completed_minutes = mprog.SESSION_MINUTES
             st.success(f"Dia {current_day} registrado. Manana toca dia {current_day + 1}.")
             st.rerun()
     with col_b:
@@ -318,6 +399,73 @@ def _show_programa():
             data["current_day"] = min(current_day + 1, 29)
             mlog._save(data)
             st.info("Dia omitido. Avanzas al siguiente.")
+            st.rerun()
+
+    _render_apple_health_section()
+
+
+# ============ APPLE HEALTH (via Atajos / Shortcuts) ============
+APPLE_SHORTCUT_NAME = "AddMindfulMinutes"
+
+
+def _render_apple_health_section():
+    """
+    Boton para enviar minutos a Apple Health via Shortcut URL scheme.
+    Solo funciona desde Safari en iPhone/iPad/Mac con el Atajo configurado.
+    """
+    st.markdown('<div class="dn-section">// APPLE HEALTH</div>', unsafe_allow_html=True)
+
+    last_min = st.session_state.get("last_completed_minutes", mprog.SESSION_MINUTES)
+    shortcut_name = st.session_state.get("apple_shortcut_name", APPLE_SHORTCUT_NAME)
+
+    url = f"shortcuts://run-shortcut?name={shortcut_name}&input=text&text={last_min}"
+
+    st.markdown(f'''
+    <a href="{url}" style="
+        display: block;
+        background: linear-gradient(135deg, #06b6d4, #8b5cf6);
+        color: #fff;
+        text-decoration: none;
+        text-align: center;
+        padding: 14px;
+        border-radius: 12px;
+        font-family: 'Space Mono', monospace;
+        font-size: 0.7rem;
+        font-weight: 700;
+        letter-spacing: 3px;
+    ">ANADIR {last_min} MIN A APPLE HEALTH</a>
+    ''', unsafe_allow_html=True)
+
+    st.caption(
+        "Abrir este boton desde Safari en iPhone/iPad/Mac dispara el Atajo "
+        f"'{shortcut_name}' que escribe los minutos en Apple Health (categoria Mindful Minutes)."
+    )
+
+    with st.expander("Como configurar el Atajo (una sola vez)"):
+        st.markdown(f'''
+**En tu iPhone, app Atajos (Shortcuts):**
+
+1. Crea un nuevo atajo y nombralo exactamente: **`{shortcut_name}`**
+2. Anade la accion **"Recibir entrada del atajo"** y selecciona tipo **Texto**
+3. Anade la accion **"Obtener numeros de entrada"** (Get Numbers from Input)
+4. Anade la accion **"Registrar muestra de salud"** (Log Health Sample) con:
+   - **Tipo:** *Atencion plena* / *Mindful Minutes*
+   - **Cantidad:** la salida del paso anterior
+   - **Unidad:** Minutos
+   - **Fecha:** Ahora
+5. (Opcional) Compartir > "Anadir a la pantalla de inicio" para acceso rapido.
+
+Una vez creado, el boton de arriba abrira Atajos automaticamente al pulsarlo desde Safari.
+Si usas otro nombre, cambialo en el campo de abajo.
+''')
+
+        new_name = st.text_input(
+            "Nombre del atajo (sin espacios)",
+            value=shortcut_name,
+            key="shortcut_name_input"
+        )
+        if new_name and new_name != shortcut_name:
+            st.session_state.apple_shortcut_name = new_name
             st.rerun()
 
 
