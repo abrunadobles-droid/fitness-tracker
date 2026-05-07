@@ -25,6 +25,8 @@ jobs:
         run: pip install requests garminconnect 'garth>=0.7.9'
 
       - name: Run WHOOP sync
+        id: whoop_sync
+        continue-on-error: true
         env:
           WHOOP_CLIENT_ID: ${{ secrets.WHOOP_CLIENT_ID }}
           WHOOP_CLIENT_SECRET: ${{ secrets.WHOOP_CLIENT_SECRET }}
@@ -32,6 +34,7 @@ jobs:
         run: python whoop_sync.py --all
 
       - name: Save updated WHOOP tokens
+        if: always()
         env:
           GH_TOKEN: ${{ secrets.GH_PAT }}
         run: |
@@ -39,9 +42,13 @@ jobs:
             echo "Actualizando secreto WHOOP_TOKENS_JSON..."
             gh secret set WHOOP_TOKENS_JSON --body "$(cat whoop_tokens.json)"
             echo "WHOOP tokens actualizados"
+          else
+            echo "No hay whoop_tokens.json (sync probablemente falló)"
           fi
 
       - name: Run Garmin sync
+        id: garmin_sync
+        continue-on-error: true
         timeout-minutes: 10
         env:
           GARMIN_TOKENS_JSON: ${{ secrets.GARMIN_TOKENS_JSON }}
@@ -50,10 +57,10 @@ jobs:
         run: python garmin_sync.py --all
 
       - name: Save updated Garmin tokens
+        if: always()
         env:
           GH_TOKEN: ${{ secrets.GH_PAT }}
         run: |
-          # Export refreshed tokens back to GitHub Secrets
           UPDATED_TOKENS=$(python -c "
           from garmin_client import _export_tokens_json
           import tempfile, os
@@ -66,9 +73,12 @@ jobs:
             echo "Actualizando secreto GARMIN_TOKENS_JSON..."
             gh secret set GARMIN_TOKENS_JSON --body "$UPDATED_TOKENS"
             echo "Garmin tokens actualizados"
+          else
+            echo "No hay tokens Garmin para guardar (sync probablemente falló)"
           fi
 
       - name: Commit and push caches
+        if: always()
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -79,3 +89,9 @@ jobs:
             git commit -m "Sync fitness data $(date +'%Y-%m-%d')"
             git push
           fi
+
+      - name: Fail job if both syncs failed
+        if: steps.whoop_sync.outcome == 'failure' && steps.garmin_sync.outcome == 'failure'
+        run: |
+          echo "Ambos syncs fallaron — revisa logs"
+          exit 1
