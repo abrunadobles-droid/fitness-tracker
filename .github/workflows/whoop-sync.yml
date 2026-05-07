@@ -38,6 +38,7 @@ jobs:
 
       - name: Save updated WHOOP tokens
         if: always()
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.GH_PAT }}
         run: |
@@ -61,6 +62,7 @@ jobs:
 
       - name: Save updated Garmin tokens
         if: always()
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.GH_PAT }}
         run: |
