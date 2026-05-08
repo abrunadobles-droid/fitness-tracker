@@ -132,11 +132,14 @@ def _render_timer(phases, total_seconds):
     (function() {{
         const phases = {phases_js};
         const totalSec = {total_seconds};
+        let startTime = null;       // Date.now() del inicio - wall clock
         let elapsed = 0;
         let interval = null;
         let currentPhaseIdx = -1;
         let audioCtx = null;
         let chosenVoice = null;
+        let wakeLock = null;
+        let finalSpeakDone = false;
 
         const titleEl = document.getElementById('timer-phase-title');
         const dispEl = document.getElementById('timer-display');
@@ -196,26 +199,57 @@ def _render_timer(phases, total_seconds):
             return String(m).padStart(2,'0') + ':' + String(r).padStart(2,'0');
         }}
 
-        function bell(freq, duration) {{
+        function ensureAudioCtx() {{
             try {{
                 if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                const osc = audioCtx.createOscillator();
-                const gain = audioCtx.createGain();
+                if (audioCtx.state === 'suspended') audioCtx.resume();
+            }} catch(e) {{ console.error('Audio ctx error', e); }}
+            return audioCtx;
+        }}
+
+        function bell(freq, duration) {{
+            try {{
+                const ctx = ensureAudioCtx();
+                if (!ctx) return;
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
                 osc.type = 'sine';
                 osc.frequency.value = freq || 528;
                 osc.connect(gain);
-                gain.connect(audioCtx.destination);
-                gain.gain.setValueAtTime(0, audioCtx.currentTime);
-                gain.gain.linearRampToValueAtTime(0.32, audioCtx.currentTime + 0.02);
-                gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + (duration || 2.5));
+                gain.connect(ctx.destination);
+                gain.gain.setValueAtTime(0, ctx.currentTime);
+                gain.gain.linearRampToValueAtTime(0.4, ctx.currentTime + 0.02);
+                gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + (duration || 2.5));
                 osc.start();
-                osc.stop(audioCtx.currentTime + (duration || 2.5));
+                osc.stop(ctx.currentTime + (duration || 2.5));
             }} catch(e) {{ console.error('Audio error', e); }}
         }}
 
         function bellSequence(times) {{
             times.forEach((t) => setTimeout(() => bell(528, 2.5), t));
         }}
+
+        // ---- Wake Lock: evita que la pantalla se apague (iOS Safari 16.4+) ----
+        async function requestWakeLock() {{
+            try {{
+                if ('wakeLock' in navigator) {{
+                    wakeLock = await navigator.wakeLock.request('screen');
+                    wakeLock.addEventListener('release', () => {{ wakeLock = null; }});
+                }}
+            }} catch(e) {{ console.log('Wake Lock no disponible:', e.message); }}
+        }}
+        async function releaseWakeLock() {{
+            try {{ if (wakeLock) {{ await wakeLock.release(); wakeLock = null; }} }} catch(e) {{}}
+        }}
+
+        // Si el usuario vuelve a la pestana / desbloquea, re-pedir wake lock y resincronizar
+        document.addEventListener('visibilitychange', () => {{
+            if (document.visibilityState === 'visible' && interval) {{
+                requestWakeLock();
+                ensureAudioCtx();
+                tick(); // recalcula elapsed inmediatamente y dispara fases pendientes
+            }}
+        }});
 
         function updatePhase() {{
             let idx = 0;
@@ -228,8 +262,11 @@ def _render_timer(phases, total_seconds):
                 titleEl.textContent = p[1];
                 instrEl.textContent = p[2];
                 if (p[1] === 'FIN') {{
-                    bellSequence([0, 700, 1400]);
-                    setTimeout(() => speak('Sesion completada. Tomate un momento antes de moverte.'), 2200);
+                    if (!finalSpeakDone) {{
+                        finalSpeakDone = true;
+                        bellSequence([0, 700, 1400]);
+                        setTimeout(() => speak('Sesion completada. Tomate un momento antes de moverte.'), 2200);
+                    }}
                     stop(true);
                     return;
                 }}
@@ -240,24 +277,46 @@ def _render_timer(phases, total_seconds):
         }}
 
         function tick() {{
-            elapsed += 1;
+            if (!startTime) return;
+            // Wall-clock: si el navegador pauso el timer, esto recupera el momento real
+            elapsed = Math.floor((Date.now() - startTime) / 1000);
             const remaining = Math.max(totalSec - elapsed, 0);
             dispEl.textContent = fmt(remaining);
-            fillEl.style.width = ((elapsed / totalSec) * 100) + '%';
+            fillEl.style.width = Math.min((elapsed / totalSec) * 100, 100) + '%';
             updatePhase();
             if (elapsed >= totalSec) {{
                 stop(true);
             }}
         }}
 
+        function warmupAudio() {{
+            // Garantiza que la primera campana y voz suenen en iOS Safari:
+            // el audioCtx y speechSynthesis necesitan iniciarse dentro del gesto del usuario.
+            ensureAudioCtx();
+            if (typeof speechSynthesis !== 'undefined') {{
+                try {{
+                    // Ping silencioso para activar el motor de voz
+                    const u = new SpeechSynthesisUtterance(' ');
+                    u.volume = 0;
+                    u.lang = 'es-ES';
+                    if (chosenVoice) u.voice = chosenVoice;
+                    speechSynthesis.speak(u);
+                }} catch(e) {{}}
+            }}
+        }}
+
         function start() {{
+            warmupAudio();
+            requestWakeLock();
+            startTime = Date.now();
             elapsed = 0;
             currentPhaseIdx = -1;
-            // Cargar voces JIT en caso de que aun no esten
-            if (typeof speechSynthesis !== 'undefined') {{
-                loadVoices();
-            }}
-            updatePhase();
+            finalSpeakDone = false;
+            if (typeof speechSynthesis !== 'undefined') loadVoices();
+            // Saludo audible para confirmar que la voz funciona
+            setTimeout(() => speak('Comencemos.'), 200);
+            // Disparar primera fase (campana + instruccion) tras el saludo
+            setTimeout(() => updatePhase(), 2000);
             interval = setInterval(tick, 1000);
             startBtn.style.display = 'none';
             stopBtn.style.display = 'inline-block';
@@ -268,8 +327,8 @@ def _render_timer(phases, total_seconds):
                 clearInterval(interval);
                 interval = null;
             }}
+            releaseWakeLock();
             if (typeof speechSynthesis !== 'undefined') {{
-                // No cancelamos si esta el speak final del FIN
                 if (!completed) speechSynthesis.cancel();
             }}
             startBtn.style.display = 'inline-block';
@@ -282,6 +341,7 @@ def _render_timer(phases, total_seconds):
                 titleEl.textContent = 'DETENIDA';
                 dispEl.textContent = fmt(totalSec);
                 fillEl.style.width = '0%';
+                startTime = null;
             }}
         }}
 
@@ -356,28 +416,56 @@ def _show_programa():
         </div>
     </div>''', unsafe_allow_html=True)
 
+    # ---- Slider de duracion ----
+    st.markdown('<div class="dn-section">// DURACION</div>', unsafe_allow_html=True)
+    duration_min = st.slider(
+        "Duracion de la sesion (min)",
+        min_value=5, max_value=30,
+        value=st.session_state.get("session_duration_min", mprog.SESSION_MINUTES),
+        step=1,
+        key="session_duration_slider",
+        help="12 min es el standard de MBAT. Podes acortar para dias dificiles o alargar para sesiones profundas.",
+    )
+    st.session_state.session_duration_min = duration_min
+
+    # Escalar fases proporcionalmente: factor = duracion_elegida / duracion_base
+    base_seconds = session["duration_seconds"]
+    target_seconds = duration_min * 60
+    factor = target_seconds / base_seconds if base_seconds else 1.0
+    scaled_phases = [
+        (int(round(start * factor)), title, instr)
+        for (start, title, instr) in session["phases"]
+    ]
+
     # Resumen de fases (texto previo a iniciar)
     st.markdown('<div class="dn-section">// FASES DE LA SESION</div>', unsafe_allow_html=True)
 
-    phases_to_show = [p for p in session["phases"] if p[1] != "FIN"]
+    phases_to_show = [p for p in scaled_phases if p[1] != "FIN"]
+    phase_block = (target_seconds / max(len(phases_to_show), 1)) / 60
     for start_s, title, instr in phases_to_show:
-        m = start_s // 60
+        m_start = start_s // 60
+        m_end = int(round(m_start + phase_block))
         st.markdown(f'''<div class="dn-metric" style="flex-direction:column; align-items:flex-start;">
             <div style="display:flex; justify-content:space-between; width:100%; margin-bottom:6px;">
                 <span class="name" style="color:#06b6d4;">{title}</span>
-                <span class="dn-pct">min {m}-{m+3}</span>
+                <span class="dn-pct">min {m_start}-{m_end}</span>
             </div>
             <div style="font-size:0.85rem; color:#94a3b8; line-height:1.5;">{instr}</div>
         </div>''', unsafe_allow_html=True)
 
     # Timer
-    st.markdown('<div class="dn-section">// SESION GUIADA (12 MIN)</div>', unsafe_allow_html=True)
-    _render_timer(session["phases"], session["duration_seconds"])
+    st.markdown(
+        f'<div class="dn-section">// SESION GUIADA ({duration_min} MIN)</div>',
+        unsafe_allow_html=True
+    )
+    _render_timer(scaled_phases, target_seconds)
 
     st.caption(
         "Voz en espanol dictara la instruccion al inicio de cada fase. "
-        "Campanas: inicial, en cada cambio de fase (cada 3 min), y triple al cierre. "
-        "Si no escuchas voz, revisa el selector y permite audio en el navegador."
+        "Campanas: en cada cambio de fase y triple al cierre. "
+        "El cronometro usa reloj absoluto y pide Wake Lock: si la pantalla "
+        "se apaga, al desbloquear el iPhone retoma en el segundo correcto y "
+        "dispara las campanas/voces de las fases que pasaron en ausencia."
     )
 
     # Marcar completada
@@ -387,10 +475,10 @@ def _show_programa():
 
     col_a, col_b = st.columns([1, 1])
     with col_a:
-        if st.button("MARCAR COMPLETADA", use_container_width=True, key="mark_done"):
-            mlog.log_session(current_day, mprog.SESSION_MINUTES, completed=True, notes=notes)
-            st.session_state.last_completed_minutes = mprog.SESSION_MINUTES
-            st.success(f"Dia {current_day} registrado. Manana toca dia {current_day + 1}.")
+        if st.button(f"MARCAR COMPLETADA ({duration_min} MIN)", use_container_width=True, key="mark_done"):
+            mlog.log_session(current_day, duration_min, completed=True, notes=notes)
+            st.session_state.last_completed_minutes = duration_min
+            st.success(f"Dia {current_day} registrado ({duration_min} min). Manana toca dia {current_day + 1}.")
             st.rerun()
     with col_b:
         if st.button("OMITIR DIA", use_container_width=True, key="skip_day"):
