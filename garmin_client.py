@@ -22,6 +22,34 @@ import config
 TOKENSTORE = os.path.expanduser("~/.garmin_tokens")
 
 
+def _restore_tokens_from_env():
+    """En CI: si GARMIN_TOKENS_JSON existe, escribe los tokens a TOKENSTORE.
+
+    Mismo patrón que WHOOP (WHOOP_TOKENS_JSON). NO es un método de auth nuevo:
+    es la misma persistencia basada en tokens, solo que la fuente es una env var
+    en vez de un archivo local. Evita tocar SSO (sin 429) en el cron.
+    """
+    tokens_json = os.environ.get("GARMIN_TOKENS_JSON")
+    if not tokens_json:
+        return
+    try:
+        files = json.loads(tokens_json)
+    except json.JSONDecodeError:
+        print("[GARMIN] Error parseando GARMIN_TOKENS_JSON")
+        return
+    if not isinstance(files, dict) or not files:
+        return
+    os.makedirs(TOKENSTORE, exist_ok=True)
+    for filename, content in files.items():
+        filepath = os.path.join(TOKENSTORE, filename)
+        with open(filepath, "w") as f:
+            if isinstance(content, str):
+                f.write(content)
+            else:
+                json.dump(content, f)
+    print(f"[GARMIN] Tokens restaurados desde env a {TOKENSTORE}")
+
+
 def _prompt_mfa():
     if not sys.stdin.isatty():
         raise Exception("Garmin requiere MFA pero no hay terminal interactiva.")
@@ -39,6 +67,9 @@ class GarminClient:
 
     def login(self):
         """Login con token persistence. Intenta tokens guardados primero."""
+        # En CI, materializar tokens del env antes de intentar login
+        _restore_tokens_from_env()
+
         email = config.GARMIN_EMAIL
         password = config.GARMIN_PASSWORD
 

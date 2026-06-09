@@ -67,10 +67,8 @@ jobs:
           GH_TOKEN: ${{ secrets.GH_PAT }}
         run: |
           UPDATED_TOKENS=$(python -c "
-          from garmin_client import _export_tokens_json
-          import tempfile, os
-          tmpdir = os.path.join(tempfile.gettempdir(), 'garmin_tokens')
-          tokens = _export_tokens_json(tmpdir)
+          from garmin_client import GarminClient
+          tokens = GarminClient().get_tokens_json()
           if tokens:
               print(tokens)
           " 2>/dev/null)
