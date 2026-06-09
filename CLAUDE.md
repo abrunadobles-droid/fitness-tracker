@@ -151,37 +151,31 @@ El browser NO está bloqueado — solo el login programático. Pasos:
 
 ## Última sesión
 
-**Fecha:** 2026-05-07
+**Fecha:** 2026-06-09
 **Qué hicimos:**
-- Diagnóstico: cron diario fallando 30 días seguidos. Causas raíz:
-  1. `WHOOP_TOKENS_JSON` secret corrupto (refresh token expirado)
-  2. `GARMIN_TOKENS_JSON` inválido + `GARMIN_EMAIL/PASSWORD` vacíos
-  3. Cualquier falla cascadaba — workflow exit 1 saltaba el commit
-  4. `GITHUB_TOKEN` faltaba `contents: write` (push 403)
-  5. `GH_PAT` expirado (ya no rota tokens automáticamente)
-- Re-auth WHOOP en browser → tokens nuevos guardados en `whoop_tokens.json`
-- WHOOP cache resincronizado: 5 meses (ene-may 2026), mayo con 7 noches
-- `WHOOP_TOKENS_JSON` secret actualizado en GitHub
-- Workflow `.github/workflows/whoop-sync.yml` rediseñado:
-  - `permissions: contents: write` para que pueda commitear
-  - `continue-on-error: true` en cada sync y cada save-tokens
-  - `if: always()` en commit step
-  - Job solo falla si **ambos** syncs caen
-- Workflow validado: corre verde end-to-end (Garmin no sync, pero no bloquea WHOOP)
+- Diagnóstico: el cron salía "verde" pero era falso positivo (los `continue-on-error` enmascaraban que WHOOP fallaba internamente). WHOOP refresh token revocado (401), cache estancado en may-07, junio sin datos.
+- Causa de fondo del WHOOP roto: el cron rota el refresh token en cada uso pero `GH_PAT` (expirado) no puede salvar el token nuevo al secret → al día siguiente carga uno ya consumido → 401.
+- Re-auth WHOOP en browser (flujo OAuth localhost:8000) → tokens nuevos, secret actualizado.
+- Re-auth Garmin con credenciales en `secrets.toml` (sí estaban configuradas) → login limpio SIN 429 ni MFA → tokens en `~/.garmin_tokens/`.
+- Ambos caches resincronizados a 6 meses (ene-jun 2026). Junio: WHOOP 9 noches, Garmin 12,501 pasos/día.
+- **Arreglado el auto-sync de Garmin en CI** (3 bugs):
+  1. `garmin_client.py` ahora restaura `GARMIN_TOKENS_JSON` del env al tokenstore antes del login (mismo patrón que WHOOP, vía `_restore_tokens_from_env()`). No agrega métodos de auth nuevos.
+  2. Workflow llamaba `_export_tokens_json` (inexistente) → cambiado a `GarminClient().get_tokens_json()`.
+  3. `GARMIN_TOKENS_JSON` secret subido con formato correcto `{"garmin_tokens.json": {...}}`.
+- Round-trip Garmin verificado localmente (export → restaurar desde env → login → fetch real data).
 
 **Estado actual:**
-- WHOOP: ✅ funcionando (tokens válidos por ~6 meses, cache hasta mayo)
-- Garmin: ⚠️ cache fijo en abr-2026 (ene-abr OK, no mayo) — falta re-auth
-- Cron diario: ✅ verde, commitea cache de WHOOP automáticamente
-- `GH_PAT`: ⚠️ expirado, no es crítico — solo significa que cuando el WHOOP refresh token rote, hay que actualizar el secret manualmente
+- WHOOP: ✅ tokens válidos ~6 meses, cache hasta junio, cron auto-sync OK
+- Garmin: ✅ tokens en `~/.garmin_tokens/` + secret en CI, cache hasta junio, cron auto-sync OK
+- Cron diario: ✅ ahora sincroniza AMBAS fuentes solo
+- `GH_PAT`: ⚠️ sigue expirado — los token-save steps fallan (continue-on-error, inofensivo). Garmin oauth1 dura ~1 año sin rotar, así que el secret aguanta. WHOOP refresh token rota: cuando expire (~6 meses) hay que re-auth manual con `whoop_sync.py --auth` + `gh secret set WHOOP_TOKENS_JSON`.
 
-**Pendiente (próxima sesión):**
-- Re-auth Garmin: necesita o credenciales (`GARMIN_EMAIL`/`PASSWORD` como secrets) o tokens generados desde browser. Opción más simple: generar tokens localmente con `garminconnect` y subirlos como `GARMIN_TOKENS_JSON`.
-- Renovar `GH_PAT` si quieres que el workflow auto-actualice los tokens (sin esto, hay que correr `whoop_sync.py --auth` manualmente cuando expiren).
+**Pendiente (opcional):**
+- Renovar `GH_PAT` (PAT clásico, scope `repo`) y subirlo como secret para que el cron auto-rote los WHOOP tokens y no haya que re-auth manual cada ~6 meses.
 
-**Para sincronizar datos futuros:**
+**Para sincronizar datos futuros (manual, si hace falta):**
 ```bash
 source .venv/bin/activate
 python whoop_sync.py --all    # WHOOP — el cron lo hace solo a 7AM CR
-python garmin_sync.py --all   # Garmin — requiere tokens en ~/.garmin_tokens/
+python garmin_sync.py --all   # Garmin — el cron lo hace solo; usa ~/.garmin_tokens/
 ```
