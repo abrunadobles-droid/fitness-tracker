@@ -2,7 +2,7 @@
   "2026-01": {
     "year": 2026,
     "month": 1,
-    "synced_at": "2026-05-07T23:42:34.478256",
+    "synced_at": "2026-06-09T11:35:41.034007",
     "sleep_hours_avg": 6.96,
     "days_before_930": 4,
     "hr_zones_1_3_hours": 19.32,
@@ -17,7 +17,7 @@
   "2026-02": {
     "year": 2026,
     "month": 2,
-    "synced_at": "2026-05-07T23:42:36.238995",
+    "synced_at": "2026-06-09T11:35:45.045140",
     "sleep_hours_avg": 7.15,
     "days_before_930": 7,
     "hr_zones_1_3_hours": 17.93,
@@ -32,7 +32,7 @@
   "2026-03": {
     "year": 2026,
     "month": 3,
-    "synced_at": "2026-05-07T23:42:37.981441",
+    "synced_at": "2026-06-09T11:35:49.093072",
     "sleep_hours_avg": 7.05,
     "days_before_930": 4,
     "hr_zones_1_3_hours": 16.37,
@@ -47,7 +47,7 @@
   "2026-04": {
     "year": 2026,
     "month": 4,
-    "synced_at": "2026-05-07T23:42:39.777056",
+    "synced_at": "2026-06-09T11:35:53.327105",
     "sleep_hours_avg": 7.07,
     "days_before_930": 5,
     "hr_zones_1_3_hours": 22.99,
@@ -62,16 +62,31 @@
   "2026-05": {
     "year": 2026,
     "month": 5,
-    "synced_at": "2026-05-07T23:42:40.356083",
-    "sleep_hours_avg": 7.05,
-    "days_before_930": 0,
-    "hr_zones_1_3_hours": 5.43,
-    "hr_zones_4_5_hours": 2.56,
-    "avg_hrv": 87.4,
-    "avg_recovery_score": 60.9,
-    "avg_resting_hr": 49.6,
-    "avg_sleep_consistency": 78.1,
-    "num_sleeps": 7,
-    "num_workouts": 8
+    "synced_at": "2026-06-09T11:35:57.390933",
+    "sleep_hours_avg": 7.12,
+    "days_before_930": 8,
+    "hr_zones_1_3_hours": 23.33,
+    "hr_zones_4_5_hours": 5.94,
+    "avg_hrv": 103.3,
+    "avg_recovery_score": 65.3,
+    "avg_resting_hr": 47.5,
+    "avg_sleep_consistency": 79.5,
+    "num_sleeps": 31,
+    "num_workouts": 56
+  },
+  "2026-06": {
+    "year": 2026,
+    "month": 6,
+    "synced_at": "2026-06-09T11:35:58.589195",
+    "sleep_hours_avg": 6.98,
+    "days_before_930": 3,
+    "hr_zones_1_3_hours": 5.97,
+    "hr_zones_4_5_hours": 1.61,
+    "avg_hrv": 79.2,
+    "avg_recovery_score": 41.6,
+    "avg_resting_hr": 50.8,
+    "avg_sleep_consistency": 75.6,
+    "num_sleeps": 9,
+    "num_workouts": 15
   }
 }
