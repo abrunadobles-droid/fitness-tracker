@@ -2,9 +2,9 @@
 Funciones auxiliares: formato, cálculo de porcentajes, métricas.
 """
 import streamlit as st
-from constants import FITNESS_METRICS, SLEEP_METRICS, ALL_METRIC_KEYS
+from constants import DASHBOARD_METRICS, ALL_METRIC_KEYS
 
-_TIPO_MAP = {m[0]: m[3] for m in FITNESS_METRICS + SLEEP_METRICS}
+_TIPO_MAP = {m[0]: m[3] for m in DASHBOARD_METRICS}
 
 
 def fmt(valor, unit):

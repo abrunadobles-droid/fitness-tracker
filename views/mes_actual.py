@@ -3,7 +3,7 @@ Vista: Mes Actual
 """
 import streamlit as st
 from datetime import datetime
-from constants import MESES_NOMBRES, MESES_CORTOS, FITNESS_METRICS, SLEEP_METRICS, ALL_METRIC_KEYS
+from constants import MESES_NOMBRES, MESES_CORTOS, FITNESS_METRICS, SLEEP_METRICS, RECOVERY_METRICS, DASHBOARD_METRICS, ALL_METRIC_KEYS
 from helpers import fmt, get_pct, get_status, get_status_class, render_metric_row
 from data_loader import get_monthly_data
 
@@ -18,12 +18,11 @@ def show(data, metas, days_elapsed, days_in_month, progress_pct, current_month, 
     )
 
     # ---- SUMMARY CARDS ----
-    fitness_sleep_metrics = FITNESS_METRICS + SLEEP_METRICS
     total_ok = sum(
-        1 for k, _, _, t in fitness_sleep_metrics
+        1 for k, _, _, t in DASHBOARD_METRICS
         if get_pct(k, data[k], metas[k], t, days_elapsed, days_in_month, True) >= 100
     )
-    total_metrics = len(fitness_sleep_metrics)
+    total_metrics = len(DASHBOARD_METRICS)
 
     steps_display = f"{data['steps_avg']:,}" if data['steps_avg'] >= 1000 else str(data['steps_avg'])
 
@@ -49,6 +48,16 @@ def show(data, metas, days_elapsed, days_in_month, progress_pct, current_month, 
     for key, label, unit, tipo in SLEEP_METRICS:
         render_metric_row(label, data[key], metas[key], unit, tipo, days_elapsed, days_in_month, for_current_month=True)
 
+    # ---- RECOVERY HABITS (WHOOP: dias con Meditacion / Sauna) ----
+    st.markdown('<div class="dn-section">// RECOVERY HABITS</div>', unsafe_allow_html=True)
+    for key, label, unit, tipo in RECOVERY_METRICS:
+        render_metric_row(label, data[key], metas[key], unit, tipo, days_elapsed, days_in_month, for_current_month=True)
+    semanas = max(days_elapsed / 7, 0.1)
+    st.caption(
+        f"Ritmo semanal: Meditacion {data['meditation_days'] / semanas:.1f} dias/sem "
+        f"· Sauna {data['sauna_days'] / semanas:.1f} dias/sem"
+    )
+
     # ---- VS MES ANTERIOR ----
     if current_month > 1:
         prev_month = current_month - 1
@@ -61,7 +70,7 @@ def show(data, metas, days_elapsed, days_in_month, progress_pct, current_month, 
 
         # Build HTML table
         rows_html = ""
-        for key, label, unit, tipo in FITNESS_METRICS + SLEEP_METRICS:
+        for key, label, unit, tipo in DASHBOARD_METRICS:
             curr_val = data[key]
             prev_val = prev_data[key]
 

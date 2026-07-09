@@ -3,7 +3,7 @@ Vista: Histórico anual
 """
 import streamlit as st
 from datetime import datetime
-from constants import MESES_NOMBRES, MESES_CORTOS, FITNESS_METRICS, SLEEP_METRICS, ALL_METRIC_KEYS
+from constants import MESES_NOMBRES, MESES_CORTOS, DASHBOARD_METRICS, ALL_METRIC_KEYS
 from helpers import fmt, get_pct, get_status, get_status_class, is_metric_met, calculate_score, calculate_averages
 from data_loader import get_monthly_data
 from pdf_export import generate_historico_pdf
@@ -33,7 +33,7 @@ def show(metas, current_month, current_year):
     )
 
     meses_cerrados = list(range(1, current_month))
-    historico_metrics = FITNESS_METRICS + SLEEP_METRICS
+    historico_metrics = DASHBOARD_METRICS
     historico_keys = [m[0] for m in historico_metrics]
     total_metrics = len(historico_metrics)
 
@@ -68,7 +68,7 @@ def show(metas, current_month, current_year):
 
     headers = ["Metrica", "Promedio", "Meta", "%"]
     rows = []
-    for key, label, unit, tipo in FITNESS_METRICS + SLEEP_METRICS:
+    for key, label, unit, tipo in DASHBOARD_METRICS:
         valor = avg_data[key]
         meta = metas[key]
         pct = get_pct(key, valor, meta, tipo)
@@ -97,7 +97,7 @@ def show(metas, current_month, current_year):
 
         headers = ["Metrica", "Meta Original", "Meta Ajustada", "Estado"]
         rows = []
-        for key, label, unit, tipo in FITNESS_METRICS + SLEEP_METRICS:
+        for key, label, unit, tipo in DASHBOARD_METRICS:
             avg_val = avg_data[key]
             goal = metas[key]
             is_inverted = tipo == 'promedio_inverted'
@@ -131,7 +131,7 @@ def show(metas, current_month, current_year):
         score = sum(is_metric_met(k, data[k], metas[k]) for k in historico_keys if k in data and k in metas)
         with st.expander(f"{MESES_NOMBRES[mes]} {current_year}  —  {score}/{total_metrics} metas"):
             rows = []
-            for key, label, unit, tipo in FITNESS_METRICS + SLEEP_METRICS:
+            for key, label, unit, tipo in DASHBOARD_METRICS:
                 pct = get_pct(key, data[key], metas[key], tipo)
                 status_cls = get_status_class(pct)
                 dot = f'<span class="dn-status {status_cls}" style="vertical-align:middle;"></span>'
@@ -145,7 +145,7 @@ def show(metas, current_month, current_year):
             if i > 0:
                 prev = all_data[i - 1]
                 trends = []
-                for key, label, unit, tipo in FITNESS_METRICS + SLEEP_METRICS:
+                for key, label, unit, tipo in DASHBOARD_METRICS:
                     curr_val = data[key]
                     prev_val = prev[key]
                     if prev_val > 0:
@@ -173,7 +173,7 @@ def show(metas, current_month, current_year):
         headers = ["Metrica"] + month_headers + ["Promedio", "Meta"]
 
         rows = []
-        for key, label, unit, tipo in FITNESS_METRICS + SLEEP_METRICS:
+        for key, label, unit, tipo in DASHBOARD_METRICS:
             row = [label]
             for d in all_data:
                 row.append(fmt(d[key], unit))

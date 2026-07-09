@@ -5,7 +5,7 @@ Usa fpdf2 (Python puro, sin binarios externos).
 
 from fpdf import FPDF
 from datetime import datetime
-from constants import FITNESS_METRICS, SLEEP_METRICS, ALL_METRIC_KEYS, MESES_NOMBRES, MESES_CORTOS
+from constants import DASHBOARD_METRICS, ALL_METRIC_KEYS, MESES_NOMBRES, MESES_CORTOS
 from helpers import fmt, get_pct, get_status_class, calculate_score, calculate_averages, is_metric_met
 
 
@@ -88,7 +88,7 @@ def generate_historico_pdf(all_data, metas, meses_cerrados, current_year):
     Returns: bytes del PDF
     """
     pdf = FitnessReport()
-    all_metrics = FITNESS_METRICS + SLEEP_METRICS
+    all_metrics = DASHBOARD_METRICS
     total_metrics = len(ALL_METRIC_KEYS)
 
     avg_data = calculate_averages(all_data)

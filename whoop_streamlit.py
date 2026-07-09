@@ -118,6 +118,8 @@ def get_whoop_monthly_live(year, month):
         'avg_recovery_score': 0,
         'avg_resting_hr': 0,
         'avg_sleep_consistency': 0,
+        'meditation_days': 0,
+        'sauna_days': 0,
         'synced_at': datetime.now().isoformat(),
         'live': True,
     }
@@ -189,6 +191,33 @@ def get_whoop_monthly_live(year, month):
 
         result['hr_zones_1_3_hours'] = round(total_zone_1_3 / 3600000, 2)
         result['hr_zones_4_5_hours'] = round(total_zone_4_5 / 3600000, 2)
+
+    # --- Dias con Meditacion / Sauna (por sport_name, fecha local) ---
+    if workouts:
+        meditation_dates = set()
+        sauna_dates = set()
+        for workout in workouts:
+            name = (workout.get('sport_name') or '').lower()
+            if 'meditation' not in name and 'sauna' not in name:
+                continue
+            start = workout.get('start', '')
+            if not start:
+                continue
+            utc_time = datetime.fromisoformat(start.replace('Z', '+00:00'))
+            tz = workout.get('timezone_offset') or '-06:00'
+            sign = -1 if tz.startswith('-') else 1
+            parts = tz.lstrip('+-').split(':')
+            offset = timedelta(hours=sign * int(parts[0]),
+                               minutes=sign * (int(parts[1]) if len(parts) > 1 else 0))
+            local_date = (utc_time + offset).date()
+            if local_date.year != year or local_date.month != month:
+                continue
+            if 'meditation' in name:
+                meditation_dates.add(local_date)
+            if 'sauna' in name:
+                sauna_dates.add(local_date)
+        result['meditation_days'] = len(meditation_dates)
+        result['sauna_days'] = len(sauna_dates)
 
     return result
 

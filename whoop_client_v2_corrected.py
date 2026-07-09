@@ -7,6 +7,37 @@ from datetime import datetime, timedelta
 from whoop_auth import WhoopAuth
 
 
+def _parse_tz_offset(tz):
+    """Convierte '-06:00' a timedelta, con signo correcto también en los minutos."""
+    sign = -1 if tz.startswith('-') else 1
+    parts = tz.lstrip('+-').split(':')
+    hours = int(parts[0])
+    minutes = int(parts[1]) if len(parts) > 1 else 0
+    return timedelta(hours=sign * hours, minutes=sign * minutes)
+
+
+def workout_local_date(workout, default_tz='-06:00'):
+    """Fecha local del workout usando su timezone_offset (default Costa Rica)."""
+    start = workout.get('start', '')
+    if not start:
+        return None
+    utc_time = datetime.fromisoformat(start.replace('Z', '+00:00'))
+    local_time = utc_time + _parse_tz_offset(workout.get('timezone_offset') or default_tz)
+    return local_time.date()
+
+
+def count_activity_days(workouts, keyword, year, month):
+    """Dias distintos del mes con >=1 workout cuyo sport_name contiene keyword."""
+    dates = set()
+    for w in workouts:
+        name = (w.get('sport_name') or '').lower()
+        if keyword in name:
+            d = workout_local_date(w)
+            if d and d.year == year and d.month == month:
+                dates.add(d)
+    return len(dates)
+
+
 class WhoopClientV2:
     def __init__(self):
         self.auth = WhoopAuth()
@@ -97,7 +128,9 @@ class WhoopClientV2:
             'avg_time_hr_zone_1_3': 0,
             'avg_time_hr_zone_4_5': 0,
             'hr_zones_1_3_hours': 0,
-            'hr_zones_4_5_hours': 0
+            'hr_zones_4_5_hours': 0,
+            'meditation_days': 0,
+            'sauna_days': 0
         }
         
         # Sleep
@@ -229,5 +262,14 @@ class WhoopClientV2:
             print(f"         ✅ HR zones calculadas de {len(summary['workouts'])} workouts")
         except Exception as e:
             print(f"         ⚠️  Error: {e}")
-        
+
+        # Dias con Meditacion / Sauna (por sport_name del workout)
+        print("      🧘 Contando dias de Meditacion y Sauna...")
+        try:
+            summary['meditation_days'] = count_activity_days(summary['workouts'], 'meditation', year, month)
+            summary['sauna_days'] = count_activity_days(summary['workouts'], 'sauna', year, month)
+            print(f"         ✅ Meditacion: {summary['meditation_days']} dias | Sauna: {summary['sauna_days']} dias")
+        except Exception as e:
+            print(f"         ⚠️  Error: {e}")
+
         return summary

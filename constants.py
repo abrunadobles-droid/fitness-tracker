@@ -36,4 +36,13 @@ MIND_METRICS = [
     ('meditation_minutes',  'Minutos Meditacion',  'min', 'total'),
 ]
 
-ALL_METRIC_KEYS = [m[0] for m in FITNESS_METRICS + SLEEP_METRICS + MIND_METRICS]
+# Dias del mes con actividad registrada en WHOOP (Meditation / Sauna)
+RECOVERY_METRICS = [
+    ('meditation_days', 'Meditacion (dias)', '', 'total'),
+    ('sauna_days',      'Sauna (dias)',      '', 'total'),
+]
+
+# Metricas que se muestran en el dashboard principal (mes actual + historico + PDF)
+DASHBOARD_METRICS = FITNESS_METRICS + SLEEP_METRICS + RECOVERY_METRICS
+
+ALL_METRIC_KEYS = [m[0] for m in DASHBOARD_METRICS + MIND_METRICS]

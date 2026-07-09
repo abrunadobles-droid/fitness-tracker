@@ -6,6 +6,7 @@ Uso:
     python whoop_sync.py --all        # Sincroniza todos los meses del año
     python whoop_sync.py --month 1    # Sincroniza enero
     python whoop_sync.py --auth       # Re-autorizar (obtener nuevos tokens)
+    python whoop_sync.py --sports     # Lista los sport_name de tus workouts del año
 
 Los datos se guardan en whoop_cache.json y el dashboard los lee de ahi.
 Esto resuelve el problema de que Streamlit Cloud no puede conectarse a WHOOP.
@@ -55,6 +56,8 @@ def sync_month(whoop, year, month, cache):
         'avg_sleep_consistency': round(summary.get('avg_sleep_consistency', 0), 1),
         'num_sleeps': len(summary.get('sleep', [])),
         'num_workouts': len(summary.get('workouts', [])),
+        'meditation_days': summary.get('meditation_days', 0),
+        'sauna_days': summary.get('sauna_days', 0),
     }
 
     # Protect cache: don't overwrite existing data with empty results (API failure)
@@ -119,6 +122,22 @@ def main():
         print(f"Error inicializando WHOOP: {e}")
         print("Ejecuta primero: python3 whoop_sync.py --auth")
         sys.exit(1)
+
+    # Debug: listar los sport_name que WHOOP devuelve para tus workouts del año
+    # (útil para verificar cómo se llaman Meditación y Sauna en la API)
+    if '--sports' in args:
+        from collections import Counter
+        workouts = whoop.get_all_records(
+            'activity/workout', datetime(now.year, 1, 1), now
+        )
+        counts = Counter(
+            (w.get('sport_name') or f"sport_id={w.get('sport_id', '?')}")
+            for w in workouts
+        )
+        print(f"\n   Actividades {now.year} ({len(workouts)} workouts):")
+        for name, count in counts.most_common():
+            print(f"      {name}: {count}")
+        return
 
     cache = load_cache()
 

@@ -84,6 +84,7 @@ def get_monthly_data(year, month):
         'hr_zone_1_3': 0, 'hr_zone_4_5': 0,
         'recovery_score': 0, 'resting_hr': 0, 'sleep_consistency': 0,
         'meditation_sessions': 0, 'meditation_minutes': 0,
+        'meditation_days': 0, 'sauna_days': 0,
         'whoop_source': 'NO DATA',
         'garmin_source': 'NO DATA',
     }
@@ -161,5 +162,7 @@ def get_monthly_data(year, month):
         data['recovery_score'] = round(whoop.get('avg_recovery_score', 0), 1)
         data['resting_hr'] = round(whoop.get('avg_resting_hr', 0), 1)
         data['sleep_consistency'] = round(whoop.get('avg_sleep_consistency', 0), 1)
+        data['meditation_days'] = int(whoop.get('meditation_days', 0) or 0)
+        data['sauna_days'] = int(whoop.get('sauna_days', 0) or 0)
 
     return data

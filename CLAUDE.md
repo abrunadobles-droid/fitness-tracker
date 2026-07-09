@@ -63,7 +63,7 @@ Garmin API ────┘   (cron diario)    └── garmin_cache.json ──
 - `.streamlit/config.toml` - Tema Dark Neon (cyan #06b6d4, fondo #0a0a0f)
 - `.streamlit/secrets.toml` - Credenciales locales (NO commitear, en .gitignore)
 
-## 9 Métricas trackeadas
+## 11 Métricas trackeadas
 
 | Métrica | Fuente | Tipo | Meta default |
 |---------|--------|------|-------------|
@@ -76,6 +76,10 @@ Garmin API ────┘   (cron diario)    └── garmin_cache.json ──
 | Recovery Score | WHOOP | promedio (%) | 50% |
 | Resting HR | WHOOP | promedio_inverted (bpm) | 55 |
 | Sleep Consistency | WHOOP | promedio (%) | 80% |
+| Meditación (días) | WHOOP | total (días/mes) | 20 |
+| Sauna (días) | WHOOP | total (días/mes) | 8 |
+
+Las últimas dos cuentan **días distintos del mes** con ≥1 workout de WHOOP cuyo `sport_name` contiene "meditation"/"sauna" (fecha local vía `timezone_offset`). Verificar nombres reales con `python whoop_sync.py --sports`.
 
 ## Decisiones tomadas
 
@@ -151,7 +155,16 @@ El browser NO está bloqueado — solo el login programático. Pasos:
 
 ## Última sesión
 
-**Fecha:** 2026-07-09
+**Fecha:** 2026-07-09 (parte 2)
+**Qué hicimos:**
+- **Nuevas métricas: Meditación (días/mes) y Sauna (días/mes) desde WHOOP.** Se cuentan días distintos con ≥1 workout cuyo `sport_name` contiene "meditation"/"sauna" (fecha local por `timezone_offset`, cubre "Infrared Sauna").
+- Tocado: `constants.py` (RECOVERY_METRICS + DASHBOARD_METRICS), `whoop_client_v2_corrected.py` (conteo + helpers), `whoop_sync.py` (campos en cache + comando `--sports` para listar sport_names reales), `whoop_streamlit.py` (live), `data_loader.py`, `helpers.py`, `goals_setup.py` (metas default: meditación 20, sauna 8 + sección en form), `views/mes_actual.py` (sección RECOVERY HABITS + ritmo días/semana), `views/historico.py`, `pdf_export.py`.
+- El cache viejo no tiene los campos nuevos → muestran 0 hasta el próximo sync. El cron diario hace `--all` (todo 2026), así que se backfillea solo; o manual: `python whoop_sync.py --all`.
+- Nota: estas métricas son independientes del log manual de meditación de la pestaña Mente (`meditation_log.json`); posible unificación futura.
+
+---
+
+**Sesión anterior — Fecha:** 2026-07-09
 **Qué hicimos:**
 - Diagnóstico de "datos de junio no coinciden con la app de WHOOP": el cache de WHOOP está congelado desde el 2026-06-09 (junio = solo 9 noches / 15 workouts, la primera semana). El cron falla con 401 en el refresh de WHOOP desde el 10 de junio, pero salía verde.
 - Tres causas encontradas:

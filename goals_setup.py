@@ -20,6 +20,8 @@ DEFAULT_GOALS = {
     'sleep_consistency': 80.0,
     'meditation_sessions': 20,
     'meditation_minutes': 240,
+    'meditation_days': 20,
+    'sauna_days': 8,
 }
 
 
@@ -40,8 +42,11 @@ def _save_goals(goals):
 def get_user_goals():
     """Obtiene las metas. Prioridad: session_state > goals.json > defaults."""
     # Session state persists within a Streamlit Cloud session
+    # (merge sobre defaults por si se agregaron métricas nuevas después de guardar)
     if 'user_goals' in st.session_state:
-        return dict(st.session_state.user_goals)
+        result = dict(DEFAULT_GOALS)
+        result.update(st.session_state.user_goals)
+        return result
 
     saved = _load_goals()
     if saved:
@@ -192,6 +197,25 @@ def show_goals_setup(first_time=True):
             help="Minutos totales de meditacion al mes (12 min x sesiones)"
         )
 
+    # ---- RECOVERY HABITS (WHOOP) ----
+    st.markdown('<div class="section-label">// RECOVERY HABITS (WHOOP)</div>', unsafe_allow_html=True)
+
+    col7, col8 = st.columns(2)
+
+    with col7:
+        meditation_days = st.number_input(
+            "Dias con meditacion / mes",
+            min_value=0, max_value=31, value=int(current.get('meditation_days', 20)), step=1,
+            help="Dias del mes con actividad Meditation registrada en WHOOP"
+        )
+
+    with col8:
+        sauna_days = st.number_input(
+            "Dias con sauna / mes",
+            min_value=0, max_value=31, value=int(current.get('sauna_days', 8)), step=1,
+            help="Dias del mes con actividad Sauna registrada en WHOOP"
+        )
+
     if st.button("GUARDAR METAS", use_container_width=True):
         goals_data = {
             "steps_avg": steps,
@@ -205,6 +229,8 @@ def show_goals_setup(first_time=True):
             "sleep_consistency": sleep_consistency,
             "meditation_sessions": meditation_sessions,
             "meditation_minutes": meditation_minutes,
+            "meditation_days": meditation_days,
+            "sauna_days": sauna_days,
         }
 
         try:
