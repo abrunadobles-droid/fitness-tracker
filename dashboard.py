@@ -178,31 +178,33 @@ st.markdown("""
 
     /* ---- Tables (custom HTML) ---- */
     .dn-table {
-        width: 100%;
+        width: auto;
+        min-width: 70%;
         border-collapse: separate;
         border-spacing: 0;
         background: #1a1a2e;
         border-radius: 12px;
         overflow: hidden;
         border: 1px solid #ffffff08;
-        margin: 8px 0;
+        margin: 8px auto;
     }
     .dn-table th {
         font-family: 'Space Mono', monospace;
-        font-size: 0.6rem;
-        color: #64748b;
-        letter-spacing: 2px;
+        font-size: 0.75rem;
+        font-weight: 700;
+        color: #a5b4cf;
+        letter-spacing: 1px;
         text-transform: uppercase;
-        padding: 12px 16px;
+        padding: 10px 12px;
         text-align: left;
         border-bottom: 1px solid #ffffff10;
         background: #151525;
     }
     .dn-table td {
         font-family: 'Inter', sans-serif;
-        font-size: 0.85rem;
+        font-size: 0.8rem;
         color: #e2e8f0;
-        padding: 10px 16px;
+        padding: 8px 12px;
         border-bottom: 1px solid #ffffff06;
     }
     .dn-table tr:last-child td {

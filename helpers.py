@@ -7,7 +7,14 @@ from constants import DASHBOARD_METRICS, ALL_METRIC_KEYS
 _TIPO_MAP = {m[0]: m[3] for m in DASHBOARD_METRICS}
 
 
+# Métricas que se muestran como enteros (sin decimales)
+INT_DISPLAY_KEYS = {'steps_avg', 'recovery_score', 'resting_hr', 'sleep_consistency'}
+
+
 def fmt(valor, unit):
+    # Floats "enteros" (67.0) se muestran sin decimal
+    if isinstance(valor, float) and valor == int(valor):
+        valor = int(valor)
     if isinstance(valor, float):
         return f"{valor} {unit}".strip()
     elif not unit and isinstance(valor, int) and valor >= 1000:
@@ -64,7 +71,7 @@ def calculate_averages(all_data):
     avg = {}
     for key in ALL_METRIC_KEYS:
         total = sum(d.get(key, 0) for d in all_data)
-        avg[key] = round(total / n) if key == 'steps_avg' else round(total / n, 1)
+        avg[key] = round(total / n) if key in INT_DISPLAY_KEYS else round(total / n, 1)
     return avg
 
 
@@ -73,6 +80,8 @@ def render_metric_row(label, valor, meta, unit, tipo, days_elapsed=1, days_in_mo
     pct = get_pct(None, valor, meta, tipo, days_elapsed, days_in_month, for_current_month)
     status_cls = get_status_class(pct)
 
+    if isinstance(valor, float) and valor == int(valor):
+        valor = int(valor)
     if isinstance(valor, float):
         display_val = f"{valor:.1f} {unit}".strip()
     elif isinstance(valor, int) and valor >= 1000:

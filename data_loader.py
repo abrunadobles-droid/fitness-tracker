@@ -159,9 +159,10 @@ def get_monthly_data(year, month):
                 data[data_key] = 0
 
         data['sleep_hours_avg'] = round(whoop.get('sleep_hours_avg', 0), 1)
-        data['recovery_score'] = round(whoop.get('avg_recovery_score', 0), 1)
-        data['resting_hr'] = round(whoop.get('avg_resting_hr', 0), 1)
-        data['sleep_consistency'] = round(whoop.get('avg_sleep_consistency', 0), 1)
+        # Estos tres se muestran como enteros (sin decimales)
+        data['recovery_score'] = int(round(whoop.get('avg_recovery_score', 0) or 0))
+        data['resting_hr'] = int(round(whoop.get('avg_resting_hr', 0) or 0))
+        data['sleep_consistency'] = int(round(whoop.get('avg_sleep_consistency', 0) or 0))
         data['meditation_days'] = int(whoop.get('meditation_days', 0) or 0)
         data['sauna_days'] = int(whoop.get('sauna_days', 0) or 0)
 
