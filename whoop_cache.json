@@ -2,7 +2,7 @@
   "2026-01": {
     "year": 2026,
     "month": 1,
-    "synced_at": "2026-07-09T13:26:31.596998",
+    "synced_at": "2026-07-09T13:29:50.284633",
     "sleep_hours_avg": 6.96,
     "days_before_930": 4,
     "hr_zones_1_3_hours": 19.32,
@@ -12,12 +12,14 @@
     "avg_resting_hr": 52.1,
     "avg_sleep_consistency": 74.1,
     "num_sleeps": 31,
-    "num_workouts": 66
+    "num_workouts": 66,
+    "meditation_days": 20,
+    "sauna_days": 10
   },
   "2026-02": {
     "year": 2026,
     "month": 2,
-    "synced_at": "2026-07-09T13:26:33.946666",
+    "synced_at": "2026-07-09T13:29:53.160590",
     "sleep_hours_avg": 7.15,
     "days_before_930": 7,
     "hr_zones_1_3_hours": 17.93,
@@ -27,12 +29,14 @@
     "avg_resting_hr": 53.4,
     "avg_sleep_consistency": 72.7,
     "num_sleeps": 29,
-    "num_workouts": 66
+    "num_workouts": 66,
+    "meditation_days": 18,
+    "sauna_days": 12
   },
   "2026-03": {
     "year": 2026,
     "month": 3,
-    "synced_at": "2026-07-09T13:26:36.483862",
+    "synced_at": "2026-07-09T13:29:55.549484",
     "sleep_hours_avg": 7.05,
     "days_before_930": 4,
     "hr_zones_1_3_hours": 16.37,
@@ -42,12 +46,14 @@
     "avg_resting_hr": 49.9,
     "avg_sleep_consistency": 77.5,
     "num_sleeps": 31,
-    "num_workouts": 54
+    "num_workouts": 54,
+    "meditation_days": 17,
+    "sauna_days": 6
   },
   "2026-04": {
     "year": 2026,
     "month": 4,
-    "synced_at": "2026-07-09T13:26:38.961131",
+    "synced_at": "2026-07-09T13:29:57.968477",
     "sleep_hours_avg": 7.07,
     "days_before_930": 5,
     "hr_zones_1_3_hours": 22.99,
@@ -57,12 +63,14 @@
     "avg_resting_hr": 49.2,
     "avg_sleep_consistency": 80.3,
     "num_sleeps": 30,
-    "num_workouts": 54
+    "num_workouts": 54,
+    "meditation_days": 13,
+    "sauna_days": 6
   },
   "2026-05": {
     "year": 2026,
     "month": 5,
-    "synced_at": "2026-07-09T13:26:41.550663",
+    "synced_at": "2026-07-09T13:30:00.366814",
     "sleep_hours_avg": 7.12,
     "days_before_930": 8,
     "hr_zones_1_3_hours": 23.33,
@@ -72,12 +80,14 @@
     "avg_resting_hr": 47.5,
     "avg_sleep_consistency": 79.5,
     "num_sleeps": 31,
-    "num_workouts": 56
+    "num_workouts": 56,
+    "meditation_days": 10,
+    "sauna_days": 7
   },
   "2026-06": {
     "year": 2026,
     "month": 6,
-    "synced_at": "2026-07-09T13:26:43.971548",
+    "synced_at": "2026-07-09T13:30:02.834898",
     "sleep_hours_avg": 6.74,
     "days_before_930": 4,
     "hr_zones_1_3_hours": 19.68,
@@ -87,12 +97,14 @@
     "avg_resting_hr": 50.2,
     "avg_sleep_consistency": 78.6,
     "num_sleeps": 30,
-    "num_workouts": 53
+    "num_workouts": 53,
+    "meditation_days": 13,
+    "sauna_days": 6
   },
   "2026-07": {
     "year": 2026,
     "month": 7,
-    "synced_at": "2026-07-09T13:26:45.157774",
+    "synced_at": "2026-07-09T13:30:03.910976",
     "sleep_hours_avg": 7.07,
     "days_before_930": 3,
     "hr_zones_1_3_hours": 9.96,
@@ -102,6 +114,8 @@
     "avg_resting_hr": 52.9,
     "avg_sleep_consistency": 78.3,
     "num_sleeps": 9,
-    "num_workouts": 19
+    "num_workouts": 20,
+    "meditation_days": 3,
+    "sauna_days": 3
   }
 }
