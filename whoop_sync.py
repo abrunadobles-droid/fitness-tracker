@@ -95,10 +95,14 @@ def main():
         from whoop_client_v2_corrected import WhoopClientV2
         whoop = WhoopClientV2()
 
+        # WHOOP rota el refresh token en cada refresh: si este run lo rota,
+        # el secret WHOOP_TOKENS_JSON de GitHub queda inválido y el cron muere.
+        refresh_token_inicial = (whoop.auth.tokens or {}).get('refresh_token')
+
         if not whoop.auth.is_authenticated():
             print("❌ No hay tokens de WHOOP. Ejecuta primero:")
             print("   python3 whoop_sync.py --auth")
-            return
+            sys.exit(1)
 
         # Quick auth check: try to get profile to verify tokens work
         try:
@@ -108,11 +112,13 @@ def main():
             print("❌ Tokens de WHOOP expirados o inválidos.")
             print("   Ejecuta: python3 whoop_sync.py --auth")
             print("   (Esto abrirá el navegador para re-autorizar)")
-            return
+            sys.exit(1)
+    except SystemExit:
+        raise
     except Exception as e:
         print(f"Error inicializando WHOOP: {e}")
         print("Ejecuta primero: python3 whoop_sync.py --auth")
-        return
+        sys.exit(1)
 
     cache = load_cache()
 
@@ -145,6 +151,12 @@ def main():
         synced = cache[current_key].get('synced_at', 'desconocido')
         sleeps = cache[current_key].get('num_sleeps', 0)
         print(f"\n>> Mes actual ({current_key}): {sleeps} noches, ultimo sync: {synced}")
+
+    refresh_token_final = (whoop.auth.tokens or {}).get('refresh_token')
+    if refresh_token_inicial != refresh_token_final and not os.environ.get('GITHUB_ACTIONS'):
+        print("\n⚠️  Los tokens de WHOOP rotaron durante este sync.")
+        print("   El secret de GitHub quedó desactualizado. Actualízalo con:")
+        print('   gh secret set WHOOP_TOKENS_JSON --body "$(cat whoop_tokens.json)"')
 
     print("\nListo! El dashboard usara estos datos automaticamente.")
 

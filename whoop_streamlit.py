@@ -1,8 +1,14 @@
 """
 WHOOP Live Client for Streamlit Cloud.
 
-Loads tokens from Streamlit secrets, refreshes them in-session via st.session_state,
-and calls the WHOOP API directly. Falls back to whoop_cache.json if API fails.
+Loads tokens from Streamlit secrets and calls the WHOOP API directly.
+Falls back to whoop_cache.json if API fails.
+
+IMPORTANTE: este cliente NUNCA refresca tokens. WHOOP rota el refresh token
+en cada uso (el anterior queda invalidado), y el único dueño del refresh
+token es el cron de GitHub Actions. Si el dashboard refrescara, invalidaría
+el token del cron y el sync diario moriría con 401 (pasó en junio 2026).
+Si el access token expiró, simplemente se usa el cache.
 """
 
 import requests
@@ -15,7 +21,6 @@ from calendar import monthrange
 
 
 WHOOP_API = 'https://api.prod.whoop.com/developer/v2'
-WHOOP_TOKEN_URL = 'https://api.prod.whoop.com/oauth/oauth2/token'
 
 
 def _get_tokens():
@@ -44,72 +49,26 @@ def _get_tokens():
     return st.session_state.whoop_tokens
 
 
-def _save_tokens(tokens):
-    """Save refreshed tokens to session_state."""
-    if 'expires_in' in tokens and 'expires_at' not in tokens:
-        tokens['expires_at'] = time.time() + tokens['expires_in']
-    st.session_state.whoop_tokens = tokens
-
-
-def _get_client_credentials():
-    """Get client_id and client_secret from secrets or env."""
-    try:
-        return st.secrets["whoop"]["client_id"], st.secrets["whoop"]["client_secret"]
-    except Exception:
-        client_id = os.environ.get('WHOOP_CLIENT_ID', '')
-        client_secret = os.environ.get('WHOOP_CLIENT_SECRET', '')
-        return client_id, client_secret
-
-
-def _refresh_tokens(tokens):
-    """Refresh the access token using the refresh token."""
-    client_id, client_secret = _get_client_credentials()
-
-    response = requests.post(WHOOP_TOKEN_URL, data={
-        'grant_type': 'refresh_token',
-        'refresh_token': tokens['refresh_token'],
-        'client_id': client_id,
-        'client_secret': client_secret,
-    }, headers={"Content-Type": "application/x-www-form-urlencoded"}, timeout=15)
-    response.raise_for_status()
-
-    new_tokens = response.json()
-    _save_tokens(new_tokens)
-    return new_tokens
-
-
 def _get_headers():
-    """Get authorization headers, refreshing token if needed."""
+    """Get authorization headers. Never refreshes: if the access token
+    expired, raise so the caller falls back to the cache."""
     tokens = _get_tokens()
     if not tokens:
         raise Exception("No WHOOP tokens available")
 
-    # Preventive refresh: if token expires in < 5 minutes
     expires_at = tokens.get('expires_at', 0)
-    if expires_at and time.time() > (expires_at - 300):
-        try:
-            tokens = _refresh_tokens(tokens)
-        except Exception as e:
-            print(f"[WHOOP] Token refresh failed: {e}")
+    if expires_at and time.time() > (expires_at - 60):
+        raise Exception("WHOOP access token expirado (el dashboard no refresca; usar cache)")
 
     return {'Authorization': f'Bearer {tokens["access_token"]}'}
 
 
 def _api_request(endpoint, params=None):
-    """Make an API request with automatic retry on 401."""
+    """Make an API request. On 401 raise so the caller falls back to cache."""
     url = f"{WHOOP_API}/{endpoint}"
     headers = _get_headers()
 
     response = requests.get(url, headers=headers, params=params, timeout=15)
-
-    if response.status_code == 401:
-        # Token expired, try refresh
-        tokens = _get_tokens()
-        if tokens:
-            tokens = _refresh_tokens(tokens)
-            headers = {'Authorization': f'Bearer {tokens["access_token"]}'}
-            response = requests.get(url, headers=headers, params=params, timeout=15)
-
     response.raise_for_status()
     return response.json()
 

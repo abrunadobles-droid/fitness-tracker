@@ -37,7 +37,9 @@ jobs:
         run: python whoop_sync.py --all
 
       - name: Save updated WHOOP tokens
-        if: always()
+        # Solo si el sync fue exitoso: si falló, whoop_tokens.json contiene
+        # tokens muertos y subirlos pisaría un secret re-autenticado a mano
+        if: steps.whoop_sync.outcome == 'success'
         continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.GH_PAT }}
@@ -61,7 +63,7 @@ jobs:
         run: python garmin_sync.py --all
 
       - name: Save updated Garmin tokens
-        if: always()
+        if: steps.garmin_sync.outcome == 'success'
         continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.GH_PAT }}
@@ -93,8 +95,13 @@ jobs:
             git push
           fi
 
-      - name: Fail job if both syncs failed
-        if: steps.whoop_sync.outcome == 'failure' && steps.garmin_sync.outcome == 'failure'
+      - name: Fail job if any sync failed
+        if: steps.whoop_sync.outcome == 'failure' || steps.garmin_sync.outcome == 'failure'
         run: |
-          echo "Ambos syncs fallaron — revisa logs"
+          if [ "${{ steps.whoop_sync.outcome }}" = "failure" ]; then
+            echo "::error::WHOOP sync falló — probablemente tokens expirados. Ejecuta: python whoop_sync.py --auth y actualiza el secret WHOOP_TOKENS_JSON"
+          fi
+          if [ "${{ steps.garmin_sync.outcome }}" = "failure" ]; then
+            echo "::error::Garmin sync falló — revisa GARMIN_TOKENS_JSON o posible 429"
+          fi
           exit 1

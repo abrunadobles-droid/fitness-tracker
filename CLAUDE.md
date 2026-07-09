@@ -151,7 +151,34 @@ El browser NO está bloqueado — solo el login programático. Pasos:
 
 ## Última sesión
 
-**Fecha:** 2026-06-09
+**Fecha:** 2026-07-09
+**Qué hicimos:**
+- Diagnóstico de "datos de junio no coinciden con la app de WHOOP": el cache de WHOOP está congelado desde el 2026-06-09 (junio = solo 9 noches / 15 workouts, la primera semana). El cron falla con 401 en el refresh de WHOOP desde el 10 de junio, pero salía verde.
+- Tres causas encontradas:
+  1. `whoop_sync.py` hacía `return` (exit 0) con tokens muertos → el step de CI salía "success" y ni el guard "ambos fallaron" podía dispararse. **Fix:** ahora `sys.exit(1)`.
+  2. El workflow solo fallaba si AMBOS syncs fallaban. **Fix:** ahora falla si falla CUALQUIERA, con `::error::` indicando cuál.
+  3. Causa raíz del 401: WHOOP rota el refresh token en cada refresh. `whoop_streamlit.py` (dashboard) refrescaba y guardaba el token nuevo solo en `st.session_state` (efímero) → invalidaba la copia del secret del cron. **Fix:** el dashboard ya NO refresca nunca; si el access token expiró, cae al cache. El cron de CI es el único dueño del refresh token.
+- Además: los steps "Save tokens" ahora solo corren si el sync fue exitoso (antes re-subían tokens muertos al secret en cada run fallido). Y `whoop_sync.py` avisa al final si el run local rotó el token (hay que actualizar el secret con `gh secret set WHOOP_TOKENS_JSON`).
+- Dato: `GH_PAT` SÍ funciona actualmente (los `gh secret set` del cron pasan) — la nota anterior de que estaba expirado ya no aplica.
+
+**Estado actual:**
+- WHOOP: ❌ tokens muertos desde 2026-06-10 — **requiere re-auth manual de Antonio** (ver pendiente). Cache OK hasta 2026-06-09.
+- Garmin: ✅ cron sincroniza bien a diario (cache al día, incluye julio).
+- Cron: ✅ ahora fallará visiblemente (rojo) si WHOOP o Garmin fallan.
+
+**Pendiente (Antonio, en la Mac):**
+```bash
+source .venv/bin/activate
+python whoop_sync.py --auth   # abre browser, re-autorizar
+python whoop_sync.py --all    # resincroniza (junio completo + julio)
+gh secret set WHOOP_TOKENS_JSON --body "$(cat whoop_tokens.json)"  # DESPUÉS del --all, no antes
+git add whoop_cache.json && git commit -m "Resync WHOOP" && git push
+```
+IMPORTANTE: subir el secret DESPUÉS de `--all` (el sync puede rotar el token). Y no abrir el dashboard con tokens locales frescos antes de subir el secret.
+
+---
+
+**Sesión anterior — Fecha:** 2026-06-09
 **Qué hicimos:**
 - Diagnóstico: el cron salía "verde" pero era falso positivo (los `continue-on-error` enmascaraban que WHOOP fallaba internamente). WHOOP refresh token revocado (401), cache estancado en may-07, junio sin datos.
 - Causa de fondo del WHOOP roto: el cron rota el refresh token en cada uso pero `GH_PAT` (expirado) no puede salvar el token nuevo al secret → al día siguiente carga uno ya consumido → 401.
