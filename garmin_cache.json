@@ -2,7 +2,7 @@
   "2026-01": {
     "year": 2026,
     "month": 1,
-    "synced_at": "2026-08-03T15:40:58.263065",
+    "synced_at": "2026-08-04T15:22:15.931474",
     "steps_avg": 11458,
     "activities": 31,
     "strength": 13,
@@ -11,7 +11,7 @@
   "2026-02": {
     "year": 2026,
     "month": 2,
-    "synced_at": "2026-08-03T15:41:03.580674",
+    "synced_at": "2026-08-04T15:22:20.783400",
     "steps_avg": 11288,
     "activities": 27,
     "strength": 14,
@@ -20,7 +20,7 @@
   "2026-03": {
     "year": 2026,
     "month": 3,
-    "synced_at": "2026-08-03T15:41:08.800677",
+    "synced_at": "2026-08-04T15:22:25.973919",
     "steps_avg": 12115,
     "activities": 28,
     "strength": 14,
@@ -29,7 +29,7 @@
   "2026-04": {
     "year": 2026,
     "month": 4,
-    "synced_at": "2026-08-03T15:41:15.309065",
+    "synced_at": "2026-08-04T15:22:30.779018",
     "steps_avg": 12785,
     "activities": 28,
     "strength": 12,
@@ -38,7 +38,7 @@
   "2026-05": {
     "year": 2026,
     "month": 5,
-    "synced_at": "2026-08-03T15:41:20.313037",
+    "synced_at": "2026-08-04T15:22:35.782756",
     "steps_avg": 13277,
     "activities": 23,
     "strength": 10,
@@ -47,7 +47,7 @@
   "2026-06": {
     "year": 2026,
     "month": 6,
-    "synced_at": "2026-08-03T15:41:25.381921",
+    "synced_at": "2026-08-04T15:22:40.792652",
     "steps_avg": 11817,
     "activities": 26,
     "strength": 13,
@@ -56,7 +56,7 @@
   "2026-07": {
     "year": 2026,
     "month": 7,
-    "synced_at": "2026-08-03T15:41:30.995470",
+    "synced_at": "2026-08-04T15:22:45.219177",
     "steps_avg": 10412,
     "activities": 18,
     "strength": 7,
@@ -65,10 +65,10 @@
   "2026-08": {
     "year": 2026,
     "month": 8,
-    "synced_at": "2026-08-03T15:41:31.585755",
-    "steps_avg": 9130,
-    "activities": 2,
+    "synced_at": "2026-08-04T15:22:45.922917",
+    "steps_avg": 10386,
+    "activities": 3,
     "strength": 1,
-    "days_with_data": 3
+    "days_with_data": 4
   }
 }
