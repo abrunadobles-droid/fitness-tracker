@@ -61,6 +61,8 @@ Cada vez que Antonio agregue cualquiera de estos, integrarlo cronológicamente:
 
 - **`medical/expediente.json`** (privado): fuente de verdad estructurada. `paciente`, `marcadores` (clave → nombre, unidad, dirección favorable: `bajar` / `subir` / `rango`, categoría) y `examenes` (cada uno con fecha, tipo, laboratorio, orden, verificación `documento` / `reportado` / `parcial`, documento fuente, `resultados` [{m, v, ref_lo, ref_hi, ref_txt, nota}] y `detalle` libre).
 - **`medical/expediente_tools.py`** (versionado, sin datos): `render` regenera las tablas longitudinales dentro de `HISTORIAL_MEDICO.md` entre `<!-- TABLAS:INICIO -->` y `<!-- TABLAS:FIN -->`; `tabla <marcador>`, `resumen`, `nuevo` (plantilla), `check` (validación).
+- **`medical/comparativo.py`** (versionado, sin datos): genera `COMPARATIVO_<año>_<año>.html/.pdf`, el documento comparativo longitudinal (resumen de lo que se movió, tabla completa por categoría con gráficas de tendencia, estudios cardiovasculares, baselines). Detecta oscilaciones (bajó y volvió a subir) y juzga favorable/desfavorable sobre el último tramo.
+- **`medical/SOLICITUD_SEGURO_2026.md`** (privado): texto para pedir el chequeo al seguro con los adicionales.
 - **`medical/HISTORIAL_MEDICO.md`** (privado): narrativa + tablas generadas. Las secciones fuera de los marcadores se editan a mano.
 - **`medical/CHEQUEOS_2026_COMPARACION.md`** (privado): comparación de paquetes de chequeo del seguro vs necesidades.
 

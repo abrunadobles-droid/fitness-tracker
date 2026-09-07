@@ -166,6 +166,22 @@ El browser NO está bloqueado — solo el login programático. Pasos:
 
 ## Última sesión
 
+**Fecha:** 2026-09-07 (parte 2 — expediente médico)
+**Qué hicimos:**
+- Antonio migró su prompt de asistente de salud a este repo. Creado `medical/`: `INSTRUCCIONES_ASISTENTE.md` (reglas, versionado), `expediente_tools.py` (render/tabla/resumen/nuevo/check sobre `expediente.json`), `comparativo.py` (documento comparativo HTML+PDF vía Chromium headless). Todo lo demás en `medical/` es privado y está gitignored (`medical/*` con excepciones) porque **el repo es público**.
+- Verificados 7 documentos originales (labs 2022-12-07, 2024-08-16, 2025-05-09; CAC 2025-05-05; ergoespirometría 2025-06-18). Hallazgo: el PDF "prueba de esfuerzo" del Metropolitano no trae resultados; el informe del equipo (Schiller/Ganshorn) sí, y tiene discrepancias con el resumen médico dictado (VES automáticas, VE/VCO2, reserva ventilatoria) → preguntas al cardiólogo en el historial.
+- Comparación de chequeos 2026 (Metropolitano / Católica / Bíblica): recomendado **Metropolitano $250 Hombre <40** (+$300 si alcanza) + adicionales ApoB, insulina, HbA1c, vitamina D, electrolitos, cistatina C. Texto de solicitud en `medical/SOLICITUD_SEGURO_2026.md`.
+- Los archivos privados (HISTORIAL_MEDICO.md, expediente.json, CHEQUEOS_2026_COMPARACION.md, SOLICITUD_SEGURO_2026.md, COMPARATIVO_2022_2025.pdf) se entregaron a Antonio por chat; deben vivir en `medical/` en su Mac. En la nube no existen hasta que el repo sea privado.
+
+**Próximos pasos:**
+- Antonio decide si pasa el repo a privado (entonces sí se commitea `medical/` completo).
+- Confirmar estado de rosuvastatina / Exforge.
+- Cuando lleguen resultados del chequeo 2026: `expediente_tools.py nuevo` → editar JSON → `check` → `render` → `comparativo.py`.
+- Pendiente de la parte 1 de hoy (WHOOP_CLIENT_SECRET) sigue vigente, ver abajo.
+
+---
+
+**Sesión anterior — Fecha:** 2026-09-07 (parte 1)
 **Fecha:** 2026-09-07
 **Qué hicimos:**
 - Antonio reportó HR Zones en 0 en el dashboard. Causa directa: `whoop_cache.json` no tiene 2026-08 ni 2026-09 (todo sigue con `synced_at` 2026-07-09, el último sync local). El cron falla en WHOOP todos los días desde junio con `401` en `oauth/oauth2/token`; Garmin sí sincroniza a diario.

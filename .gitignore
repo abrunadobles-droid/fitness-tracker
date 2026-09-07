@@ -13,3 +13,4 @@ goals.json
 medical/*
 !medical/INSTRUCCIONES_ASISTENTE.md
 !medical/expediente_tools.py
+!medical/comparativo.py
