@@ -8,3 +8,7 @@ __pycache__/
 .streamlit/secrets.toml
 goals.json
 .venv/
+# Datos médicos personales (repo público) — nunca commitear
+medical/HISTORIAL_MEDICO.md
+medical/originales/
+medical/*.json

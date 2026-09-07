@@ -96,6 +96,17 @@ Las últimas dos cuentan **días distintos del mes** con ≥1 workout de WHOOP c
 - **Garmin fail-fast:** data_loader no intenta Garmin live si no hay tokens guardados
 - **Garmin browser fallback:** Si garmin_sync.py da 429, se puede extraer data desde Chrome con sesión activa usando gc-api + CSRF token (ver Troubleshooting)
 
+## Expediente médico / Asistente de salud
+
+Antonio también usa este repo como memoria de su información de salud (laboratorios, presión arterial, VO2max, medicamentos, nutrición). **Leer `medical/INSTRUCCIONES_ASISTENTE.md` en cualquier sesión que toque temas de salud, exámenes o biomarcadores.** Resumen de reglas:
+
+- No reemplazar a los médicos. Separar siempre: resultado objetivo / interpretación médica documentada / recomendación médica / inferencia de Claude.
+- No inventar resultados. Documento original > historial. Rangos del laboratorio primero.
+- Tendencias, no reacciones a una medición aislada.
+- Historial maestro en `medical/HISTORIAL_MEDICO.md` (**gitignored, el repo es público**). Actualizarlo con cada dato nuevo usando la tabla `FECHA | RESULTADO | CAMBIO VS ANTERIOR | RANGO LAB | TENDENCIA`.
+- Originales en iCloud Drive → carpeta `MEDICO` (`~/Library/Mobile Documents/com~apple~CloudDocs/MEDICO/`), accesible solo cuando Claude Code corre en la Mac.
+- **Nunca commitear datos personales de salud** mientras el repo sea público.
+
 ## Reglas de sesión
 
 1. **Guardar contexto antes de compresión:** Cuando el contexto llegue al 70% de capacidad, antes de comprimir, guardar un resumen en la sección "Última sesión" de este archivo con:
