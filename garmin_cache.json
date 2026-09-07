@@ -2,7 +2,7 @@
   "2026-01": {
     "year": 2026,
     "month": 1,
-    "synced_at": "2026-09-07T18:05:16.540779",
+    "synced_at": "2026-09-07T21:46:35.298168",
     "steps_avg": 11458,
     "activities": 31,
     "strength": 13,
@@ -11,7 +11,7 @@
   "2026-02": {
     "year": 2026,
     "month": 2,
-    "synced_at": "2026-09-07T18:05:23.003274",
+    "synced_at": "2026-09-07T21:46:40.123378",
     "steps_avg": 11288,
     "activities": 27,
     "strength": 14,
@@ -20,7 +20,7 @@
   "2026-03": {
     "year": 2026,
     "month": 3,
-    "synced_at": "2026-09-07T18:05:29.684553",
+    "synced_at": "2026-09-07T21:46:45.261382",
     "steps_avg": 12115,
     "activities": 28,
     "strength": 14,
@@ -29,7 +29,7 @@
   "2026-04": {
     "year": 2026,
     "month": 4,
-    "synced_at": "2026-09-07T18:05:37.242843",
+    "synced_at": "2026-09-07T21:46:50.670513",
     "steps_avg": 12785,
     "activities": 28,
     "strength": 12,
@@ -38,7 +38,7 @@
   "2026-05": {
     "year": 2026,
     "month": 5,
-    "synced_at": "2026-09-07T18:05:44.666884",
+    "synced_at": "2026-09-07T21:46:55.623517",
     "steps_avg": 13277,
     "activities": 23,
     "strength": 10,
@@ -47,7 +47,7 @@
   "2026-06": {
     "year": 2026,
     "month": 6,
-    "synced_at": "2026-09-07T18:05:52.111569",
+    "synced_at": "2026-09-07T21:47:00.608314",
     "steps_avg": 11817,
     "activities": 26,
     "strength": 13,
@@ -56,7 +56,7 @@
   "2026-07": {
     "year": 2026,
     "month": 7,
-    "synced_at": "2026-09-07T18:05:59.040570",
+    "synced_at": "2026-09-07T21:47:05.852385",
     "steps_avg": 10412,
     "activities": 18,
     "strength": 7,
@@ -65,7 +65,7 @@
   "2026-08": {
     "year": 2026,
     "month": 8,
-    "synced_at": "2026-09-07T18:06:08.840693",
+    "synced_at": "2026-09-07T21:47:11.161493",
     "steps_avg": 10698,
     "activities": 24,
     "strength": 12,
@@ -74,8 +74,8 @@
   "2026-09": {
     "year": 2026,
     "month": 9,
-    "synced_at": "2026-09-07T18:06:10.554049",
-    "steps_avg": 10812,
+    "synced_at": "2026-09-07T21:47:13.392132",
+    "steps_avg": 11149,
     "activities": 7,
     "strength": 4,
     "days_with_data": 7
