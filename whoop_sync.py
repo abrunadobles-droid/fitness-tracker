@@ -7,6 +7,8 @@ Uso:
     python whoop_sync.py --month 1    # Sincroniza enero
     python whoop_sync.py --auth       # Re-autorizar (obtener nuevos tokens)
     python whoop_sync.py --sports     # Lista los sport_name de tus workouts del año
+    python whoop_sync.py --zones      # Diagnóstico HR zones: por mes y deporte (todo el año)
+    python whoop_sync.py --zones --month 8   # Detalle workout por workout de agosto
 
 Los datos se guardan en whoop_cache.json y el dashboard los lee de ahi.
 Esto resuelve el problema de que Streamlit Cloud no puede conectarse a WHOOP.
@@ -81,6 +83,133 @@ def sync_month(whoop, year, month, cache):
     return cache
 
 
+def _zone_ms(workout, keys):
+    """Suma de milisegundos en las zonas indicadas (0 si el workout no tiene score)."""
+    score = workout.get('score') or {}
+    zones = score.get('zone_durations') or {}
+    return sum(zones.get(k, 0) or 0 for k in keys)
+
+
+Z13 = ('zone_one_milli', 'zone_two_milli', 'zone_three_milli')
+Z45 = ('zone_four_milli', 'zone_five_milli')
+
+
+def zones_report(whoop, year, month=None):
+    """Desglose de HR zones para entender de dónde salen (o dejaron de salir) las horas.
+
+    Sin --month: tabla por mes (zonas, workouts, HR máx alcanzado) + top deportes por zona 4-5.
+    Con --month: cada workout del mes con su tiempo en zona 4-5, HR promedio y HR máx.
+    """
+    from collections import defaultdict
+    from whoop_client_v2_corrected import workout_local_date
+
+    # Las zonas de WHOOP son % del HR máximo configurado en el perfil:
+    # Z1 50-60, Z2 60-70, Z3 70-80, Z4 80-90, Z5 90-100. Si ese valor cambia,
+    # el mismo esfuerzo cae en otra zona.
+    try:
+        body = whoop.get_body_measurements() or {}
+        max_hr = body.get('max_heart_rate')
+    except Exception as e:
+        max_hr, body = None, {}
+        print(f"   ⚠️  No se pudo leer el perfil corporal: {e}")
+    if max_hr:
+        print(f"\n   HR máximo configurado en WHOOP: {max_hr} bpm "
+              f"(Zona 4 empieza en {round(max_hr * 0.8)} bpm, Zona 5 en {round(max_hr * 0.9)} bpm)")
+        print("   Si cambiaste este valor (o WHOOP lo recalculó), las zonas de meses anteriores NO se recalculan.")
+
+    now = datetime.now()
+    if month:
+        start = datetime(year, month, 1)
+        end = datetime(year, month, monthrange(year, month)[1], 23, 59, 59)
+    else:
+        start = datetime(year, 1, 1)
+        end = now if year == now.year else datetime(year, 12, 31, 23, 59, 59)
+
+    workouts = whoop.get_all_records('activity/workout', start, end)
+    print(f"\n   {len(workouts)} workouts entre {start.date()} y {end.date()}")
+
+    def hrs(ms):
+        return ms / 3600000
+
+    def mins(ms):
+        return ms / 60000
+
+    if month:
+        # ---- Detalle workout por workout ----
+        rows = []
+        for w in workouts:
+            d = workout_local_date(w)
+            if not d or d.year != year or d.month != month:
+                continue
+            score = w.get('score') or {}
+            rows.append({
+                'date': d,
+                'sport': w.get('sport_name') or f"sport_id={w.get('sport_id', '?')}",
+                'z45': _zone_ms(w, Z45),
+                'z13': _zone_ms(w, Z13),
+                'avg_hr': score.get('average_heart_rate'),
+                'max_hr': score.get('max_heart_rate'),
+                'strain': score.get('strain'),
+                'scored': w.get('score_state') == 'SCORED',
+            })
+        rows.sort(key=lambda r: r['z45'], reverse=True)
+        print(f"\n   {'fecha':11}{'deporte':24}{'z4-5':>7}{'z1-3':>7}{'HRavg':>7}{'HRmax':>7}{'strain':>8}")
+        print("   " + "-" * 71)
+        for r in rows:
+            flag = "" if r['scored'] else "  (sin score)"
+            print(f"   {str(r['date']):11}{r['sport'][:23]:24}{mins(r['z45']):6.0f}m{mins(r['z13']):6.0f}m"
+                  f"{r['avg_hr'] or 0:7}{r['max_hr'] or 0:7}{(r['strain'] or 0):8.1f}{flag}")
+        tot45 = sum(r['z45'] for r in rows)
+        tot13 = sum(r['z13'] for r in rows)
+        print("   " + "-" * 71)
+        print(f"   TOTAL {len(rows)} workouts: zona 4-5 = {hrs(tot45):.2f}h | zona 1-3 = {hrs(tot13):.2f}h")
+        if max_hr:
+            hit = [r for r in rows if (r['max_hr'] or 0) >= max_hr * 0.8]
+            print(f"   Workouts que llegaron a HR de zona 4 (≥{round(max_hr * 0.8)} bpm): {len(hit)} de {len(rows)}")
+        return
+
+    # ---- Resumen por mes + por deporte ----
+    by_month = defaultdict(lambda: {'n': 0, 'z45': 0, 'z13': 0, 'max_hrs': [], 'sports': defaultdict(int)})
+    by_sport_year = defaultdict(lambda: {'n': 0, 'z45': 0, 'z13': 0})
+    for w in workouts:
+        d = workout_local_date(w)
+        if not d or d.year != year:
+            continue
+        sport = w.get('sport_name') or f"sport_id={w.get('sport_id', '?')}"
+        z45, z13 = _zone_ms(w, Z45), _zone_ms(w, Z13)
+        m = by_month[d.month]
+        m['n'] += 1
+        m['z45'] += z45
+        m['z13'] += z13
+        m['sports'][sport] += z45
+        mh = (w.get('score') or {}).get('max_heart_rate')
+        if mh:
+            m['max_hrs'].append(mh)
+        s = by_sport_year[sport]
+        s['n'] += 1
+        s['z45'] += z45
+        s['z13'] += z13
+
+    print(f"\n   {'mes':6}{'wk':>4}{'z1-3':>8}{'z4-5':>8}{'HRmax prom':>12}{'HRmax pico':>12}   top deportes por zona 4-5")
+    print("   " + "-" * 95)
+    for mo in sorted(by_month):
+        m = by_month[mo]
+        avg_max = sum(m['max_hrs']) / len(m['max_hrs']) if m['max_hrs'] else 0
+        peak = max(m['max_hrs']) if m['max_hrs'] else 0
+        top = sorted(m['sports'].items(), key=lambda kv: kv[1], reverse=True)[:3]
+        top_txt = ", ".join(f"{name} {mins(ms):.0f}m" for name, ms in top if ms > 0) or "—"
+        print(f"   {year}-{mo:02d}{m['n']:4}{hrs(m['z13']):7.2f}h{hrs(m['z45']):7.2f}h"
+              f"{avg_max:12.0f}{peak:12}   {top_txt}")
+
+    print(f"\n   Por deporte ({year}):")
+    print(f"   {'deporte':26}{'wk':>4}{'z1-3':>8}{'z4-5':>8}{'z4-5/wk':>9}")
+    print("   " + "-" * 55)
+    for sport, s in sorted(by_sport_year.items(), key=lambda kv: kv[1]['z45'], reverse=True):
+        per = mins(s['z45']) / s['n'] if s['n'] else 0
+        print(f"   {sport[:25]:26}{s['n']:4}{hrs(s['z13']):7.2f}h{hrs(s['z45']):7.2f}h{per:8.1f}m")
+    print("\n   Tip: python whoop_sync.py --zones --month N  → detalle workout por workout de ese mes")
+
+
 def main():
     args = sys.argv[1:]
     now = datetime.now()
@@ -149,6 +278,17 @@ def main():
         print(f"\n   Actividades {now.year} ({len(workouts)} workouts):")
         for name, count in counts.most_common():
             print(f"      {name}: {count}")
+        return
+
+    # Diagnóstico de HR zones (por qué subieron/bajaron las horas en zona 4-5)
+    if '--zones' in args:
+        year = now.year
+        month = None
+        if '--year' in args:
+            year = int(args[args.index('--year') + 1])
+        if '--month' in args:
+            month = int(args[args.index('--month') + 1])
+        zones_report(whoop, year, month)
         return
 
     cache = load_cache()

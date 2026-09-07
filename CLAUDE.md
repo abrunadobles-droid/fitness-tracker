@@ -155,7 +155,24 @@ El browser NO está bloqueado — solo el login programático. Pasos:
 
 ## Última sesión
 
-**Fecha:** 2026-09-07
+**Fecha:** 2026-09-07 (parte 2)
+**Qué hicimos:**
+- Antonio ya creó `WHOOP_CLIENT_SECRET`, re-autorizó y resincronizó (commit "Resync WHOOP"). El cron de las 21:47 UTC volvió a modificar `whoop_cache.json` → **el sync automático de WHOOP funciona de nuevo.** Cache completo ene–sep 2026.
+- Pregunta de Antonio: por qué cayó tanto el tiempo en zonas 4-5. Con el cache (solo resumen mensual) se ve la tendencia: 3.3h ene → pico 5.9h may → 2.7h jun → 1.5h jul → 0.5h ago, con zonas 1-3 y # workouts estables (~54/mes). También subió el RHR (47.5 → 52-54) y bajó el HRV (103 → 65-75) desde mayo. Para saber *qué* deportes dejaron de aportar zona 4-5 hace falta detalle por workout, que el cache no guarda.
+- **Nuevo comando de diagnóstico** en `whoop_sync.py`: `--zones` (tabla por mes con z1-3, z4-5, HR máx promedio/pico de los workouts y top deportes por zona 4-5, más totales por deporte del año) y `--zones --month N` (detalle workout por workout). Imprime el `max_heart_rate` del perfil de WHOOP (`user/measurement/body`), porque las zonas son % de ese valor (Z4 = 80-90%, Z5 = 90-100%): si cambió, el mismo esfuerzo cae en otra zona.
+- Hipótesis a verificar con `--zones`: (a) menos cardio intenso / más fuerza-sauna-meditación desde junio; (b) WHOOP subió el HR máximo del perfil (los workouts siguen llegando a ~170+ bpm pero ya no cuentan como Z4); (c) cardio a menor intensidad (HR máx pico mensual baja junto con las zonas).
+
+**Pendiente (Antonio, en la Mac):**
+```bash
+source .venv/bin/activate
+python whoop_sync.py --zones             # resumen anual por mes y deporte
+python whoop_sync.py --zones --month 5   # mayo (pico) workout por workout
+python whoop_sync.py --zones --month 8   # agosto (mínimo) workout por workout
+```
+
+---
+
+**Sesión anterior — Fecha:** 2026-09-07
 **Qué hicimos:**
 - Antonio reportó HR Zones en 0 en el dashboard. Causa directa: `whoop_cache.json` no tiene 2026-08 ni 2026-09 (todo sigue con `synced_at` 2026-07-09, el último sync local). El cron falla en WHOOP todos los días desde junio con `401` en `oauth/oauth2/token`; Garmin sí sincroniza a diario.
 - **Causa raíz nueva (confirmada en logs de Actions):** el secret `WHOOP_CLIENT_SECRET` de GitHub **no existe / está vacío**. En el header `env:` del step "Run WHOOP sync" aparece `WHOOP_CLIENT_SECRET:` sin `***`, tanto en el run del 2026-09-06 como en el del 2026-06-09 (el último que "funcionó"). WHOOP exige `client_secret` en el refresh → sin él el refresh SIEMPRE da 401 aunque el refresh token sea válido. El run del 09-jun pasó solo porque el access token recién subido aún no había expirado (dura ~1h); al día siguiente ya necesitaba refresh y murió. Esto explica por qué cada re-auth "duraba un día".
