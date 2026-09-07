@@ -17,7 +17,7 @@ Esto resuelve el problema de que Streamlit Cloud no puede conectarse a WHOOP.
 import json
 import sys
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 from calendar import monthrange
 
 CACHE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'whoop_cache.json')
@@ -103,21 +103,32 @@ def zones_report(whoop, year, month=None):
     from collections import defaultdict
     from whoop_client_v2_corrected import workout_local_date
 
-    # Las zonas de WHOOP son % del HR máximo configurado en el perfil:
-    # Z1 50-60, Z2 60-70, Z3 70-80, Z4 80-90, Z5 90-100. Si ese valor cambia,
-    # el mismo esfuerzo cae en otra zona.
+    # WHOOP calcula las zonas con reserva cardíaca (Karvonen): zona = RHR + %·(MaxHR − RHR),
+    # con Z1 40%, Z2 60%, Z3 70%, Z4 80%, Z5 90%. El RHR baseline y el MaxHR del perfil
+    # se ajustan solos con el tiempo, así que los umbrales se mueven un poco mes a mes.
+    now = datetime.now()
+    max_hr, rhr = None, None
     try:
         body = whoop.get_body_measurements() or {}
         max_hr = body.get('max_heart_rate')
     except Exception as e:
-        max_hr, body = None, {}
         print(f"   ⚠️  No se pudo leer el perfil corporal: {e}")
-    if max_hr:
-        print(f"\n   HR máximo configurado en WHOOP: {max_hr} bpm "
-              f"(Zona 4 empieza en {round(max_hr * 0.8)} bpm, Zona 5 en {round(max_hr * 0.9)} bpm)")
-        print("   Si cambiaste este valor (o WHOOP lo recalculó), las zonas de meses anteriores NO se recalculan.")
+    try:
+        recent = whoop.get_all_records('recovery', now - timedelta(days=30), now)
+        rhrs = [r['score']['resting_heart_rate'] for r in recent
+                if r.get('score') and r['score'].get('resting_heart_rate')]
+        rhr = sum(rhrs) / len(rhrs) if rhrs else None
+    except Exception as e:
+        print(f"   ⚠️  No se pudo leer el RHR reciente: {e}")
+    if max_hr and rhr:
+        hrr = max_hr - rhr
+        z4, z5 = rhr + 0.8 * hrr, rhr + 0.9 * hrr
+        print(f"\n   Perfil WHOOP: HR máx {max_hr} bpm, RHR ~{rhr:.0f} bpm (promedio 30 días)")
+        print(f"   Zonas por reserva cardíaca: Zona 4 desde ~{z4:.0f} bpm, Zona 5 desde ~{z5:.0f} bpm")
+        print("   (los workouts viejos conservan los umbrales de su momento; no se recalculan)")
+    elif max_hr:
+        print(f"\n   HR máximo configurado en WHOOP: {max_hr} bpm (no pude estimar el RHR baseline)")
 
-    now = datetime.now()
     if month:
         start = datetime(year, month, 1)
         end = datetime(year, month, monthrange(year, month)[1], 23, 59, 59)
@@ -163,9 +174,10 @@ def zones_report(whoop, year, month=None):
         tot13 = sum(r['z13'] for r in rows)
         print("   " + "-" * 71)
         print(f"   TOTAL {len(rows)} workouts: zona 4-5 = {hrs(tot45):.2f}h | zona 1-3 = {hrs(tot13):.2f}h")
-        if max_hr:
-            hit = [r for r in rows if (r['max_hr'] or 0) >= max_hr * 0.8]
-            print(f"   Workouts que llegaron a HR de zona 4 (≥{round(max_hr * 0.8)} bpm): {len(hit)} de {len(rows)}")
+        if max_hr and rhr:
+            z4 = rhr + 0.8 * (max_hr - rhr)
+            hit = [r for r in rows if (r['max_hr'] or 0) >= z4]
+            print(f"   Workouts que llegaron a HR de zona 4 (≥{z4:.0f} bpm): {len(hit)} de {len(rows)}")
         return
 
     # ---- Resumen por mes + por deporte ----
