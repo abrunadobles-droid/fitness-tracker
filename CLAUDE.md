@@ -202,6 +202,14 @@ Y en la app de WHOOP: Settings → Profile → ver el "Max HR" y si el update ap
 - `whoop_sync.py --zones` corregido: ahora estima el RHR baseline (promedio de recovery 30 días) y muestra los umbrales con la fórmula de reserva cardíaca.
 - Con el umbral real, semanas que cumplían 30 min: ene-jun sí; jul (20), ago (6), sep (18) no.
 
+- **Análisis strain/entreno/sueño → recovery** (export, deltas vs baseline propio de 28 días, era running abr-2025→sep-2026, 522 ciclos). Nota: en el export el "Cycle start time" es la noche anterior; el strain del ciclo es del día siguiente. Hallazgos:
+  1. Strain diario hasta ~16 no cuesta recovery. 16-19: −6 pts; ≥19: −13 pts, HRV −9 ms, RHR +3.
+  2. **Los fondos ≥120 min cuestan −14 de recovery al día siguiente** (28% de rojos), HRV −9, RHR +3; rebote +8 al día +2. Las **carreras duras <120 min con ≥15 min Z4-5 no cuestan nada** (+1), igual que las pesas (+1). La intensidad sale gratis, la duración no → la meta de 30 min Z4-5 conviene hacerla en sesiones cortas, no en fondos.
+  3. Los fondos son los sábados (19 de 25). El sábado por la mañana es la **peor recovery de la semana (53)** porque la noche del viernes es la más corta (6.6h). Mejor día: miércoles (69).
+  4. Entrena igual con recovery roja que verde (strain 11.3 vs 12.8; 26% de días rojos con strain ≥14; fondo/dura en 18% de rojos vs 8% de verdes).
+  5. Sueño <5.5h: −19 recovery. Dormirse después de 23:30: −11. ≥7.5h: +4. Duro→duro: −6.
+  6. Volumen semanal vs HRV de la semana siguiente: sin señal clara (n chico).
+
 **Pendiente (Antonio):** decidir si la meta de 2.9h/mes de zona 4-5 sigue vigente. Para cumplirla con 12 carreras/mes hacen falta ~15 min de zona 4 por carrera (1-2 sesiones de tempo/intervalos por semana, como el 5 y 12 de mayo). Opcional: `python whoop_sync.py --zones` reproduce este análisis desde la API.
 
 ---
