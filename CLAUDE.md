@@ -197,6 +197,8 @@ Y en la app de WHOOP: Settings → Profile → ver el "Max HR" y si el update ap
 
 - **Cierre del tema (Antonio confirma):** "un poco de todo": ene-may las zonas 4-5 le parecían muy altas incluso en fondos (artefacto), y desde junio bajó el entrenamiento (viajes en julio, retomando fondos en agosto). Benchmark de longevidad: Attia = ~4h/sem de zona 2 (3 sesiones) + 1 sesión/sem de VO2max tipo 4x4 (≈16-20 min/sem en Z4-5 ≈ 1.2-1.5h/mes); Seiler 80/20 por sesiones. La meta de 2.9h/mes equivale a ~2 sesiones 4x4 por semana, más de lo que Attia pide; 1.5h/mes ya cumple. Semanal real de Antonio (WHOOP Z4-5 min/sem): ene-mar ~40, abr-may 67-79, jun 37, jul 20, ago 6, sep 18. Z2-3 h/sem: 1.6-3.2 (por debajo de las 3-4h de Attia).
 
+- **Meta definida por Antonio: 30 min/semana de zona 4-5** → `goals.json` `hr_zone_4_5` = 2.2 h/mes (antes 2.9). Antonio dice que su HR máx en WHOOP es **195**, pero los workouts del export hasta el 7-sep están calculados con máximo ~210-213 (zona 4 desde ~170 bpm; con 195 sería desde 156 y carreras como la del 1-sep, avg 146 / max 159, tendrían zona 4 en vez de 62% zona 2). Es decir: el 195 se fijó/recalculó hace poco y WHOOP NO recalcula workouts pasados. Consecuencia: desde ahora la zona 4-5 será más fácil de acumular (umbral 156 vs 170) y los meses nuevos no serán comparables con ene-ago. Semanas que cumplían 30 min con el umbral viejo: ene-jun sí; jul (20), ago (6), sep (18) no.
+
 **Pendiente (Antonio):** decidir si la meta de 2.9h/mes de zona 4-5 sigue vigente. Para cumplirla con 12 carreras/mes hacen falta ~15 min de zona 4 por carrera (1-2 sesiones de tempo/intervalos por semana, como el 5 y 12 de mayo). Opcional: `python whoop_sync.py --zones` reproduce este análisis desde la API.
 
 ---
