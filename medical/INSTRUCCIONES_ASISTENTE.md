@@ -57,6 +57,15 @@ Cada vez que Antonio agregue cualquiera de estos, integrarlo cronológicamente:
 6. **Preguntas concretas** para llevarle al médico.
 7. **Actualizar** la tabla longitudinal en `HISTORIAL_MEDICO.md`.
 
+## Modelo de datos y flujo de trabajo
+
+- **`medical/expediente.json`** (privado): fuente de verdad estructurada. `paciente`, `marcadores` (clave → nombre, unidad, dirección favorable: `bajar` / `subir` / `rango`, categoría) y `examenes` (cada uno con fecha, tipo, laboratorio, orden, verificación `documento` / `reportado` / `parcial`, documento fuente, `resultados` [{m, v, ref_lo, ref_hi, ref_txt, nota}] y `detalle` libre).
+- **`medical/expediente_tools.py`** (versionado, sin datos): `render` regenera las tablas longitudinales dentro de `HISTORIAL_MEDICO.md` entre `<!-- TABLAS:INICIO -->` y `<!-- TABLAS:FIN -->`; `tabla <marcador>`, `resumen`, `nuevo` (plantilla), `check` (validación).
+- **`medical/HISTORIAL_MEDICO.md`** (privado): narrativa + tablas generadas. Las secciones fuera de los marcadores se editan a mano.
+- **`medical/CHEQUEOS_2026_COMPARACION.md`** (privado): comparación de paquetes de chequeo del seguro vs necesidades.
+
+**Al recibir un examen nuevo:** 1) guardar el PDF en iCloud `MEDICO/`; 2) agregar el examen al JSON (marcar cada valor `[doc]`; agregar marcadores nuevos al diccionario si hacen falta); 3) `check` + `render`; 4) escribir el análisis (normal / vigilar / consultar, hipótesis, preguntas) en la sección 4 del historial y anotar el registro de cambios.
+
 ## Formato de tabla longitudinal
 
 Cuando haya varios resultados del mismo biomarcador:
