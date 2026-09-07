@@ -155,7 +155,33 @@ El browser NO está bloqueado — solo el login programático. Pasos:
 
 ## Última sesión
 
-**Fecha:** 2026-07-09 (parte 2)
+**Fecha:** 2026-09-07
+**Qué hicimos:**
+- Antonio reportó HR Zones en 0 en el dashboard. Causa directa: `whoop_cache.json` no tiene 2026-08 ni 2026-09 (todo sigue con `synced_at` 2026-07-09, el último sync local). El cron falla en WHOOP todos los días desde junio con `401` en `oauth/oauth2/token`; Garmin sí sincroniza a diario.
+- **Causa raíz nueva (confirmada en logs de Actions):** el secret `WHOOP_CLIENT_SECRET` de GitHub **no existe / está vacío**. En el header `env:` del step "Run WHOOP sync" aparece `WHOOP_CLIENT_SECRET:` sin `***`, tanto en el run del 2026-09-06 como en el del 2026-06-09 (el último que "funcionó"). WHOOP exige `client_secret` en el refresh → sin él el refresh SIEMPRE da 401 aunque el refresh token sea válido. El run del 09-jun pasó solo porque el access token recién subido aún no había expirado (dura ~1h); al día siguiente ya necesitaba refresh y murió. Esto explica por qué cada re-auth "duraba un día".
+- La teoría anterior (dashboard rotando el refresh token) pudo contribuir, pero sin `WHOOP_CLIENT_SECRET` en CI nada funciona: **hay que crear ese secret primero**.
+- Tocado: `whoop_auth.py` (refresh lanza error claro si client_secret vacío), `whoop_sync.py` (sale con exit 1 y mensaje si `WHOOP_CLIENT_SECRET` vacío, antes de tocar la API), `.github/workflows/whoop-sync.yml` (mensaje `::error::` menciona el secret).
+- Dato: `GH_PAT` sigue funcionando (el step "Save updated Garmin tokens" hace `gh secret set` OK a diario).
+
+**Pendiente (Antonio, en la Mac) — en este orden:**
+```bash
+source .venv/bin/activate
+# 1. Crear el secret que falta (valor en .streamlit/secrets.toml → [whoop] client_secret)
+gh secret set WHOOP_CLIENT_SECRET --body "PEGAR_CLIENT_SECRET_AQUI"
+# 2. Re-autorizar WHOOP y resincronizar
+python whoop_sync.py --auth
+python whoop_sync.py --all
+# 3. Subir tokens DESPUÉS del --all (el sync puede rotar el refresh token)
+gh secret set WHOOP_TOKENS_JSON --body "$(cat whoop_tokens.json)"
+git add whoop_cache.json && git commit -m "Resync WHOOP" && git push
+# 4. Verificar: correr el workflow a mano dos veces con >1h de diferencia (la 2da fuerza refresh)
+gh workflow run whoop-sync.yml
+```
+El paso 4 es la prueba real: si el segundo run pasa, el refresh con client_secret funciona y el cron queda estable.
+
+---
+
+**Sesión anterior — Fecha:** 2026-07-09 (parte 2)
 **Qué hicimos:**
 - **Nuevas métricas: Meditación (días/mes) y Sauna (días/mes) desde WHOOP.** Se cuentan días distintos con ≥1 workout cuyo `sport_name` contiene "meditation"/"sauna" (fecha local por `timezone_offset`, cubre "Infrared Sauna").
 - Tocado: `constants.py` (RECOVERY_METRICS + DASHBOARD_METRICS), `whoop_client_v2_corrected.py` (conteo + helpers), `whoop_sync.py` (campos en cache + comando `--sports` para listar sport_names reales), `whoop_streamlit.py` (live), `data_loader.py`, `helpers.py`, `goals_setup.py` (metas default: meditación 20, sauna 8 + sección en form), `views/mes_actual.py` (sección RECOVERY HABITS + ritmo días/semana), `views/historico.py`, `pdf_export.py`.

@@ -126,6 +126,15 @@ class WhoopAuth:
     def refresh_access_token(self):
         if not self.tokens or 'refresh_token' not in self.tokens:
             raise Exception("No hay refresh token disponible. Ejecuta authorize() primero.")
+        if not self.client_secret:
+            # WHOOP exige client_secret en el refresh: sin él SIEMPRE responde 401,
+            # aunque el refresh token sea válido. En CI esto significa que el
+            # secret WHOOP_CLIENT_SECRET de GitHub no existe o está vacío.
+            raise Exception(
+                "WHOOP_CLIENT_SECRET vacío: el refresh siempre da 401. "
+                "En GitHub Actions crea el secret WHOOP_CLIENT_SECRET "
+                "(valor en .streamlit/secrets.toml -> [whoop] client_secret)."
+            )
         
         url = 'https://api.prod.whoop.com/oauth/oauth2/token'
         headers = {"Content-Type": "application/x-www-form-urlencoded"}

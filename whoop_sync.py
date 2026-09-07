@@ -85,6 +85,18 @@ def main():
     args = sys.argv[1:]
     now = datetime.now()
 
+    # Sin client_secret ni el --auth ni el refresh de tokens funcionan (401).
+    # En CI: falta el secret WHOOP_CLIENT_SECRET de GitHub.
+    import config
+    if not config.WHOOP_CLIENT_SECRET:
+        print("❌ WHOOP_CLIENT_SECRET está vacío.")
+        if os.environ.get('GITHUB_ACTIONS'):
+            print("   Crea el secret WHOOP_CLIENT_SECRET en GitHub (Settings → Secrets → Actions).")
+            print("   Valor: .streamlit/secrets.toml → [whoop] client_secret")
+        else:
+            print("   Agrega client_secret en .streamlit/secrets.toml, sección [whoop].")
+        sys.exit(1)
+
     # Handle --auth flag
     if '--auth' in args:
         from whoop_auth import WhoopAuth

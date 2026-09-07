@@ -99,7 +99,7 @@ jobs:
         if: steps.whoop_sync.outcome == 'failure' || steps.garmin_sync.outcome == 'failure'
         run: |
           if [ "${{ steps.whoop_sync.outcome }}" = "failure" ]; then
-            echo "::error::WHOOP sync falló — probablemente tokens expirados. Ejecuta: python whoop_sync.py --auth y actualiza el secret WHOOP_TOKENS_JSON"
+            echo "::error::WHOOP sync falló — revisa que el secret WHOOP_CLIENT_SECRET exista (si está vacío el refresh siempre da 401) y, si los tokens expiraron, ejecuta python whoop_sync.py --auth y actualiza el secret WHOOP_TOKENS_JSON"
           fi
           if [ "${{ steps.garmin_sync.outcome }}" = "failure" ]; then
             echo "::error::Garmin sync falló — revisa GARMIN_TOKENS_JSON o posible 429"
