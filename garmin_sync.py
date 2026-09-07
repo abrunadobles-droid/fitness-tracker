@@ -5,6 +5,8 @@ Uso:
     python3 garmin_sync.py              # Sincroniza mes actual
     python3 garmin_sync.py --all        # Sincroniza todos los meses del año
     python3 garmin_sync.py --month 1    # Sincroniza enero
+    python3 garmin_sync.py --runs --month 8   # Carreras de agosto con HR/pace de Garmin (comparar vs WHOOP)
+    python3 garmin_sync.py --runs             # Lo mismo para todos los meses del año
 
 Los datos se guardan en garmin_cache.json y el dashboard los lee de ahi.
 Requiere tokens en ~/.garmin_tokens/ o credenciales en variables de entorno.
@@ -106,6 +108,52 @@ def sync_month(garmin, year, month, cache):
     return cache
 
 
+def runs_report(garmin, year, month):
+    """Carreras del mes según Garmin (HR independiente de WHOOP) para comparar zonas.
+
+    Garmin mide con su propio sensor: si su HR promedio/máximo por carrera se mantiene
+    mientras el de WHOOP baja, el cambio es del algoritmo de WHOOP; si ambos bajan, es real.
+    """
+    from calendar import monthrange
+    start = datetime(year, month, 1)
+    end = datetime(year, month, monthrange(year, month)[1])
+    acts = garmin.get_activities(start, end) or []
+    runs = []
+    for a in acts:
+        t = (a.get('activityType') or {}).get('typeKey', '').lower()
+        d = (a.get('startTimeLocal') or '')[:10]
+        if 'run' in t and d.startswith(f"{year}-{month:02d}"):
+            runs.append(a)
+    runs.sort(key=lambda a: a.get('startTimeLocal', ''))
+    print(f"\n   Carreras {year}-{month:02d} según Garmin ({len(runs)} de {len(acts)} actividades):")
+    print(f"   {'fecha':11}{'tipo':14}{'min':>5}{'km':>7}{'pace':>7}{'HRavg':>7}{'HRmax':>7}{'cad':>5}{'m+':>6}")
+    print("   " + "-" * 69)
+    tot = {'min': 0, 'km': 0, 'hr': [], 'mx': []}
+    for a in runs:
+        mins = (a.get('duration') or 0) / 60
+        km = (a.get('distance') or 0) / 1000
+        pace = (mins / km) if km else 0
+        pace_txt = f"{int(pace)}:{int(round((pace % 1) * 60)):02d}" if pace else "-"
+        hr = a.get('averageHR') or 0
+        mx = a.get('maxHR') or 0
+        cad = a.get('averageRunningCadenceInStepsPerMinute') or 0
+        gain = a.get('elevationGain') or 0
+        print(f"   {a.get('startTimeLocal', '')[:10]:11}{(a.get('activityType') or {}).get('typeKey', '')[:13]:14}"
+              f"{mins:5.0f}{km:7.1f}{pace_txt:>7}{hr:7.0f}{mx:7.0f}{cad:5.0f}{gain:6.0f}")
+        tot['min'] += mins
+        tot['km'] += km
+        if hr:
+            tot['hr'].append(hr)
+        if mx:
+            tot['mx'].append(mx)
+    if runs:
+        print("   " + "-" * 69)
+        avg_hr = sum(tot['hr']) / len(tot['hr']) if tot['hr'] else 0
+        print(f"   TOTAL {tot['min']:.0f} min, {tot['km']:.1f} km | HR avg {avg_hr:.0f} | HR max pico {max(tot['mx']) if tot['mx'] else 0:.0f}"
+              f" | pace prom {tot['min'] / tot['km'] if tot['km'] else 0:.2f} min/km")
+    print("   Compara con: python whoop_sync.py --zones --month", month)
+
+
 def main():
     args = sys.argv[1:]
     now = datetime.now()
@@ -121,6 +169,14 @@ def main():
         print(f"Error conectando a Garmin: {e}")
         print("\nVerifica que tienes tokens en ~/.garmin_tokens/ o credenciales configuradas.")
         print("Para generar tokens, corre el dashboard localmente y logueate via Garmin.")
+        return
+
+    # Diagnóstico: carreras con HR/pace de Garmin, para contrastar zonas de WHOOP
+    if '--runs' in args:
+        year = int(args[args.index('--year') + 1]) if '--year' in args else now.year
+        months = [int(args[args.index('--month') + 1])] if '--month' in args else range(1, now.month + 1)
+        for month in months:
+            runs_report(garmin, year, month)
         return
 
     cache = load_cache()

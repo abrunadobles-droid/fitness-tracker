@@ -170,6 +170,20 @@ El browser NO está bloqueado — solo el login programático. Pasos:
   5. Perspectiva: 2025 entero estuvo en 0.4-2.6h/mes; abr-may 2026 fue el pico histórico del running, no agosto la anomalía. En 2024 la zona 4-5 (4-10h/mes) venía de Pádel/Paddle Tennis (52h en el año), no de running.
 - Dato: el export de WHOOP NO incluye Meditation/Sauna (ene: 33 workouts en el csv vs 66 en la API), pero las horas de zonas coinciden con el cache (±0.1h).
 
+- **Hipótesis de Antonio: el mensaje in-app "we recently improved heart rate accuracy".** Según búsqueda web (no pude leer los artículos, red bloqueada): WHOOP publicó una revisión mayor del algoritmo de HR en **febrero 2026** (running: mejor separación señal/ruido de movimiento, menos picos espurios) y otra el **6 de julio de 2026** (pesas, functional fitness, HIIT, ciclismo, golf). Fuentes: the5krunner.com/2026/02/28 y /2026/07/31, whoop.com/thelocker/improving-heart-rate-accuracy. La data histórica NO se recalcula.
+  - Evidencia en la data de Antonio: los picos de HR máx ≥195 (16 casos abr-2025 → 2-jun-2026, incluyendo 200 bpm en Weightlifting y 202 en Activity, claros artefactos) **desaparecen del todo después del 2 de junio de 2026**; el techo de HR máx en carrera bajó de 195-203 a 178-185. Las pesas NO bajaron de HR (subieron: HR máx prom 137 → 148 → 157 jun→ago→sep, consistente con el update de julio). Escalón de HR en carrera en la semana del 9 de junio.
+  - Pero el update NO explica agosto por sí solo: en julio (9, 11, 13) WHOOP siguió registrando 23-53% de zona 4 en carreras duras (HR prom 152-157). Agosto simplemente tiene carreras con HR prom 117-147 (ninguna dura).
+  - Conclusión: los 25% de zona 4 de abr-may probablemente estaban algo inflados por artefactos (cadence lock), y además desde junio corres más suave. Dos causas superpuestas; la proporción exacta no se puede sacar solo de WHOOP.
+- **Nuevo comando** `garmin_sync.py --runs [--month N] [--year Y]`: lista carreras según Garmin (min, km, pace, HR avg/max de su propio sensor, cadencia, desnivel). Es la prueba definitiva: comparar HR de Garmin vs WHOOP para las mismas carreras de mayo y agosto. Si Garmin también baja → real; si Garmin se mantiene y WHOOP baja → algoritmo.
+
+**Pendiente (Antonio, en la Mac):**
+```bash
+source .venv/bin/activate
+python garmin_sync.py --runs --month 5   # HR y pace reales de mayo
+python garmin_sync.py --runs --month 8   # HR y pace reales de agosto
+```
+Y en la app de WHOOP: Settings → Profile → ver el "Max HR" y si el update aparece con fecha en "What's New".
+
 **Pendiente (Antonio):** decidir si la meta de 2.9h/mes de zona 4-5 sigue vigente. Para cumplirla con 12 carreras/mes hacen falta ~15 min de zona 4 por carrera (1-2 sesiones de tempo/intervalos por semana, como el 5 y 12 de mayo). Opcional: `python whoop_sync.py --zones` reproduce este análisis desde la API.
 
 ---
