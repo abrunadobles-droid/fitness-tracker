@@ -195,6 +195,8 @@ python garmin_sync.py --runs --month 8   # HR y pace reales de agosto
 ```
 Y en la app de WHOOP: Settings → Profile → ver el "Max HR" y si el update aparece con fecha en "What's New".
 
+- **Cierre del tema (Antonio confirma):** "un poco de todo": ene-may las zonas 4-5 le parecían muy altas incluso en fondos (artefacto), y desde junio bajó el entrenamiento (viajes en julio, retomando fondos en agosto). Benchmark de longevidad: Attia = ~4h/sem de zona 2 (3 sesiones) + 1 sesión/sem de VO2max tipo 4x4 (≈16-20 min/sem en Z4-5 ≈ 1.2-1.5h/mes); Seiler 80/20 por sesiones. La meta de 2.9h/mes equivale a ~2 sesiones 4x4 por semana, más de lo que Attia pide; 1.5h/mes ya cumple. Semanal real de Antonio (WHOOP Z4-5 min/sem): ene-mar ~40, abr-may 67-79, jun 37, jul 20, ago 6, sep 18. Z2-3 h/sem: 1.6-3.2 (por debajo de las 3-4h de Attia).
+
 **Pendiente (Antonio):** decidir si la meta de 2.9h/mes de zona 4-5 sigue vigente. Para cumplirla con 12 carreras/mes hacen falta ~15 min de zona 4 por carrera (1-2 sesiones de tempo/intervalos por semana, como el 5 y 12 de mayo). Opcional: `python whoop_sync.py --zones` reproduce este análisis desde la API.
 
 ---
