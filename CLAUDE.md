@@ -173,13 +173,15 @@ El browser NO está bloqueado — solo el login programático. Pasos:
 - **Nuevo comando de diagnóstico** en `whoop_sync.py`: `--zones` (tabla por mes con z1-3, z4-5, HR máx promedio/pico de los workouts y top deportes por zona 4-5, más totales por deporte del año) y `--zones --month N` (detalle workout por workout). Imprime el `max_heart_rate` del perfil de WHOOP (`user/measurement/body`), porque las zonas son % de ese valor (Z4 = 80-90%, Z5 = 90-100%): si cambió, el mismo esfuerzo cae en otra zona.
 - Hipótesis a verificar con `--zones`: (a) menos cardio intenso / más fuerza-sauna-meditación desde junio; (b) WHOOP subió el HR máximo del perfil (los workouts siguen llegando a ~170+ bpm pero ya no cuentan como Z4); (c) cardio a menor intensidad (HR máx pico mensual baja junto con las zonas).
 
-**Pendiente (Antonio, en la Mac):**
-```bash
-source .venv/bin/activate
-python whoop_sync.py --zones             # resumen anual por mes y deporte
-python whoop_sync.py --zones --month 5   # mayo (pico) workout por workout
-python whoop_sync.py --zones --month 8   # agosto (mínimo) workout por workout
-```
+- **Análisis del export oficial de WHOOP** (zip con `workouts.csv`, `physiological_cycles.csv`, `sleeps.csv`, `journal_entries.csv`, ene-2024 → sep-2026; NO se commitea, es data personal). Conclusiones:
+  1. **El umbral de zonas NO cambió**: en todos los meses la zona 4 arranca en ~170 bpm (HR máx de perfil ≈ 212-214). Descartada la hipótesis (b).
+  2. **Toda la zona 4-5 de 2026 viene del running** (Running + Trail Running). Weightlifting, Activity, Walking, etc. aportan ~0.
+  3. **Corres igual de seguido (11-12/mes) pero a menor intensidad**: HR promedio en carrera 151 (may) → 143 (jun) → 136 (ago); % del tiempo de carrera en zona 4: 25% (abr-may) → 15% (jun) → 2% (ago). Abr-may tuvo 3-4 carreras ≥150 min y tempos con 50-77% en zona 4; agosto tiene 3 carreras ≥150 min pero todas en zona 1-2.
+  4. No parece "mejor fitness a igual ritmo": desde mayo el RHR subió (47.5 → 52-54) y el HRV bajó (103 → 63-76), Day Strain bajó (13 → 10.5). Cambios concurrentes en el journal: dejó la creatina (30/30 jun → 0 jul-ago), 10 días de viaje en julio, cafeína casi cero en julio, niño en el cuarto 25/31 en agosto. No hay pace en el export ni en el cache de Garmin para confirmar ritmo.
+  5. Perspectiva: 2025 entero estuvo en 0.4-2.6h/mes; abr-may 2026 fue el pico histórico del running, no agosto la anomalía. En 2024 la zona 4-5 (4-10h/mes) venía de Pádel/Paddle Tennis (52h en el año), no de running.
+- Dato: el export de WHOOP NO incluye Meditation/Sauna (ene: 33 workouts en el csv vs 66 en la API), pero las horas de zonas coinciden con el cache (±0.1h).
+
+**Pendiente (Antonio):** decidir si la meta de 2.9h/mes de zona 4-5 sigue vigente. Para cumplirla con 12 carreras/mes hacen falta ~15 min de zona 4 por carrera (1-2 sesiones de tempo/intervalos por semana, como el 5 y 12 de mayo). Opcional: `python whoop_sync.py --zones` reproduce este análisis desde la API.
 
 ---
 
