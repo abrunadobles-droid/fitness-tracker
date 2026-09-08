@@ -222,21 +222,24 @@ Y en la app de WHOOP: Settings → Profile → ver el "Max HR" y si el update ap
 - Tocado: `whoop_auth.py` (refresh lanza error claro si client_secret vacío), `whoop_sync.py` (sale con exit 1 y mensaje si `WHOOP_CLIENT_SECRET` vacío, antes de tocar la API), `.github/workflows/whoop-sync.yml` (mensaje `::error::` menciona el secret).
 - Dato: `GH_PAT` sigue funcionando (el step "Save updated Garmin tokens" hace `gh secret set` OK a diario).
 
-**Pendiente (Antonio, en la Mac) — en este orden:**
+**Update 2026-09-08:** Antonio creó `WHOOP_CLIENT_SECRET`, re-autorizó y resincronizó (cache al día hasta sep). El run manual del 07-sep pasó (token fresco, sin refresh). Pero el cron del 08-sep (17:02 UTC) **volvió a dar 401 en el refresh** con el secret ya presente (`***` en el log). O sea: el secret vacío era necesario pero no suficiente. Hipótesis: (a) el valor pegado en `WHOOP_CLIENT_SECRET`/`WHOOP_CLIENT_ID` no coincide con el de `secrets.toml` (Hydra devuelve 401 = invalid_client; 400 = invalid_grant), o (b) el refresh token del secret ya fue consumido por un refresh local posterior. Nota: en todo el historial del repo el refresh en CI NUNCA ha funcionado (cada re-auth "duraba un día").
+- Cambios: `whoop_auth.py` refresh ahora manda `scope=offline` (como la doc de WHOOP) y el error incluye el **cuerpo de la respuesta** de WHOOP (invalid_client vs invalid_grant). `whoop_sync.py --refresh` fuerza un refresh local, imprime el error real, guarda tokens rotados y recuerda subir el secret.
+
+**Pendiente (Antonio, en la Mac):**
 ```bash
-source .venv/bin/activate
-# 1. Crear el secret que falta (valor en .streamlit/secrets.toml → [whoop] client_secret)
-gh secret set WHOOP_CLIENT_SECRET --body "PEGAR_CLIENT_SECRET_AQUI"
-# 2. Re-autorizar WHOOP y resincronizar
-python whoop_sync.py --auth
-python whoop_sync.py --all
-# 3. Subir tokens DESPUÉS del --all (el sync puede rotar el refresh token)
+cd ~/fitness-tracker && source .venv/bin/activate && git pull origin main
+# 1. Probar el refresh localmente con las credenciales de secrets.toml
+python whoop_sync.py --refresh
+#    - Si dice invalid_grant → python whoop_sync.py --auth y repetir --refresh
+#    - Si dice invalid_client → client_id/secret de secrets.toml no son los de la app; revisar en developer.whoop.com
+# 2. Subir client_id y secret a GitHub SIN pegar a mano (evita errores de copia)
+python -c "import config; print(config.WHOOP_CLIENT_ID, end='')" | gh secret set WHOOP_CLIENT_ID
+python -c "import config; print(config.WHOOP_CLIENT_SECRET, end='')" | gh secret set WHOOP_CLIENT_SECRET
+# 3. Subir los tokens (el --refresh los rotó)
 gh secret set WHOOP_TOKENS_JSON --body "$(cat whoop_tokens.json)"
-git add whoop_cache.json && git commit -m "Resync WHOOP" && git push
-# 4. Verificar: correr el workflow a mano dos veces con >1h de diferencia (la 2da fuerza refresh)
+# 4. Probar el cron: correr, esperar >1h, correr otra vez (la 2da fuerza refresh en CI)
 gh workflow run whoop-sync.yml
 ```
-El paso 4 es la prueba real: si el segundo run pasa, el refresh con client_secret funciona y el cron queda estable.
 
 ---
 

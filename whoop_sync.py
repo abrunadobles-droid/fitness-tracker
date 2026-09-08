@@ -6,6 +6,7 @@ Uso:
     python whoop_sync.py --all        # Sincroniza todos los meses del año
     python whoop_sync.py --month 1    # Sincroniza enero
     python whoop_sync.py --auth       # Re-autorizar (obtener nuevos tokens)
+    python whoop_sync.py --refresh    # Prueba el refresh del token (diagnóstico del cron)
     python whoop_sync.py --sports     # Lista los sport_name de tus workouts del año
     python whoop_sync.py --zones      # Diagnóstico HR zones: por mes y deporte (todo el año)
     python whoop_sync.py --zones --month 8   # Detalle workout por workout de agosto
@@ -244,6 +245,30 @@ def main():
         auth = WhoopAuth()
         auth.authorize()
         print("\nTokens guardados. Ahora puedes sincronizar con: python whoop_sync.py")
+        return
+
+    # --refresh: fuerza un refresh del token para diagnosticar el cron.
+    # Usa las credenciales locales (secrets.toml) y muestra la respuesta
+    # exacta de WHOOP si falla. Si funciona, rota el refresh token y hay
+    # que volver a subir el secret WHOOP_TOKENS_JSON.
+    if '--refresh' in args:
+        from whoop_auth import WhoopAuth
+        auth = WhoopAuth()
+        if not auth.tokens or 'refresh_token' not in auth.tokens:
+            print("❌ No hay refresh token en whoop_tokens.json. Ejecuta: python whoop_sync.py --auth")
+            sys.exit(1)
+        print(f"   client_id: {config.WHOOP_CLIENT_ID[:8]}... ({len(config.WHOOP_CLIENT_ID)} chars)")
+        print(f"   client_secret: {len(config.WHOOP_CLIENT_SECRET)} chars")
+        try:
+            auth.refresh_access_token()
+        except Exception as e:
+            print(f"❌ Refresh falló: {e}")
+            print("   invalid_client → client_id/client_secret incorrectos")
+            print("   invalid_grant  → refresh token ya usado o revocado (re-auth con --auth)")
+            sys.exit(1)
+        print("✅ Refresh OK. Tokens nuevos guardados en whoop_tokens.json")
+        print("   Ahora sube el secret (el refresh token rotó):")
+        print('   gh secret set WHOOP_TOKENS_JSON --body "$(cat whoop_tokens.json)"')
         return
 
     # Initialize WHOOP client

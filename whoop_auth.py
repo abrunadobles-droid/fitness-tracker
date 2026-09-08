@@ -142,11 +142,20 @@ class WhoopAuth:
             'grant_type': 'refresh_token',
             'refresh_token': self.tokens['refresh_token'],
             'client_id': self.client_id,
-            'client_secret': self.client_secret
+            'client_secret': self.client_secret,
+            # La doc de WHOOP incluye scope=offline en el refresh para que
+            # devuelva también un refresh token nuevo.
+            'scope': 'offline',
         }
         
         response = requests.post(url, headers=headers, data=data)
-        response.raise_for_status()
+        if response.status_code >= 400:
+            # El cuerpo dice la causa real: invalid_client = client_id/secret
+            # incorrectos; invalid_grant = refresh token ya usado/revocado.
+            raise Exception(
+                f"WHOOP refresh fallo con HTTP {response.status_code}: "
+                f"{response.text[:300]}"
+            )
         
         new_tokens = response.json()
         self._save_tokens(new_tokens)
