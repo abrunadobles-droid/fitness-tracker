@@ -2,7 +2,7 @@
   "2026-01": {
     "year": 2026,
     "month": 1,
-    "synced_at": "2026-09-15T17:27:50.694756",
+    "synced_at": "2026-09-16T17:27:04.643379",
     "steps_avg": 11458,
     "activities": 31,
     "strength": 13,
@@ -11,7 +11,7 @@
   "2026-02": {
     "year": 2026,
     "month": 2,
-    "synced_at": "2026-09-15T17:27:57.224919",
+    "synced_at": "2026-09-16T17:27:10.909449",
     "steps_avg": 11288,
     "activities": 27,
     "strength": 14,
@@ -20,7 +20,7 @@
   "2026-03": {
     "year": 2026,
     "month": 3,
-    "synced_at": "2026-09-15T17:28:10.644992",
+    "synced_at": "2026-09-16T17:27:16.881134",
     "steps_avg": 12115,
     "activities": 28,
     "strength": 14,
@@ -29,7 +29,7 @@
   "2026-04": {
     "year": 2026,
     "month": 4,
-    "synced_at": "2026-09-15T17:28:18.894613",
+    "synced_at": "2026-09-16T17:27:22.993152",
     "steps_avg": 12785,
     "activities": 28,
     "strength": 12,
@@ -38,7 +38,7 @@
   "2026-05": {
     "year": 2026,
     "month": 5,
-    "synced_at": "2026-09-15T17:28:26.145812",
+    "synced_at": "2026-09-16T17:27:28.485935",
     "steps_avg": 13277,
     "activities": 23,
     "strength": 10,
@@ -47,7 +47,7 @@
   "2026-06": {
     "year": 2026,
     "month": 6,
-    "synced_at": "2026-09-15T17:28:37.299753",
+    "synced_at": "2026-09-16T17:27:34.255519",
     "steps_avg": 11817,
     "activities": 26,
     "strength": 13,
@@ -56,7 +56,7 @@
   "2026-07": {
     "year": 2026,
     "month": 7,
-    "synced_at": "2026-09-15T17:28:45.590019",
+    "synced_at": "2026-09-16T17:27:39.639393",
     "steps_avg": 10412,
     "activities": 18,
     "strength": 7,
@@ -65,7 +65,7 @@
   "2026-08": {
     "year": 2026,
     "month": 8,
-    "synced_at": "2026-09-15T17:29:00.056518",
+    "synced_at": "2026-09-16T17:27:45.379553",
     "steps_avg": 10698,
     "activities": 24,
     "strength": 12,
@@ -74,10 +74,10 @@
   "2026-09": {
     "year": 2026,
     "month": 9,
-    "synced_at": "2026-09-15T17:29:05.407936",
-    "steps_avg": 10793,
-    "activities": 10,
-    "strength": 5,
-    "days_with_data": 15
+    "synced_at": "2026-09-16T17:27:48.392936",
+    "steps_avg": 10751,
+    "activities": 11,
+    "strength": 6,
+    "days_with_data": 16
   }
 }
